@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary: #FF4C00;
+    --primary-hover: #E04300;
+    --dark: #1A1A1A;
+    --light: #FAF7F2;
+    --accent: #22C55E;
+    --yellow: #FACC15;
+  }
+
+  body {
+    background-color: var(--light);
+    color: var(--dark);
+    font-family: 'Poppins', sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: 'Poppins', sans-serif;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+  }
+
+  .font-serif-custom {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-style: italic;
+  }
+}
+
+/* Smooth transitions & clean styling */
+html {
+  scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #FAF7F2;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E5E0D8;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FF4C00;
+}

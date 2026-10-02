@@ -1,0 +1,6 @@
+{
+  "name": "11 to 12 - Lagos Office Food Subscription",
+  "description": "High-conversion food subscription marketing funnel, custom plan builder, subscriber experience, and kitchen administration system for Lagos office professionals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
