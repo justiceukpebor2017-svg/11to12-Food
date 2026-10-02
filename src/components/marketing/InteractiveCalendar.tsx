@@ -2,20 +2,23 @@ import React, { useState } from 'react';
 import { MenuItem } from '../../types';
 import { getStructuredMealForDate } from '../../data/menuRotation';
 import { ChevronLeft, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { LAUNCH_CONFIG, isDateBeforeLaunch } from '../../config/launchConfig';
 
 interface InteractiveCalendarProps {
   menuItems?: MenuItem[];
 }
 
 export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
-  // Anchored to October 2026 (Month 1 of the 6-month cycle)
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(9); // 9 is October
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2026, 9, 5)); // Monday, October 5, 2026
+  // Anchored to official launch date (November 2, 2026)
+  const [currentYear, setCurrentYear] = useState(LAUNCH_CONFIG.year);
+  const [currentMonth, setCurrentMonth] = useState(LAUNCH_CONFIG.monthIndex);
+  const [selectedDate, setSelectedDate] = useState<Date>(
+    new Date(LAUNCH_CONFIG.year, LAUNCH_CONFIG.monthIndex, LAUNCH_CONFIG.day)
+  );
 
   const selectedMeal = getStructuredMealForDate(selectedDate) || {
     id: 'default',
-    dateStr: '2026-10-05',
+    dateStr: LAUNCH_CONFIG.dateString,
     day: 'Monday' as const,
     mealName: 'Jollof Rice + Grilled Chicken',
     mealCategory: 'Rice' as const,
@@ -54,7 +57,6 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
     }
   };
 
-  // Monday to Sunday worldwide calendar: Monday = 0, ..., Sunday = 6
   const firstDayIndex = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7;
   const totalDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const prevMonthDays = new Date(currentYear, currentMonth, 0).getDate();
@@ -64,6 +66,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
     isCurrentMonth: boolean;
     date: Date;
     isWeekend: boolean;
+    isBeforeLaunch: boolean;
     isSelected: boolean;
     mealName?: string;
   }[] = [];
@@ -77,6 +80,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
       isCurrentMonth: false,
       date,
       isWeekend,
+      isBeforeLaunch: isDateBeforeLaunch(date),
       isSelected: false,
     });
   }
@@ -88,6 +92,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
       selectedDate.getMonth() === currentMonth &&
       selectedDate.getDate() === d;
     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+    const isBeforeLaunch = isDateBeforeLaunch(date);
     const m = isWeekend ? null : getStructuredMealForDate(date);
 
     calendarCells.push({
@@ -95,13 +100,13 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
       isCurrentMonth: true,
       date,
       isWeekend,
+      isBeforeLaunch,
       isSelected,
       mealName: m ? m.mealName : undefined,
     });
   }
 
-  const totalCellsNeeded = calendarCells.length <= 35 ? 35 : 42;
-  const remainingCells = totalCellsNeeded - calendarCells.length;
+  const remainingCells = 35 - calendarCells.length > 0 ? 35 - calendarCells.length : 42 - calendarCells.length;
   for (let d = 1; d <= remainingCells; d++) {
     const date = new Date(currentYear, currentMonth + 1, d);
     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
@@ -110,9 +115,14 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
       isCurrentMonth: false,
       date,
       isWeekend,
+      isBeforeLaunch: isDateBeforeLaunch(date),
       isSelected: false,
     });
   }
+
+  const isCurrentMonthPreLaunch =
+    currentYear < LAUNCH_CONFIG.year ||
+    (currentYear === LAUNCH_CONFIG.year && currentMonth < LAUNCH_CONFIG.monthIndex);
 
   return (
     <section id="menu" className="py-20 bg-white">
@@ -156,21 +166,31 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
               </div>
             </div>
 
-            {/* Days of week - Monday to Sunday Worldwide Standard */}
+            {/* Pre-launch alert banner if navigating back into past months */}
+            {isCurrentMonthPreLaunch && (
+              <div className="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 text-[#FF4C00] shrink-0" />
+                <span>
+                  Pre-launch period. Deliveries begin <strong>{LAUNCH_CONFIG.displayDate}</strong>. All previous dates are locked.
+                </span>
+              </div>
+            )}
+
+            {/* Days of week (Monday to Sunday Worldwide) */}
             <div className="grid grid-cols-7 text-center text-xs font-semibold text-zinc-400 mb-2">
               <div>Mo</div>
               <div>Tu</div>
               <div>We</div>
               <div>Th</div>
               <div>Fr</div>
-              <div className="text-zinc-400 font-normal">Sa</div>
-              <div className="text-zinc-400 font-normal">Su</div>
+              <div className="text-zinc-400/80">Sa</div>
+              <div className="text-zinc-400/80">Su</div>
             </div>
 
             {/* Date cells */}
             <div className="grid grid-cols-7 gap-2">
               {calendarCells.map((cell, idx) => {
-                const disabled = !cell.isCurrentMonth || cell.isWeekend;
+                const disabled = !cell.isCurrentMonth || cell.isWeekend || cell.isBeforeLaunch;
                 return (
                   <button
                     key={idx}
@@ -181,13 +201,12 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
                     className={`h-11 sm:h-12 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition-all ${
                       cell.isSelected
                         ? 'bg-[#FF4C00] text-white shadow-sm scale-105'
+                        : cell.isBeforeLaunch
+                        ? 'text-zinc-300/60 bg-zinc-100/40 opacity-30 cursor-not-allowed select-none'
                         : disabled
-                        ? cell.isWeekend
-                          ? 'text-zinc-300 bg-zinc-100/50 cursor-not-allowed border border-dashed border-zinc-200'
-                          : 'text-zinc-300 bg-transparent cursor-not-allowed'
+                        ? 'text-zinc-300 bg-transparent cursor-not-allowed'
                         : 'bg-white text-zinc-700 hover:border-zinc-300 border border-zinc-200 cursor-pointer'
                     }`}
-                    title={cell.isWeekend ? 'Kitchen closed on weekends (Weekdays only)' : undefined}
                   >
                     <span>{cell.dayNumber}</span>
                   </button>
@@ -196,7 +215,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
             </div>
 
             <div className="mt-6 pt-4 border-t border-zinc-200 text-xs text-zinc-500 flex items-center justify-between">
-              <span>Weekends strictly closed (No meals on Saturday & Sunday)</span>
+              <span>Weekends reserved for kitchen prep</span>
               <a href="#pricing" className="text-[#FF4C00] font-semibold hover:underline">
                 Build your plan →
               </a>
@@ -214,12 +233,12 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
               </span>
             </div>
 
-            {/* Meal Title */}
+            {/* Meal Title - ONLY Meal Title, no description */}
             <h3 className="text-xl sm:text-2xl font-bold text-black leading-snug">
               {selectedMeal.mealName}
             </h3>
 
-            {/* Swallow Options if applicable */}
+            {/* Friday Swallow Options if applicable */}
             {selectedMeal.swallowOptions && (
               <div className="mt-3 flex items-center space-x-2 text-xs">
                 <span className="font-semibold text-zinc-700">Swallow Options:</span>
@@ -227,20 +246,22 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
               </div>
             )}
 
-            {/* What's In It */}
-            <div className="mt-6 pt-5 border-t border-zinc-200/80">
-              <div className="text-xs font-bold text-black uppercase tracking-wide mb-3">
-                What's In It
+            {/* What's In It - Displayed ONLY if admin added ingredients */}
+            {selectedMeal.ingredients && selectedMeal.ingredients.length > 0 && (
+              <div className="mt-6 pt-5 border-t border-zinc-200/80">
+                <div className="text-xs font-bold text-black uppercase tracking-wide mb-3">
+                  What's In It
+                </div>
+                <ul className="text-xs text-zinc-700 space-y-2">
+                  {selectedMeal.ingredients.map((item, i) => (
+                    <li key={i} className="flex items-center space-x-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF4C00] shrink-0" />
+                      <span className="font-medium">{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="text-xs text-zinc-700 space-y-2">
-                {(selectedMeal.ingredients || [selectedMeal.baseIngredient, selectedMeal.protein]).filter(Boolean).map((item, i) => (
-                  <li key={i} className="flex items-center space-x-2.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#FF4C00] shrink-0" />
-                    <span className="font-medium">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            )}
 
             {/* CTA to Plan Builder */}
             <div className="mt-8 pt-4">

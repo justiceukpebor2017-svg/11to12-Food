@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { OrderSubmission, UserProfile, MenuItem, TimeWindow, CustomerRecord, SelectedLunchDay, calculateOrderSummary } from '../../types';
 import { CustomerMealCalendarPicker } from './CustomerMealCalendarPicker';
+import { generateMagicLinkUrl } from '../../utils/magicLink';
 
 interface CustomersManagerProps {
   submittedOrders: OrderSubmission[];
@@ -206,7 +207,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
 
     const newId = `cust-${Date.now()}`;
     const token = `mag_${Math.random().toString(36).substring(2, 12)}`;
-    const magicUrl = `https://11to12.food/activate?token=${token}&email=${encodeURIComponent(custEmail.trim())}`;
+    const magicUrl = generateMagicLinkUrl(token, custEmail.trim());
     
     const summary = calculateOrderSummary(custSelectedDays);
     const totalDays = custSelectedDays.length > 0 ? custSelectedDays.length : 20;
@@ -258,7 +259,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
 
   const handleGenerateMagicLinkForExisting = (customer: CustomerRecord) => {
     const token = customer.magicLinkToken || `mag_${Math.random().toString(36).substring(2, 12)}`;
-    const magicUrl = customer.magicLinkUrl || `https://11to12.food/activate?token=${token}&email=${encodeURIComponent(customer.email)}`;
+    const magicUrl = generateMagicLinkUrl(token, customer.email);
     setMagicLinkNotice({
       customer,
       url: magicUrl,
@@ -687,6 +688,16 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                     </div>
                   )}
 
+                  {/* Section Title matching homepage and everywhere */}
+                  <div className="border-b border-zinc-200 pb-2">
+                    <span className="text-xs font-bold text-black uppercase tracking-wider block">
+                      Your Contact & Desk Drop Details
+                    </span>
+                    <span className="text-[11px] text-zinc-500">
+                      Standard corporate customer details matching homepage and subscriber dashboard
+                    </span>
+                  </div>
+
                   {/* Customer Identity Fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -694,7 +705,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                       <input
                         type="text"
                         required
-                        placeholder="e.g. Nonso Babatunde"
+                        placeholder="Full Name"
                         value={custFullName}
                         onChange={(e) => setCustFullName(e.target.value)}
                         className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-black focus:outline-hidden focus:border-[#FF4C00]"
@@ -702,11 +713,11 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                     </div>
 
                     <div>
-                      <label className="font-bold text-zinc-800 block mb-1">Work Email Address *</label>
+                      <label className="font-bold text-zinc-800 block mb-1">Email Address *</label>
                       <input
                         type="email"
                         required
-                        placeholder="nonso@paystack.com"
+                        placeholder="Email Address"
                         value={custEmail}
                         onChange={(e) => setCustEmail(e.target.value)}
                         className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-black focus:outline-hidden focus:border-[#FF4C00]"
@@ -716,11 +727,11 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="font-bold text-zinc-800 block mb-1">Phone / WhatsApp Number *</label>
+                      <label className="font-bold text-zinc-800 block mb-1">Phone Number *</label>
                       <input
                         type="tel"
                         required
-                        placeholder="+234 803 123 4567"
+                        placeholder="Phone Number"
                         value={custPhone}
                         onChange={(e) => setCustPhone(e.target.value)}
                         className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-black focus:outline-hidden focus:border-[#FF4C00]"
@@ -728,11 +739,11 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                     </div>
 
                     <div>
-                      <label className="font-bold text-zinc-800 block mb-1">Company / Organization *</label>
+                      <label className="font-bold text-zinc-800 block mb-1">Workplace / Building *</label>
                       <input
                         type="text"
                         required
-                        placeholder="e.g. Paystack HQ, Stripe, Stanbic"
+                        placeholder="Workplace / Office Building"
                         value={custCompany}
                         onChange={(e) => setCustCompany(e.target.value)}
                         className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-black focus:outline-hidden focus:border-[#FF4C00]"
@@ -740,46 +751,19 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="font-bold text-zinc-800 block mb-1">Office Building / Street Address *</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Landmark Towers, Water Corporation Dr"
-                        value={custOfficeAddress}
-                        onChange={(e) => setCustOfficeAddress(e.target.value)}
-                        className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-black focus:outline-hidden focus:border-[#FF4C00]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-zinc-800 block mb-1">Floor & Suite / Desk Details *</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Floor 4, Suite 402, Engineering Bay"
-                        value={custFloorSuite}
-                        onChange={(e) => setCustFloorSuite(e.target.value)}
-                        className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-black focus:outline-hidden focus:border-[#FF4C00]"
-                      />
-                    </div>
+                  <div>
+                    <label className="font-bold text-zinc-800 block mb-1">Delivery Address & Floor *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Floor & Suite / Delivery Details"
+                      value={custOfficeAddress}
+                      onChange={(e) => setCustOfficeAddress(e.target.value)}
+                      className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-black focus:outline-hidden focus:border-[#FF4C00]"
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="font-bold text-zinc-800 block mb-1">Delivery Area / Zone</label>
-                      <select
-                        value={custLocation}
-                        onChange={(e) => setCustLocation(e.target.value)}
-                        className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-black focus:outline-hidden focus:border-[#FF4C00]"
-                      >
-                        <option value="Victoria Island">Victoria Island</option>
-                        <option value="Ikoyi">Ikoyi</option>
-                        <option value="Lekki Phase 1">Lekki Phase 1</option>
-                      </select>
-                    </div>
-
                     <div>
                       <label className="font-bold text-zinc-800 block mb-1">Payment Status</label>
                       <select
@@ -791,17 +775,17 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                         <option value="Pending Verification">Pending Verification</option>
                       </select>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="font-bold text-zinc-800 block mb-1">Dietary Preferences / Allergy Notes</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. No beef, extra hot sauce, no coleslaw dressing"
-                      value={custNotes}
-                      onChange={(e) => setCustNotes(e.target.value)}
-                      className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-medium text-black focus:outline-hidden focus:border-[#FF4C00]"
-                    />
+                    <div>
+                      <label className="font-bold text-zinc-800 block mb-1">Dietary Preferences / Allergy Notes</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. No beef, extra hot sauce"
+                        value={custNotes}
+                        onChange={(e) => setCustNotes(e.target.value)}
+                        className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-medium text-black focus:outline-hidden focus:border-[#FF4C00]"
+                      />
+                    </div>
                   </div>
 
                   <div className="pt-2 flex justify-end">
@@ -990,16 +974,17 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                 <span>Send Email</span>
               </a>
 
-              {/* TEST ONBOARDING / OPEN AS USER BUTTON */}
-              <button
-                type="button"
-                onClick={() => handleLaunchSetPasswordFlow(magicLinkNotice.customer)}
+              {/* Direct Open Activation Page Button */}
+              <a
+                href={magicLinkNotice.url}
+                target="_blank"
+                rel="noreferrer"
                 className="flex-1 py-2.5 rounded-xl bg-[#FF4C00] hover:bg-[#E04300] text-white font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-1.5 transition shadow-sm cursor-pointer"
-                title="Test the complete customer onboarding flow"
+                title="Open user's personalized activation portal"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>🚀 Test User Flow</span>
-              </button>
+                <ExternalLink className="w-4 h-4" />
+                <span>Open Activation Page</span>
+              </a>
 
             </div>
 

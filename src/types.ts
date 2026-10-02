@@ -1,6 +1,6 @@
 export type DayOfWeek = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat';
 
-export type ViewMode = 'marketing' | 'subscriber' | 'admin';
+export type ViewMode = 'marketing' | 'subscriber' | 'admin' | 'activate';
 
 export type MealCategory =
   | 'Rice'
@@ -42,15 +42,6 @@ export interface SelectedLunchDay {
   dateStr: string;
   meal: StructuredMeal;
   selectedSwallow?: SwallowType;
-}
-
-// Safely parse "YYYY-MM-DD" into a local Date without UTC timezone drift worldwide
-export function parseLocalDate(dateStr: string): Date {
-  const parts = dateStr.split('-');
-  const y = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10) - 1;
-  const d = parseInt(parts[2], 10);
-  return new Date(y, m, d);
 }
 
 // Official Settlement Bank Details

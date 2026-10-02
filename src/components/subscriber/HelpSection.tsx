@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HelpCircle, MessageCircle, Phone, Mail, Clock, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { CONTACT_CONFIG } from '../../config/contactConfig';
 
 export const HelpSection: React.FC = () => {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
@@ -42,7 +43,9 @@ export const HelpSection: React.FC = () => {
 
         {/* WhatsApp Direct Concierge */}
         <a
-          href="https://wa.me/2348031234567?text=Hello%2011to12%20Team%2C%20I%20have%20a%20question%20about%20my%20desk%20drop%20lunch"
+          href={`https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
+            'Hello 11to12 Team, I have a question about my desk drop lunch'
+          )}`}
           target="_blank"
           rel="noopener noreferrer"
           className="px-6 py-3 rounded-full bg-[#25D366] hover:bg-[#1EBE5D] text-white text-xs font-bold uppercase tracking-wider flex items-center space-x-2 transition cursor-pointer shadow-md self-start md:self-auto"
@@ -63,7 +66,7 @@ export const HelpSection: React.FC = () => {
           <p className="text-xs text-zinc-500">
             For urgent rider or desk drop access questions between 10:30 AM – 12:30 PM.
           </p>
-          <span className="text-xs font-bold text-black block pt-1">+234 803 123 4567</span>
+          <span className="text-xs font-bold text-black block pt-1">{CONTACT_CONFIG.whatsappDisplay}</span>
         </div>
 
         <div className="p-5 rounded-3xl bg-white border border-zinc-200 shadow-xs space-y-2">

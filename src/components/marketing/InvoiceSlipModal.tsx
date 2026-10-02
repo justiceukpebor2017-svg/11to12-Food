@@ -2,6 +2,7 @@ import React from 'react';
 import { SelectedLunchDay, OrderSubmission } from '../../types';
 import { X, Printer, Copy, Check, MessageSquare, Download } from 'lucide-react';
 import { downloadInvoiceDocument } from '../../utils/invoiceDownload';
+import { CONTACT_CONFIG } from '../../config/contactConfig';
 
 interface InvoiceSlipModalProps {
   isOpen: boolean;
@@ -235,7 +236,7 @@ Bank Details: Flutterwave MFB (Formerly OK MFB) | 9838242145 | 11 TO 12 FOODS LT
             <div className="text-xs text-zinc-500 space-y-1 max-w-xs">
               <p className="font-semibold text-black">Proof Instructions:</p>
               <p>
-                Send this invoice slip + bank transfer receipt to WhatsApp <strong className="text-zinc-800">+234 803 123 4567</strong> or email <strong className="text-zinc-800">justiceukpebor2017@gmail.com</strong>.
+                Send this invoice slip + bank transfer receipt to WhatsApp <strong className="text-zinc-800">{CONTACT_CONFIG.whatsappDisplay}</strong> or email <strong className="text-zinc-800">{CONTACT_CONFIG.supportEmail}</strong>.
               </p>
             </div>
 
@@ -264,7 +265,7 @@ Bank Details: Flutterwave MFB (Formerly OK MFB) | 9838242145 | 11 TO 12 FOODS LT
           {/* Bottom WhatsApp Confirmation CTA (Hidden in Print) */}
           <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-end print:hidden">
             <a
-              href={`https://wa.me/2348031234567?text=${encodeURIComponent(
+              href={`https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
                 `Hello 11 to 12! Here is my official order invoice (${order.id}) for ${order.totalDays} lunch days (₦${order.finalTotalNGN.toLocaleString()}). I have made the bank transfer. Attached is my payment proof:`
               )}`}
               target="_blank"

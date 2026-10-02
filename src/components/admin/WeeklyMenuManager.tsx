@@ -19,7 +19,7 @@ import {
   getStructuredMealForDate,
   updateCustomMealForDate,
 } from '../../data/menuRotation';
-import { StructuredMeal } from '../../types';
+import { StructuredMeal, calculateMealPrice, PER_DAY_FEE } from '../../types';
 
 export const WeeklyMenuManager: React.FC = () => {
   // Current simulated calendar date (Sept 21, 2026)
@@ -32,6 +32,7 @@ export const WeeklyMenuManager: React.FC = () => {
   
   // Edit form state
   const [editMealName, setEditMealName] = useState<string>('');
+  const [editMealPrice, setEditMealPrice] = useState<number>(2900);
   const [editIngredients, setEditIngredients] = useState<string[]>([]);
   const [newIngredientInput, setNewIngredientInput] = useState<string>('');
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
@@ -74,6 +75,7 @@ export const WeeklyMenuManager: React.FC = () => {
     if (!meal) return;
     setEditingDateStr(dateStr);
     setEditMealName(meal.mealName);
+    setEditMealPrice(calculateMealPrice(meal));
     setEditIngredients(meal.ingredients ? [...meal.ingredients] : [meal.baseIngredient || '', meal.protein || ''].filter(Boolean));
     setNewIngredientInput('');
   };
@@ -88,17 +90,24 @@ export const WeeklyMenuManager: React.FC = () => {
     setEditIngredients((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleClearAllIngredients = () => {
+    setEditIngredients([]);
+  };
+
   const handleSaveMeal = (originalMeal: StructuredMeal, dateStr: string) => {
+    const parsedPrice = Number(editMealPrice) > 0 ? Number(editMealPrice) : calculateMealPrice(originalMeal);
     const updatedMeal: StructuredMeal = {
       ...originalMeal,
       mealName: editMealName.trim() || originalMeal.mealName,
-      ingredients: editIngredients.length > 0 ? editIngredients : originalMeal.ingredients,
+      // If admin modified ingredients (even if cleared to []), use editIngredients directly so empty is respected
+      ingredients: editIngredients,
+      price: parsedPrice,
     };
 
     updateCustomMealForDate(dateStr, updatedMeal);
     setEditingDateStr(null);
     setRefreshKey((k) => k + 1); // trigger re-render
-    setSyncNotice(`Updated ${originalMeal.day} meal! Live homepage calendar is now synchronized.`);
+    setSyncNotice(`Updated ${originalMeal.day} meal (₦${parsedPrice.toLocaleString()} + ₦${PER_DAY_FEE} add-on)! Live calculator and menu synced.`);
     setTimeout(() => setSyncNotice(null), 4000);
   };
 
@@ -235,26 +244,60 @@ export const WeeklyMenuManager: React.FC = () => {
 
                     <div>
                       <label className="text-[11px] font-bold uppercase text-zinc-600 block mb-1">
-                        What's In It (Ingredients List)
+                        Meal Price Amount (₦)
                       </label>
-                      
-                      <div className="space-y-1.5 mb-2">
-                        {editIngredients.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between bg-[#FAF7F2] px-3 py-1.5 rounded-lg border border-zinc-200 text-xs"
+                      <input
+                        type="number"
+                        min="1000"
+                        step="100"
+                        value={editMealPrice}
+                        onChange={(e) => setEditMealPrice(Number(e.target.value))}
+                        className="w-full bg-[#FAF7F2] border border-zinc-300 rounded-xl px-3 py-2 text-xs font-bold text-black focus:outline-none focus:border-[#FF4C00]"
+                      />
+                      <span className="text-[10px] text-zinc-500 mt-1 block">
+                        Calculator draws: ₦{editMealPrice.toLocaleString()} + ₦{PER_DAY_FEE} auto add-on = <strong>₦{(editMealPrice + PER_DAY_FEE).toLocaleString()}</strong>
+                      </span>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold uppercase text-zinc-600 block">
+                          What's In It (Ingredients List)
+                        </label>
+                        {editIngredients.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleClearAllIngredients}
+                            className="text-[10px] text-rose-600 font-semibold hover:underline cursor-pointer"
                           >
-                            <span className="font-medium text-zinc-800">{item}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveIngredient(idx)}
-                              className="text-zinc-400 hover:text-rose-600 p-0.5"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
+                            Remove All / None
+                          </button>
+                        )}
                       </div>
+                      
+                      {editIngredients.length > 0 ? (
+                        <div className="space-y-1.5 mb-2">
+                          {editIngredients.map((item, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between bg-[#FAF7F2] px-3 py-1.5 rounded-lg border border-zinc-200 text-xs"
+                            >
+                              <span className="font-medium text-zinc-800">{item}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveIngredient(idx)}
+                                className="text-zinc-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-zinc-400 italic mb-2">
+                          No ingredients added. Only food title will display on menu & dashboard.
+                        </p>
+                      )}
 
                       <div className="flex space-x-1.5">
                         <input
@@ -307,6 +350,13 @@ export const WeeklyMenuManager: React.FC = () => {
                       {meal.mealName}
                     </h3>
 
+                    {/* Price and Add-on breakdown */}
+                    <div className="mt-2 flex items-center space-x-2 text-xs">
+                      <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        ₦{calculateMealPrice(meal).toLocaleString()} + ₦{PER_DAY_FEE} add-on
+                      </span>
+                    </div>
+
                     {/* Friday Swallow Tag if applicable */}
                     {meal.swallowOptions && (
                       <div className="mt-2 text-xs">
@@ -315,20 +365,22 @@ export const WeeklyMenuManager: React.FC = () => {
                       </div>
                     )}
 
-                    {/* What's In It */}
-                    <div className="mt-5 pt-4 border-t border-zinc-100">
-                      <div className="text-[11px] font-bold text-black uppercase tracking-wide mb-2.5">
-                        What's In It
+                    {/* What's In It (Shown ONLY if ingredients exist) */}
+                    {meal.ingredients && meal.ingredients.length > 0 ? (
+                      <div className="mt-4 pt-3 border-t border-zinc-100">
+                        <div className="text-[11px] font-bold text-black uppercase tracking-wide mb-2">
+                          What's In It
+                        </div>
+                        <ul className="text-xs text-zinc-700 space-y-1.5">
+                          {meal.ingredients.map((ing, i) => (
+                            <li key={i} className="flex items-center space-x-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#FF4C00] shrink-0" />
+                              <span className="font-medium">{ing}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <ul className="text-xs text-zinc-700 space-y-1.5">
-                        {(meal.ingredients || [meal.baseIngredient, meal.protein]).filter(Boolean).map((ing, i) => (
-                          <li key={i} className="flex items-center space-x-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#FF4C00] shrink-0" />
-                            <span className="font-medium">{ing}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    ) : null}
                   </div>
                 )}
               </div>

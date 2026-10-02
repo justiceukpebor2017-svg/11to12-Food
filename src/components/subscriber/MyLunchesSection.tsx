@@ -23,6 +23,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { getStructuredMealForDate } from '../../data/menuRotation';
+import { CONTACT_CONFIG } from '../../config/contactConfig';
 import {
   SwallowType,
   SelectedLunchDay,
@@ -34,7 +35,6 @@ import {
   CreditRedemptionOrder,
   OrderSubmission,
   UserProfile,
-  parseLocalDate,
 } from '../../types';
 import { CreditUsageModal } from './CreditUsageModal';
 import { InvoiceSlipModal } from '../marketing/InvoiceSlipModal';
@@ -128,7 +128,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
   // Helper to convert queued newPlanDays into standard SelectedLunchDay format
   const getTopUpLunchDays = (): SelectedLunchDay[] => {
     return newPlanDays.map((d) => {
-      const targetDate = parseLocalDate(d.dateStr);
+      const targetDate = new Date(d.dateStr);
       const structured = getStructuredMealForDate(targetDate) || {
         id: `meal-${d.dateStr}`,
         dateStr: d.dateStr,
@@ -260,7 +260,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
   const selectedLunchDays: SelectedLunchDay[] = (Object.values(daysMap) as CalendarDayPlan[])
     .filter((d) => d.status === 'selected')
     .map((d) => {
-      const targetDate = parseLocalDate(d.dateStr);
+      const targetDate = new Date(d.dateStr);
       const structured = getStructuredMealForDate(targetDate) || {
         id: `meal-${d.dateStr}`,
         dateStr: d.dateStr,
@@ -285,30 +285,39 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
     }
   };
 
-  // Monday to Sunday Worldwide Standard Calendar: Monday = 0, ..., Sunday = 6
+  // Generate Monday-Sunday calendar cells for full worldwide calendar (ISO 8601 standard)
   const firstDayIndex = (new Date(currentYear, currentMonthIndex, 1).getDay() + 6) % 7;
-  const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
+  const totalDaysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
   const prevMonthDays = new Date(currentYear, currentMonthIndex, 0).getDate();
 
-  const monthGridCells = useMemo(() => {
+  // Create lookup map of workdays
+  const workdayMap = useMemo(() => {
+    const map: Record<string, CalendarDayPlan> = {};
+    workdays.forEach((day) => {
+      map[day.dateStr] = day;
+    });
+    return map;
+  }, [workdays]);
+
+  const calendarGridCells = useMemo(() => {
     const cells: {
-      dayNumber: number;
+      dayNum: number;
       dateStr: string;
       isCurrentMonth: boolean;
       isWeekend: boolean;
-      dayPlan?: CalendarDayPlan;
+      workday?: CalendarDayPlan;
     }[] = [];
 
     // Prev month padding
     for (let i = firstDayIndex - 1; i >= 0; i--) {
       const d = prevMonthDays - i;
-      const cellDate = new Date(currentYear, currentMonthIndex - 1, d);
-      const mm = String(cellDate.getMonth() + 1).padStart(2, '0');
-      const dd = String(cellDate.getDate()).padStart(2, '0');
-      const dateStr = `${cellDate.getFullYear()}-${mm}-${dd}`;
-      const isWeekend = cellDate.getDay() === 0 || cellDate.getDay() === 6;
+      const date = new Date(currentYear, currentMonthIndex - 1, d);
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(d).padStart(2, '0');
+      const dateStr = `${date.getFullYear()}-${mm}-${dd}`;
       cells.push({
-        dayNumber: d,
+        dayNum: d,
         dateStr,
         isCurrentMonth: false,
         isWeekend,
@@ -316,75 +325,31 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
     }
 
     // Current month days
-    for (let day = 1; day <= daysInMonth; day++) {
-      const cellDate = new Date(currentYear, currentMonthIndex, day);
-      const dayOfWeek = cellDate.getDay(); // 0 Sun, 6 Sat
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-      const yyyy = cellDate.getFullYear();
-      const mm = String(cellDate.getMonth() + 1).padStart(2, '0');
-      const dd = String(day).padStart(2, '0');
-      const dateStr = `${yyyy}-${mm}-${dd}`;
-
-      let dayPlan: CalendarDayPlan | undefined = undefined;
-
-      if (!isWeekend) {
-        if (daysMap[dateStr]) {
-          dayPlan = daysMap[dateStr];
-        } else {
-          const structured = getStructuredMealForDate(cellDate);
-          const dayNamesShort: ('Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri')[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-          const dayShort = dayNamesShort[dayOfWeek - 1] || 'Mon';
-
-          const dishTitle = structured?.mealName || 'Chef Choice Lunch';
-          let emoji = '🍚';
-          if (dishTitle.toLowerCase().includes('bean')) emoji = '🫘';
-          else if (dishTitle.toLowerCase().includes('pasta') || dishTitle.toLowerCase().includes('spag')) emoji = '🍝';
-          else if (dishTitle.toLowerCase().includes('swallow') || dishTitle.toLowerCase().includes('egusi') || dishTitle.toLowerCase().includes('semo')) emoji = '🍲';
-          else if (dishTitle.toLowerCase().includes('chicken')) emoji = '🍗';
-          else if (dishTitle.toLowerCase().includes('meat') || dishTitle.toLowerCase().includes('beef')) emoji = '🥩';
-          else if (dishTitle.toLowerCase().includes('yam')) emoji = '🍠';
-          else if (dishTitle.toLowerCase().includes('fish')) emoji = '🐟';
-
-          dayPlan = {
-            dateStr,
-            dayNum: day,
-            dayName: dayShort,
-            fullDateFormatted: cellDate.toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric',
-            }),
-            dishTitle,
-            emoji,
-            ingredients: structured?.ingredients || ['Fresh locally sourced produce', 'Chef seasonings'],
-            isSwallow: structured?.mealCategory === 'Swallow',
-            selectedSwallow: structured?.mealCategory === 'Swallow' ? 'Semo' : undefined,
-            status: 'unselected',
-          };
-        }
-      }
-
+    for (let d = 1; d <= totalDaysInMonth; d++) {
+      const date = new Date(currentYear, currentMonthIndex, d);
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const mm = String(currentMonthIndex + 1).padStart(2, '0');
+      const dd = String(d).padStart(2, '0');
+      const dateStr = `${currentYear}-${mm}-${dd}`;
       cells.push({
-        dayNumber: day,
+        dayNum: d,
         dateStr,
         isCurrentMonth: true,
         isWeekend,
-        dayPlan,
+        workday: isWeekend ? undefined : workdayMap[dateStr],
       });
     }
 
-    // Next month padding to fill out complete rows of 7
-    const totalCellsNeeded = cells.length <= 35 ? 35 : 42;
-    const remaining = totalCellsNeeded - cells.length;
-    for (let d = 1; d <= remaining; d++) {
-      const cellDate = new Date(currentYear, currentMonthIndex + 1, d);
-      const mm = String(cellDate.getMonth() + 1).padStart(2, '0');
+    // Next month padding to fill out to 35 or 42 cells
+    const remainingCells = 35 - cells.length > 0 ? 35 - cells.length : 42 - cells.length;
+    for (let d = 1; d <= remainingCells; d++) {
+      const date = new Date(currentYear, currentMonthIndex + 1, d);
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
       const dd = String(d).padStart(2, '0');
-      const dateStr = `${cellDate.getFullYear()}-${mm}-${dd}`;
-      const isWeekend = cellDate.getDay() === 0 || cellDate.getDay() === 6;
+      const dateStr = `${date.getFullYear()}-${mm}-${dd}`;
       cells.push({
-        dayNumber: d,
+        dayNum: d,
         dateStr,
         isCurrentMonth: false,
         isWeekend,
@@ -392,7 +357,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
     }
 
     return cells;
-  }, [currentYear, currentMonthIndex, firstDayIndex, daysInMonth, prevMonthDays, daysMap]);
+  }, [currentYear, currentMonthIndex, firstDayIndex, totalDaysInMonth, prevMonthDays, workdayMap]);
 
   return (
     <div className="space-y-6 font-['Poppins'] text-left">
@@ -576,55 +541,54 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
       {viewMode === 'calendar' && (
         <div className="bg-white rounded-3xl border border-zinc-200 p-5 sm:p-6 shadow-xs overflow-hidden">
           
-          {/* Day of Week Header: Mon to Sun Worldwide Standard */}
+          {/* Day of Week Header: Monday - Sunday Worldwide */}
           <div className="grid grid-cols-7 gap-2 text-center pb-3 border-b border-zinc-150 text-[11px] font-black text-zinc-400 uppercase tracking-wider">
             <span>Mon</span>
             <span>Tue</span>
             <span>Wed</span>
             <span>Thu</span>
             <span>Fri</span>
-            <span className="text-zinc-400">Sat</span>
-            <span className="text-zinc-400">Sun</span>
+            <span className="text-zinc-400/80">Sat</span>
+            <span className="text-zinc-400/80">Sun</span>
           </div>
 
-          {/* Calendar Grid of 7 Columns */}
-          <div className="grid grid-cols-7 gap-2 sm:gap-3 mt-3">
-            {monthGridCells.map((cell, idx) => {
-              // 1. Previous or next month cell
+          {/* Calendar Grid: Monday to Sunday */}
+          <div className="mt-3 grid grid-cols-7 gap-2 sm:gap-3">
+            {calendarGridCells.map((cell, idx) => {
+              // Non-current month padding
               if (!cell.isCurrentMonth) {
                 return (
                   <div
                     key={`pad-${idx}`}
-                    className="p-2 sm:p-2.5 rounded-2xl bg-zinc-50/40 border border-zinc-100 opacity-30 select-none min-h-[105px] sm:min-h-[120px] flex flex-col justify-start"
+                    className="p-2 sm:p-2.5 rounded-2xl bg-zinc-50/40 border border-zinc-100 flex flex-col justify-between min-h-[105px] sm:min-h-[120px] opacity-30 select-none"
                   >
-                    <span className="text-xs font-semibold text-zinc-300">{cell.dayNumber}</span>
+                    <span className="text-xs font-semibold text-zinc-400">{cell.dayNum}</span>
                   </div>
                 );
               }
 
-              // 2. Weekend cell (Strictly no meals on Saturday & Sunday)
+              // Weekend (Saturday or Sunday) - strictly no meals offered
               if (cell.isWeekend) {
                 return (
                   <div
-                    key={cell.dateStr}
-                    className="p-2 sm:p-2.5 rounded-2xl bg-zinc-50/80 border border-zinc-200/70 opacity-55 select-none cursor-not-allowed min-h-[105px] sm:min-h-[120px] flex flex-col justify-between"
+                    key={`weekend-${cell.dateStr}`}
+                    className="p-2 sm:p-2.5 rounded-2xl bg-zinc-50/70 border border-zinc-150 flex flex-col justify-between min-h-[105px] sm:min-h-[120px] opacity-45 select-none cursor-not-allowed"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-zinc-400">{cell.dayNumber}</span>
-                      <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-wider bg-zinc-200/60 px-1 py-0.2 rounded">
-                        Weekend
-                      </span>
+                      <span className="text-xs sm:text-sm font-bold text-zinc-400">{cell.dayNum}</span>
+                      <span className="text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200/60 px-1 py-0.5 rounded">Off</span>
                     </div>
-                    <div className="text-left">
-                      <span className="text-[10px] text-zinc-500 font-semibold block leading-tight">Kitchen Closed</span>
-                      <span className="text-[8px] text-zinc-400 font-medium block">Weekdays strictly</span>
-                    </div>
+                    <span className="text-[10px] text-zinc-400 font-medium italic leading-tight text-center py-2">
+                      Strictly No Meals (Closed)
+                    </span>
                   </div>
                 );
               }
 
-              // 3. Workday cell (Monday - Friday) with meal plan data
-              const day = cell.dayPlan!;
+              // Workday (Monday to Friday)
+              const day = cell.workday;
+              if (!day) return null;
+
               const isSelected = day.status === 'selected';
               const isSkipped = day.status === 'skipped';
               const isPast = day.dateStr < todayDateStr;
@@ -635,7 +599,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                 <div
                   key={day.dateStr}
                   onClick={() => setActiveDateModal(day)}
-                  className={`p-2 sm:p-2.5 rounded-2xl border transition text-left cursor-pointer hover:border-black hover:shadow-xs flex flex-col justify-between min-h-[105px] sm:min-h-[120px] ${
+                  className={`p-2.5 sm:p-3.5 rounded-2xl border transition text-left cursor-pointer hover:border-black hover:shadow-xs flex flex-col justify-between min-h-[105px] sm:min-h-[120px] ${
                     isDelivered
                       ? 'bg-zinc-100/70 border-zinc-200 opacity-40 grayscale-[35%]'
                       : isSelected
@@ -672,8 +636,8 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
 
                   {/* Middle: Emoji & Dish Name */}
                   <div className="my-1">
-                    <span className="text-sm sm:text-base block">{day.emoji}</span>
-                    <span className="text-[10px] sm:text-[11px] font-bold text-zinc-900 line-clamp-1 block mt-0.5" title={day.dishTitle}>
+                    <span className="text-base sm:text-lg block">{day.emoji}</span>
+                    <span className="text-[11px] sm:text-xs font-bold text-zinc-900 line-clamp-1 block mt-0.5">
                       {day.dishTitle}
                     </span>
                   </div>
@@ -684,11 +648,11 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                       className="my-1 pt-1 border-t border-zinc-200/90"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center justify-between text-[8px] font-bold text-zinc-500 mb-0.5">
+                      <div className="flex items-center justify-between text-[9px] font-bold text-zinc-500 mb-1">
                         <span>Swallow:</span>
                         <span className="text-[#FF4C00] font-black">{day.selectedSwallow || 'Semo'}</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-0.5">
+                      <div className="grid grid-cols-3 gap-0.5 sm:gap-1">
                         {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
                           <button
                             key={swallow}
@@ -697,7 +661,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                               e.stopPropagation();
                               onSelectSwallow(day.dateStr, swallow);
                             }}
-                            className={`py-0.5 px-0.5 rounded text-[8px] font-bold transition cursor-pointer text-center ${
+                            className={`py-0.5 px-0.5 rounded text-[8px] sm:text-[9px] font-bold transition cursor-pointer text-center ${
                               (day.selectedSwallow || 'Semo') === swallow
                                 ? 'bg-[#FF4C00] text-white shadow-xs'
                                 : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
@@ -712,21 +676,21 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
 
                   {/* Extra plate approved badge */}
                   {day.portions && day.portions > 1 && (
-                    <div className="mt-0.5 px-1 py-0.5 rounded-md bg-amber-100 border border-amber-300 text-amber-900 text-[8px] font-black flex items-center space-x-1">
+                    <div className="mt-1 px-1.5 py-0.5 rounded-md bg-amber-100 border border-amber-300 text-amber-900 text-[8px] sm:text-[9px] font-black flex items-center space-x-1">
                       <Sparkles className="w-2.5 h-2.5 text-[#FF4C00] shrink-0" />
-                      <span>2 Plates</span>
+                      <span>2 Plates (Extra Approved)</span>
                     </div>
                   )}
 
                   {/* Queued in New Plan badge */}
                   {newPlanDays.some((p) => p.dateStr === day.dateStr) && (
-                    <div className="mt-0.5 px-1 py-0.5 rounded-md bg-orange-100 border border-orange-300 text-[#FF4C00] text-[8px] font-black">
-                      + Queued
+                    <div className="mt-1 px-1.5 py-0.5 rounded-md bg-orange-100 border border-orange-300 text-[#FF4C00] text-[8px] sm:text-[9px] font-black">
+                      + In New Plan
                     </div>
                   )}
 
                   {/* Bottom Tag */}
-                  <div className="text-[8px] sm:text-[9px] font-bold mt-1">
+                  <div className="text-[9px] sm:text-[10px] font-bold mt-1">
                     {isDelivered ? (
                       <span className="text-zinc-500">Delivered</span>
                     ) : isSelected ? (
@@ -1312,7 +1276,9 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                             <span>Locked after 4:00 PM for morning prep.</span>
                           </div>
                           <a
-                            href="https://wa.me/2348031234567"
+                            href={`https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
+                              'Hello 11 to 12! I need assistance regarding my desk drop lunch.'
+                            )}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="font-bold text-[#FF4C00] underline shrink-0"

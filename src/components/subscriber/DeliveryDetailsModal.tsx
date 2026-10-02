@@ -181,22 +181,12 @@ export const DeliveryDetailsModal: React.FC<DeliveryDetailsModalProps> = ({
                 />
                 <input
                   type="text"
-                  placeholder="Suite/Dept (e.g. Room 502)"
+                  placeholder="Suite / Desk (e.g. Suite 502)"
                   value={newSuite}
                   onChange={(e) => setNewSuite(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl bg-white border border-zinc-300 font-medium focus:outline-none focus:border-black"
                 />
               </div>
-              <select
-                value={newArea}
-                onChange={(e) => setNewArea(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-white border border-zinc-300 font-medium focus:outline-none focus:border-black"
-              >
-                <option value="Victoria Island">Victoria Island</option>
-                <option value="Ikoyi">Ikoyi</option>
-                <option value="Lekki Phase 1">Lekki Phase 1</option>
-                <option value="Marina / Lagos Island">Marina / Lagos Island</option>
-              </select>
             </div>
 
             <div className="flex justify-end space-x-2 pt-2">

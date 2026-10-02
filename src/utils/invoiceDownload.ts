@@ -1,4 +1,4 @@
-import { parseLocalDate } from '../types';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 
 export interface InvoiceOrderData {
   id: string;
@@ -35,7 +35,7 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
 
   const rows = order.selectedDays
     .map((item, idx) => {
-      const d = parseLocalDate(item.dateStr);
+      const d = new Date(item.dateStr);
       const dayFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       return `
         <tr style="border-bottom: 1px solid #f0ede6;">
@@ -223,7 +223,7 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
         <h1>11 to 12</h1>
         <p><strong>Catering & Office Lunch Delivery</strong></p>
         <p>Lagos Island, Ikoyi, Victoria Island & Lekki Phase 1</p>
-        <p>WhatsApp / Call: +234 803 123 4567 • justiceukpebor2017@gmail.com</p>
+        <p>WhatsApp / Call: ${CONTACT_CONFIG.whatsappDisplay} • justiceukpebor2017@gmail.com</p>
       </div>
       <div class="invoice-title">
         <h2>OFFICIAL INVOICE</h2>
@@ -301,13 +301,13 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
     <div style="margin-top: 20px; font-size: 12px; color: #666; line-height: 1.5; background: #faf7f2; padding: 14px; border-radius: 12px; border: 1px solid #ede8e0;">
       <strong style="color: #111;">Payment Instructions:</strong><br />
       1. Make transfer of <strong>₦${order.finalTotalNGN.toLocaleString()}</strong> to Flutterwave MFB (Formerly OK MFB) (Acct: <strong>9838242145</strong>, 11 TO 12 FOODS LTD 11 TO 12 FOODS FLW).<br />
-      2. Send your transfer receipt with this Invoice Reference <strong>${order.id}</strong> to WhatsApp: <strong>+234 803 123 4567</strong> or email: <strong>justiceukpebor2017@gmail.com</strong>.<br />
+      2. Send your transfer receipt with this Invoice Reference <strong>${order.id}</strong> to WhatsApp: <strong>${CONTACT_CONFIG.whatsappDisplay}</strong> or email: <strong>confirm@11to12.food</strong>.<br />
       3. Your desk-drop lunches will commence promptly at 11:00 AM on your scheduled dates!
     </div>
 
     <div class="action-bar">
       <button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>
-      <a class="btn btn-whatsapp" href="https://wa.me/2348031234567?text=${encodeURIComponent(
+      <a class="btn btn-whatsapp" href="https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
         `Hello 11 to 12! Here is my official payment proof for invoice ${order.id} (₦${order.finalTotalNGN.toLocaleString()} for ${order.totalDays} lunch days).`
       )}" target="_blank">Send on WhatsApp</a>
     </div>

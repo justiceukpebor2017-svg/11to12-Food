@@ -10,10 +10,12 @@ import {
   Download,
   Building,
 } from 'lucide-react';
-import { OrderSubmission } from '../../types';
+import { OrderSubmission, CustomerRecord } from '../../types';
+import { computeFinancialLedger } from '../../utils/finance';
 
 interface PaymentsManagerProps {
   submittedOrders: OrderSubmission[];
+  customers?: CustomerRecord[];
   onConfirmOrderPayment: (orderId: string) => void;
 }
 
@@ -30,6 +32,7 @@ interface TransactionItem {
 
 export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   submittedOrders,
+  customers = [],
   onConfirmOrderPayment,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,8 +41,11 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   // Initial transactions (starts clean)
   const [initialTransactions, setInitialTransactions] = useState<TransactionItem[]>([]);
 
-  // Combine with submitted orders
-  const liveTransactions: TransactionItem[] = submittedOrders.map((ord) => ({
+  // Calculate live financial figures unified with Today's Operations
+  const financials = computeFinancialLedger(submittedOrders, customers);
+
+  // Combine submitted orders
+  const liveOrderTransactions: TransactionItem[] = submittedOrders.map((ord) => ({
     id: `tx-${ord.id}`,
     customerName: ord.fullName,
     company: ord.company,
@@ -53,7 +59,27 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     reference: ord.id,
   }));
 
-  const allTransactions = [...liveTransactions, ...initialTransactions];
+  // Combine customer plan records not already in orders
+  const orderIdsSet = new Set(submittedOrders.map((o) => o.id));
+  const customerTransactions: TransactionItem[] = customers
+    .filter((c) => !c.orderRef || !orderIdsSet.has(c.orderRef))
+    .map((cust) => ({
+      id: `cust-tx-${cust.id}`,
+      customerName: cust.fullName,
+      company: cust.company,
+      date: cust.createdAt
+        ? new Date(cust.createdAt).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+          })
+        : 'Active Plan',
+      method: 'Bank Transfer / Corporate Account',
+      amountNGN: cust.finalTotalNGN,
+      status: cust.paymentStatus === 'Paid' ? 'Paid' : 'Pending',
+      reference: cust.id,
+    }));
+
+  const allTransactions = [...liveOrderTransactions, ...customerTransactions, ...initialTransactions];
 
   const filtered = allTransactions.filter((tx) => {
     const matchesStatus = activeStatus === 'All' ? true : tx.status === activeStatus;
@@ -63,12 +89,6 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
       tx.reference.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesStatus && matchesSearch;
   });
-
-  // Calculate live financial figures from submitted orders
-  const totalVolume = submittedOrders.reduce((acc, o) => acc + o.finalTotalNGN, 0);
-  const collected = submittedOrders.filter((o) => o.paymentStatus === 'Confirmed').reduce((acc, o) => acc + o.finalTotalNGN, 0);
-  const outstanding = submittedOrders.filter((o) => o.paymentStatus === 'Pending Verification').reduce((acc, o) => acc + o.finalTotalNGN, 0);
-  const collectedPercent = totalVolume > 0 ? ((collected / totalVolume) * 100).toFixed(1) : '100';
 
   return (
     <div className="space-y-6 font-['Poppins']">
@@ -94,23 +114,23 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
         </div>
       </div>
 
-      {/* Overview Cards (Derived from Live Data) */}
+      {/* Overview Cards (Unified with Today's Operations Revenue Captured) */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-zinc-200">
           <span className="text-[11px] font-semibold text-zinc-400 block">Revenue Total</span>
-          <span className="text-xl sm:text-2xl font-black text-black block mt-0.5">₦{totalVolume.toLocaleString()}</span>
+          <span className="text-xl sm:text-2xl font-black text-black block mt-0.5">₦{financials.totalVolume.toLocaleString()}</span>
           <span className="text-[10px] text-zinc-400">Total volume</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-zinc-200">
-          <span className="text-[11px] font-semibold text-emerald-600 block">Collected (Verified)</span>
-          <span className="text-xl sm:text-2xl font-black text-emerald-700 block mt-0.5">₦{collected.toLocaleString()}</span>
-          <span className="text-[10px] text-emerald-600">{collectedPercent}% cleared</span>
+          <span className="text-[11px] font-semibold text-emerald-600 block">Revenue Collected (Captured)</span>
+          <span className="text-xl sm:text-2xl font-black text-emerald-700 block mt-0.5">₦{financials.revenueCollected.toLocaleString()}</span>
+          <span className="text-[10px] text-emerald-600">{financials.collectedPercent}% cleared • Matches Today's Operations</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-zinc-200">
           <span className="text-[11px] font-semibold text-amber-600 block">Outstanding</span>
-          <span className="text-xl sm:text-2xl font-black text-amber-700 block mt-0.5">₦{outstanding.toLocaleString()}</span>
+          <span className="text-xl sm:text-2xl font-black text-amber-700 block mt-0.5">₦{financials.revenuePending.toLocaleString()}</span>
           <span className="text-[10px] text-amber-600">Pending receipts</span>
         </div>
 

@@ -102,22 +102,23 @@ export const CustomerMealCalendarPicker: React.FC<CustomerMealCalendarPickerProp
     }
 
     // Next month padding to fill out rows of 7
-    const totalCellsNeeded = cells.length <= 35 ? 35 : 42;
-    const remaining = totalCellsNeeded - cells.length;
-    for (let i = 1; i <= remaining; i++) {
-      const date = new Date(currentYear, currentMonth + 1, i);
-      const mm = String(date.getMonth() + 1).padStart(2, '0');
-      const dd = String(date.getDate()).padStart(2, '0');
-      const dateStr = `${date.getFullYear()}-${mm}-${dd}`;
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      cells.push({
-        dayNumber: i,
-        isCurrentMonth: false,
-        date,
-        dateStr,
-        isWeekend,
-        meal: isWeekend ? null : getStructuredMealForDate(date),
-      });
+    const remaining = 7 - (cells.length % 7);
+    if (remaining < 7) {
+      for (let i = 1; i <= remaining; i++) {
+        const date = new Date(currentYear, currentMonth + 1, i);
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        const dateStr = `${date.getFullYear()}-${mm}-${dd}`;
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        cells.push({
+          dayNumber: i,
+          isCurrentMonth: false,
+          date,
+          dateStr,
+          isWeekend,
+          meal: isWeekend ? null : getStructuredMealForDate(date),
+        });
+      }
     }
 
     return cells;
@@ -259,7 +260,7 @@ export const CustomerMealCalendarPicker: React.FC<CustomerMealCalendarPickerProp
         </div>
       </div>
 
-      {/* Weekday Header - Monday to Sunday Worldwide Standard */}
+      {/* Weekday Header: Monday to Sunday */}
       <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50 text-center py-2 text-xs font-bold text-zinc-500">
         <span>Mon</span>
         <span>Tue</span>
@@ -292,7 +293,7 @@ export const CustomerMealCalendarPicker: React.FC<CustomerMealCalendarPickerProp
               onClick={() => isWorkday && handleToggleDay(cell)}
               className={`min-h-[110px] p-2 flex flex-col justify-between transition text-left relative ${
                 cell.isWeekend
-                  ? 'bg-zinc-100/60 opacity-40 cursor-not-allowed select-none'
+                  ? 'bg-zinc-100/60 opacity-40 cursor-not-allowed'
                   : !cell.isCurrentMonth
                   ? 'bg-white opacity-40 cursor-pointer hover:bg-zinc-50'
                   : isSelected
@@ -314,7 +315,7 @@ export const CustomerMealCalendarPicker: React.FC<CustomerMealCalendarPickerProp
                   {cell.dayNumber}
                 </span>
 
-                {isWorkday ? (
+                {isWorkday && (
                   <div
                     className={`w-4 h-4 rounded-full flex items-center justify-center transition ${
                       isSelected
@@ -324,8 +325,6 @@ export const CustomerMealCalendarPicker: React.FC<CustomerMealCalendarPickerProp
                   >
                     <Check className="w-2.5 h-2.5 stroke-[3]" />
                   </div>
-                ) : (
-                  <span className="text-[8px] uppercase tracking-wider font-bold text-zinc-400">Closed</span>
                 )}
               </div>
 

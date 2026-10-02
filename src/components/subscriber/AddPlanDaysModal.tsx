@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { InvoiceSlipModal } from '../marketing/InvoiceSlipModal';
 import { OrderSubmission } from '../../types';
+import { CONTACT_CONFIG } from '../../config/contactConfig';
 
 interface AddPlanDaysModalProps {
   isOpen: boolean;
@@ -255,7 +256,7 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
 
                   {/* WhatsApp Direct Link */}
                   <a
-                    href={`https://wa.me/2348031234567?text=${waMessage}`}
+                    href={`https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${waMessage}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="py-2.5 px-3 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold flex items-center justify-center space-x-1.5 transition shadow-xs"
@@ -306,7 +307,7 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
                   <strong>What happens next:</strong>
                 </p>
                 <ul className="text-zinc-600 space-y-1 list-disc pl-4">
-                  <li>Please forward your transfer receipt to WhatsApp (+234 803 123 4567) or kitchen email.</li>
+                  <li>Please forward your transfer receipt to WhatsApp ({CONTACT_CONFIG.whatsappDisplay}) or email ({CONTACT_CONFIG.supportEmail}).</li>
                   <li>Admin checks Flutterwave MFB settlement.</li>
                   <li>Your lunch dashboard will automatically show +{selectedDays} additional meal days!</li>
                 </ul>

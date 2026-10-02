@@ -19,6 +19,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [email, setEmail] = useState(userProfile.email);
   const [phone, setPhone] = useState(userProfile.phone);
   const [company, setCompany] = useState(userProfile.company);
+  const [address, setAddress] = useState(userProfile.address || '');
   const [spicePref, setSpicePref] = useState<'Mild' | 'Medium' | 'Hot' | 'Pepper Dem'>(
     userProfile.spicePreference || 'Hot'
   );
@@ -35,6 +36,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       email,
       phone,
       company,
+      address,
       spicePreference: spicePref,
       dislikes: dislikes.split(',').map((s) => s.trim()).filter(Boolean),
     });
@@ -68,6 +70,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4 text-xs">
           
+          <div className="border-b border-zinc-200 pb-2">
+            <span className="text-xs font-bold text-black uppercase tracking-wider block">
+              Your Contact & Desk Drop Details
+            </span>
+          </div>
+
           <div>
             <label className="font-bold text-zinc-700 block mb-1">Full Name</label>
             <input
@@ -81,7 +89,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="font-bold text-zinc-700 block mb-1">Work Email</label>
+              <label className="font-bold text-zinc-700 block mb-1">Email Address</label>
               <input
                 type="email"
                 value={email}
@@ -91,7 +99,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               />
             </div>
             <div>
-              <label className="font-bold text-zinc-700 block mb-1">Phone (WhatsApp updates)</label>
+              <label className="font-bold text-zinc-700 block mb-1">Phone Number</label>
               <input
                 type="tel"
                 value={phone}
@@ -102,14 +110,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="font-bold text-zinc-700 block mb-1">Company / Organization</label>
-            <input
-              type="text"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF7F2] border border-zinc-200 font-medium focus:outline-none focus:border-black"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="font-bold text-zinc-700 block mb-1">Workplace / Building</label>
+              <input
+                type="text"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="Workplace / Office Building"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF7F2] border border-zinc-200 font-medium focus:outline-none focus:border-black"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-zinc-700 block mb-1">Delivery Address & Floor</label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Floor & Suite / Desk Details"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF7F2] border border-zinc-200 font-medium focus:outline-none focus:border-black"
+              />
+            </div>
           </div>
 
           <div>

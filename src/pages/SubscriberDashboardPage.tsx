@@ -23,15 +23,8 @@ import { DeliveryDetailsModal, DeliveryLocation } from '../components/subscriber
 import { UserProfileModal } from '../components/subscriber/UserProfileModal';
 import { NotificationsDrawer, NotificationItem } from '../components/subscriber/NotificationsDrawer';
 import { HelpSection } from '../components/subscriber/HelpSection';
-import { ThisWeekPreview, WeekDayMeal } from '../components/subscriber/ThisWeekPreview';
-import { TomorrowLunchPreview } from '../components/subscriber/TomorrowLunchPreview';
-import { LunchRewardStreakCard } from '../components/subscriber/LunchRewardStreakCard';
-import { LunchesRemainingCounter } from '../components/subscriber/LunchesRemainingCounter';
-import { LunchWalletCard } from '../components/subscriber/LunchWalletCard';
-import { LunchJourneyStrip } from '../components/subscriber/LunchJourneyStrip';
-import { ConciergeFloatingWidget } from '../components/subscriber/ConciergeFloatingWidget';
-import { CreditUsageModal } from '../components/subscriber/CreditUsageModal';
 import { getStructuredMealForDate } from '../data/menuRotation';
+import { CONTACT_CONFIG } from '../config/contactConfig';
 import {
   CreditRedemptionDayItem,
   CreditRedemptionOrder,
@@ -97,14 +90,13 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
   // Admin as User - days to add control
   const [adminDaysToAdd, setAdminDaysToAdd] = useState<number>(5);
 
-  // Today's Lunch Lifecycle State ('preparing' | 'packed' | 'on_the_way' | 'delivered' | 'skipped')
-  const [todayDeliveryState, setTodayDeliveryState] = useState<TodayLunchDeliveryState>('preparing');
+  // Today's Lunch Lifecycle State ('scheduled' | 'on_route' | 'delivered' | 'skipped')
+  const [todayDeliveryState, setTodayDeliveryState] = useState<TodayLunchDeliveryState>('scheduled');
 
   // Modals & Drawers
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
-  const [isCreditUsageModalOpen, setIsCreditUsageModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -205,7 +197,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
     return map;
   };
 
-  // Calendar Plan Data
+  // Calendar Plan Data (Starts dynamically from userProfile.selectedDays, or clean empty)
   const [daysPlanMap, setDaysPlanMap] = useState<Record<string, CalendarDayPlan>>(() =>
     generatePlanMapFromProfile(userProfile)
   );
@@ -217,29 +209,26 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
     }
   }, [userProfile.selectedDays]);
 
-  // Total Subscribed Days
-  const totalSubscribed = userProfile.totalSubscribedDays || 20;
-  // Subscriber progression (17 enjoyed, 3 remaining as requested by user)
-  const enjoyedLunchesCount = 17;
-  const remainingLunchesCount = Math.max(0, totalSubscribed - enjoyedLunchesCount);
-
   // Calculate selected count
   const selectedDaysList = (Object.values(daysPlanMap) as CalendarDayPlan[]).filter((d) => d.status === 'selected');
   const selectedCount = selectedDaysList.length;
+  const totalSubscribed = userProfile.totalSubscribedDays || 20;
 
   // Admin as User: Add Days to Plan
   const handleExecuteAdminAddDays = () => {
     const daysToAdd = Math.max(1, adminDaysToAdd || 1);
     const newTotal = totalSubscribed + daysToAdd;
 
+    // Find and activate next unselected workdays into the user's plan
     let countToActivate = daysToAdd;
     const newDaysMap = { ...daysPlanMap };
-    const baseDate = new Date(2026, 9, 23);
+    const baseDate = new Date(2026, 9, 23); // starting from Friday Oct 23 onwards
 
     for (let i = 0; i < 60 && countToActivate > 0; i++) {
       const d = new Date(baseDate);
       d.setDate(baseDate.getDate() + i);
       const dayOfWeek = d.getDay();
+      // Monday to Friday
       if (dayOfWeek >= 1 && dayOfWeek <= 5) {
         const dateStr = d.toISOString().split('T')[0];
         if (!newDaysMap[dateStr] || newDaysMap[dateStr].status !== 'selected') {
@@ -295,10 +284,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
   const handleToggleSkipDay = (dateStr: string) => {
     setDaysPlanMap((prev) => {
       const existing = prev[dateStr];
-      if (!existing) {
-        // Create an entry if it doesn't exist
-        return prev;
-      }
+      if (!existing) return prev;
       if (existing.status === 'skipped') {
         onUpdateProfile({
           ...userProfile,
@@ -309,7 +295,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
       } else {
         // Increase credit
         onUpdateProfile({ ...userProfile, creditsBalance: userProfile.creditsBalance + 1 });
-        showToast('Lunch skipped! +₦3,200 preserved in your Lunch Wallet.');
+        showToast('Lunch skipped! +1 credit preserved in your wallet.');
         return { ...prev, [dateStr]: { ...existing, status: 'skipped' } };
       }
     });
@@ -328,18 +314,12 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
   const handleSkipToday = () => {
     setTodayDeliveryState('skipped');
     onUpdateProfile({ ...userProfile, creditsBalance: userProfile.creditsBalance + 1 });
-    showToast('Today’s lunch skipped. ₦3,200 preserved 100% in your Lunch Wallet.');
-  };
-
-  // Send today's lunch to a colleague
-  const handleSendToColleague = (colleague: { name: string; desk: string; note: string }) => {
-    setTodayDeliveryState('skipped');
-    showToast(`✓ Today's hot lunch gifted to ${colleague.name} (${colleague.desk})!`);
+    showToast('Today’s lunch skipped. Your lunch credit is preserved 100%.');
   };
 
   // Undo skip action
   const handleUndoSkip = () => {
-    setTodayDeliveryState('preparing');
+    setTodayDeliveryState('scheduled');
     onUpdateProfile({
       ...userProfile,
       creditsBalance: Math.max(0, userProfile.creditsBalance - 1),
@@ -358,7 +338,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
       id: `CRED-${Math.floor(100000 + Math.random() * 900000)}`,
       userId: userProfile.id,
       userName: userProfile.name,
-      userPhone: userProfile.phone || '+234 803 123 4567',
+      userPhone: userProfile.phone || CONTACT_CONFIG.whatsappDisplay,
       company: userProfile.company,
       officeAddress: `${defaultLocation.building}, ${defaultLocation.floor}, ${defaultLocation.suite}`,
       totalCreditsUsed: totalCredits,
@@ -378,63 +358,6 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
 
     showToast(`✓ Extra plate request submitted for ${totalCredits} credit${totalCredits > 1 ? 's' : ''}! Pending kitchen confirmation.`);
   };
-
-  // Build THIS WEEK Workday data for the interactive horizontal calendar
-  const weekDates: WeekDayMeal[] = [
-    {
-      dateStr: '2026-10-05',
-      dayName: 'MON',
-      dayNum: 5,
-      dishName: 'Jollof Rice + Spiced Grilled Chicken',
-      shortDishName: 'Jollof',
-      emoji: '🍛',
-      isSwallow: false,
-      status: daysPlanMap['2026-10-05']?.status || (todayDeliveryState === 'skipped' ? 'skipped' : 'selected'),
-    },
-    {
-      dateStr: '2026-10-06',
-      dayName: 'TUE',
-      dayNum: 6,
-      dishName: 'Honey Beans + Fried Plantain + Fish',
-      shortDishName: 'Beans',
-      emoji: '🫘',
-      isSwallow: false,
-      status: daysPlanMap['2026-10-06']?.status || 'selected',
-    },
-    {
-      dateStr: '2026-10-07',
-      dayName: 'WED',
-      dayNum: 7,
-      dishName: 'Stir-Fry Spaghetti + Tender Chicken',
-      shortDishName: 'Pasta',
-      emoji: '🍝',
-      isSwallow: false,
-      status: daysPlanMap['2026-10-07']?.status || 'selected',
-    },
-    {
-      dateStr: '2026-10-08',
-      dayName: 'THU',
-      dayNum: 8,
-      dishName: 'Pounded Yam / Yam Pottage + Slow-Braised Beef',
-      shortDishName: 'Yam',
-      emoji: '🍠',
-      isSwallow: false,
-      status: daysPlanMap['2026-10-08']?.status || 'skipped',
-    },
-    {
-      dateStr: '2026-10-09',
-      dayName: 'FRI',
-      dayNum: 9,
-      dishName: 'Egusi Soup with Assorted Fish & Choice of Swallow',
-      shortDishName: 'Swallow',
-      emoji: '🍲',
-      isSwallow: true,
-      selectedSwallow: daysPlanMap['2026-10-09']?.selectedSwallow || 'Semo',
-      status: daysPlanMap['2026-10-09']?.status || 'selected',
-    },
-  ];
-
-  const subscriberFirstName = userProfile.name ? userProfile.name.split(' ')[0] : 'Valued';
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1A1A] font-['Poppins'] pb-28 md:pb-16 antialiased selection:bg-[#FF4C00] selection:text-white">
@@ -542,134 +465,137 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
         {activeTab === 'dashboard' && (
           <div className="space-y-8 animate-in fade-in duration-200">
             
-            {/* 1. GREETING & DIRECT DESK CARD (As specifically requested in prompt layout) */}
-            <div className="p-6 sm:p-7 rounded-3xl bg-white border border-zinc-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-left">
+            {/* Greeting & Headline */}
+            <div className="text-left flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-black text-black tracking-tight">
-                  Good morning, {subscriberFirstName} 👋
+                <span className="text-xs font-bold text-[#FF4C00] uppercase tracking-wider block">
+                  Lunch Control Center
+                </span>
+                <h1 className="text-3xl sm:text-4xl font-black text-black tracking-tight mt-0.5">
+                  Good morning, {userProfile.name ? userProfile.name.split(' ')[0] : 'Subscriber'} 👋
                 </h1>
-                <p className="text-base sm:text-lg font-bold text-[#FF4C00] mt-0.5">
-                  🍱 Lunch is sorted.
-                </p>
-                <p className="text-xs text-zinc-500 font-medium mt-0.5">
-                  Fresh chef lunch dropped right at your office desk before 12:00 PM.
+                <p className="text-xs sm:text-sm text-zinc-500 font-medium mt-1">
+                  Here's your lunch at a glance. Delivered directly to your desk before 12:00 PM.
                 </p>
               </div>
 
-              {/* Editable Desk Drop Card directly on top */}
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF7F2] border border-zinc-200 flex items-center justify-between sm:justify-start space-x-3 shrink-0">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-orange-100 text-[#FF4C00] flex items-center justify-center shrink-0">
-                    <MapPin className="w-4 h-4" />
-                  </div>
-                  <div className="text-left">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block">
-                      📍 Your Desk Drop
-                    </span>
-                    <span className="text-xs font-black text-black block leading-tight">
-                      {defaultLocation.building}
-                    </span>
-                    <span className="text-[11px] text-zinc-500 font-medium block">
-                      {defaultLocation.floor} · {defaultLocation.suite}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsDeliveryModalOpen(true)}
-                  className="px-3 py-1.5 rounded-full bg-white border border-zinc-300 hover:border-black text-xs font-bold text-black transition cursor-pointer shadow-2xs"
-                >
-                  [Change]
-                </button>
+              {/* Desk Drop Live Badge */}
+              <div className="flex items-center space-x-2 bg-white border border-zinc-200 px-4 py-2 rounded-2xl shadow-xs self-start sm:self-auto">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-black">Desk Drop Active: {defaultLocation.building}</span>
               </div>
             </div>
 
-            {/* Main 2-Column Responsive Layout */}
+            {/* The 3 Glance Cards (As specified in prompt) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
+              
+              {/* Card 1: TODAY */}
+              <div className="p-5 rounded-3xl bg-white border border-zinc-200 shadow-xs flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">
+                    Today
+                  </span>
+                  <p className="text-base font-black text-black leading-snug">
+                    {todayMeal.title ? 'Jollof Rice + Grilled Chicken' : 'Party Jollof Rice'}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-zinc-150 flex items-center space-x-1.5 text-xs font-bold text-[#FF4C00]">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>
+                    {todayDeliveryState === 'skipped'
+                      ? 'Skipped Today'
+                      : todayDeliveryState === 'delivered'
+                      ? '✓ Delivered (11:34 AM)'
+                      : todayDeliveryState === 'on_route'
+                      ? '🚚 On The Way'
+                      : '🚚 Arrives 11–12'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 2: YOUR PLAN */}
+              <div className="p-5 rounded-3xl bg-white border border-zinc-200 shadow-xs flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">
+                    Your Plan
+                  </span>
+                  <p className="text-base font-black text-black leading-snug">
+                    Desk Drop (20 Lunches)
+                  </p>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Oct 5 – Mar 30
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-zinc-150 flex items-center space-x-1.5 text-xs font-bold text-emerald-700">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span>● Active Desk Subscription</span>
+                </div>
+              </div>
+
+              {/* Card 3: LUNCHES LEFT */}
+              <div className="p-5 rounded-3xl bg-white border border-zinc-200 shadow-xs flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">
+                    Lunches Left
+                  </span>
+                  <div className="flex items-baseline space-x-1.5">
+                    <span className="text-2xl font-black text-black">{selectedCount}</span>
+                    <span className="text-xs font-bold text-zinc-500">of {totalSubscribed} selected</span>
+                  </div>
+                  <p className="text-xs text-[#FF4C00] font-semibold mt-0.5">
+                    {Math.max(0, totalSubscribed - selectedCount)} remaining to pick
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-zinc-150">
+                  <button
+                    onClick={() => setActiveTab('lunches')}
+                    className="text-xs font-bold text-black hover:text-[#FF4C00] flex items-center space-x-1 cursor-pointer transition"
+                  >
+                    <span>View plan →</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Layout: Main Hero Column + Side Progress & Actions */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               
-              {/* Left Column (2 Cols): HERO TODAY'S LUNCH + THIS WEEK + TOMORROW */}
+              {/* Left 2 Cols: Today's Lunch Hero */}
               <div className="lg:col-span-2 space-y-8">
                 
-                {/* 1. TODAY'S LUNCH HERO CARD (Primary interactive object) */}
+                {/* 1. TODAY'S LUNCH HERO CARD */}
                 <TodayLunchHeroCard
                   dateFormatted="MON, OCT 5"
-                  mealTitle="Jollof Rice + Spiced Grilled Chicken 🍗"
-                  emoji="🍛"
+                  mealTitle="Jollof Rice + Spiced Grilled Chicken"
                   ingredients={[
                     'Smoky firewood long-grain Jollof',
                     'Spiced grilled chicken',
-                    'Fried sweet dodo (plantain)',
+                    'Fried sweet dodo',
                     'Crunchy Lagos coleslaw',
                   ]}
                   deliveryAddress={`${defaultLocation.building}, ${defaultLocation.floor}, ${defaultLocation.suite}`}
-                  deliveryWindow="11:00 AM — 12:00 PM"
+                  deliveryWindow="11:00 AM – 12:00 PM"
                   status={todayDeliveryState}
-                  onChangeDesk={() => setIsDeliveryModalOpen(true)}
                   onSkipToday={handleSkipToday}
                   onUndoSkip={handleUndoSkip}
                   onStatusChange={setTodayDeliveryState}
-                  onSendToColleague={handleSendToColleague}
-                />
-
-                {/* 2. INTERACTIVE "YOUR WEEK" CALENDAR STRIP (Requirement 4) */}
-                <ThisWeekPreview
-                  days={weekDates}
-                  onToggleSkipDay={handleToggleSkipDay}
-                  onSelectSwallow={handleSelectSwallow}
-                  onOpenFullCalendar={() => setActiveTab('lunches')}
-                />
-
-                {/* 3. LUNCH TOMORROW PREVIEW (Requirement 8) */}
-                <TomorrowLunchPreview
-                  dateFormatted="Tue, Oct 6"
-                  dishTitle="Honey Beans + Sweet Fried Plantain + Fish"
-                  emoji="🫘"
-                  ingredients={[
-                    'Slow-cooked honey beans with palm drizzle',
-                    'Golden sweet fried plantain (dodo)',
-                    'Seasoned grilled fish fillet',
-                    'Pepper relish',
-                  ]}
-                  onOpenMenu={() => setActiveTab('menu')}
-                />
-
-                {/* 4. LUNCH HISTORY / JOURNEY HORIZONTAL STRIP (Requirement 9) */}
-                <LunchJourneyStrip
-                  todayStatus={todayDeliveryState}
-                  todayMealTitle="Jollof Rice + Grilled Chicken 🍗"
-                  tomorrowMealTitle="Honey Beans + Fried Plantain + Fish"
                 />
 
               </div>
 
-              {/* Right Column (1 Col): REWARD STREAK + VISUAL COUNTER + LUNCH WALLET + QUICK ACTIONS */}
+              {/* Right Col: Plan Progress Bar & Quick Actions */}
               <div className="space-y-6">
                 
-                {/* 1. BIG VISUAL REMAINING LUNCHES COUNTER (Requirement 2) */}
-                <LunchesRemainingCounter
-                  totalSubscribed={totalSubscribed}
-                  enjoyedCount={enjoyedLunchesCount}
-                  remainingCount={remainingLunchesCount}
-                  onPlanLunches={() => setActiveTab('lunches')}
+                {/* 1. PLAN PROGRESS COMPONENT */}
+                <PlanProgressBar
+                  selectedCount={selectedCount}
+                  targetCap={totalSubscribed}
+                  onAddMoreLunches={() => setActiveTab('lunches')}
+                  onViewPlan={() => setActiveTab('billing')}
                 />
 
-                {/* 2. INTERACTIVE 20TH LUNCH REWARD / STREAK CARD (Requirement 3) */}
-                <LunchRewardStreakCard
-                  currentLunches={enjoyedLunchesCount}
-                  targetLunches={totalSubscribed}
-                  onClaimOrRenew={() => setActiveTab('billing')}
-                />
-
-                {/* 3. LUNCH WALLET CARD (Requirement 10) */}
-                <LunchWalletCard
-                  creditsCount={userProfile.creditsBalance}
-                  creditValuePerMeal={3200}
-                  onUseCredit={() => setIsCreditUsageModalOpen(true)}
-                  onViewBilling={() => setActiveTab('billing')}
-                />
-
-                {/* 4. QUICK ACTIONS CARD */}
+                {/* 2. QUICK ACTIONS CARD (As specified in prompt) */}
                 <div className="bg-white rounded-3xl border border-zinc-200 p-6 shadow-xs font-['Poppins'] text-left space-y-3">
                   <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">
                     Quick Controls
@@ -680,54 +606,72 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
 
                   <div className="space-y-2 pt-1">
                     <button
-                      type="button"
                       onClick={() => setIsDeliveryModalOpen(true)}
                       className="w-full p-3 rounded-2xl bg-[#FAF7F2] hover:bg-zinc-100 text-xs font-bold text-zinc-800 flex items-center justify-between transition cursor-pointer"
                     >
                       <div className="flex items-center space-x-2.5">
                         <MapPin className="w-4 h-4 text-[#FF4C00]" />
-                        <span>Change Desk Address</span>
+                        <span>Change Delivery Address</span>
                       </div>
                       <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
                     </button>
 
                     <button
-                      type="button"
                       onClick={() => setActiveTab('lunches')}
                       className="w-full p-3 rounded-2xl bg-[#FAF7F2] hover:bg-zinc-100 text-xs font-bold text-zinc-800 flex items-center justify-between transition cursor-pointer"
                     >
                       <div className="flex items-center space-x-2.5">
                         <Calendar className="w-4 h-4 text-[#FF4C00]" />
-                        <span>Plan My Lunches</span>
+                        <span>Manage Lunch Days</span>
                       </div>
                       <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
                     </button>
 
                     <button
-                      type="button"
                       onClick={() => setActiveTab('billing')}
                       className="w-full p-3 rounded-2xl bg-[#FAF7F2] hover:bg-zinc-100 text-xs font-bold text-zinc-800 flex items-center justify-between transition cursor-pointer"
                     >
                       <div className="flex items-center space-x-2.5">
                         <CreditCard className="w-4 h-4 text-[#FF4C00]" />
-                        <span>Plan Receipts & Invoices</span>
+                        <span>Plan & Billing Receipt</span>
                       </div>
                       <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
                     </button>
 
                     <a
-                      href="https://wa.me/2348031234567?text=Hello%2011to12%20Team%2C%20I%20have%20a%20question%20about%20my%20desk%20drop%20lunch"
+                      href={`https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
+                        'Hello 11to12 Team, I have a question about my desk drop lunch'
+                      )}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-xs font-bold text-emerald-900 flex items-center justify-between transition cursor-pointer"
                     >
                       <div className="flex items-center space-x-2.5">
                         <MessageCircle className="w-4 h-4 text-emerald-600" />
-                        <span>11 to 12 Concierge</span>
+                        <span>WhatsApp Concierge</span>
                       </div>
                       <ExternalLink className="w-3.5 h-3.5 text-emerald-600" />
                     </a>
                   </div>
+                </div>
+
+                {/* 3. CREDITS MINI WALLET */}
+                <div className="p-5 rounded-3xl bg-orange-50/50 border border-orange-200/80 text-left space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-600">Credits Wallet</span>
+                    <Sparkles className="w-4 h-4 text-[#FF4C00]" />
+                  </div>
+                  <div className="flex items-baseline space-x-2">
+                    <span className="text-2xl font-black text-black">
+                      {userProfile.creditsBalance} Credits
+                    </span>
+                    <span className="text-xs font-bold text-[#FF4C00]">
+                      (₦{(userProfile.creditsBalance * 4500).toLocaleString()})
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 leading-relaxed">
+                    Whenever you skip lunch, your credit is saved here. Use it anytime for an extra plate for colleagues or rollovers.
+                  </p>
                 </div>
 
               </div>
@@ -786,8 +730,8 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
               endDate="Mar 30, 2027"
               totalLunches={totalSubscribed}
               selectedLunches={selectedCount}
-              completedLunches={enjoyedLunchesCount}
-              upcomingLunches={remainingLunchesCount}
+              completedLunches={4}
+              upcomingLunches={Math.max(0, selectedCount - 4)}
               skippedLunches={dynamicSkippedCount}
               creditsBalance={userProfile.creditsBalance}
               onUseCreditExtraPlate={() => {
@@ -812,21 +756,6 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
         )}
 
       </main>
-
-      {/* Floating Concierge (Requirement 11) */}
-      <ConciergeFloatingWidget
-        subscriberName={userProfile.name}
-        deskLocation={`${defaultLocation.building}, ${defaultLocation.floor}, ${defaultLocation.suite}`}
-      />
-
-      {/* Credit Usage Modal (Allows redeeming credit directly from Lunch Wallet card) */}
-      <CreditUsageModal
-        isOpen={isCreditUsageModalOpen}
-        onClose={() => setIsCreditUsageModalOpen(false)}
-        availableCredits={userProfile.creditsBalance}
-        daysMap={daysPlanMap}
-        onConfirmCreditUsage={handleConfirmCreditUsage}
-      />
 
       {/* Slide-over Notifications Drawer */}
       <NotificationsDrawer

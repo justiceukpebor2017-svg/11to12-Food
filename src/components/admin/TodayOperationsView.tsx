@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { OrderSubmission, CustomerRecord, WaitlistLead } from '../../types';
 import { AdminTab } from './AdminSidebar';
+import { computeFinancialLedger } from '../../utils/finance';
 
 interface TodayOperationsViewProps {
   onNavigateTab: (tab: AdminTab) => void;
@@ -34,12 +35,11 @@ export const TodayOperationsView: React.FC<TodayOperationsViewProps> = ({
   const activeSubscribersCount = customers.filter((c) => c.status === 'Active').length;
   const waitlistCount = waitlistLeads.length;
 
-  // Calculate actual revenue from confirmed customers & orders
-  const customerRevenue = customers.reduce((acc, c) => acc + (c.finalTotalNGN || 0), 0);
+  // Calculate unified live financials matching Revenue Collected across ledger
+  const financials = computeFinancialLedger(submittedOrders, customers);
   const pendingOrders = submittedOrders.filter(
     (o) => o.paymentStatus === 'Pending Verification'
   );
-  const pendingRevenue = pendingOrders.reduce((acc, o) => acc + o.finalTotalNGN, 0);
 
   // Today's date (formatted)
   const today = new Date();
@@ -93,17 +93,17 @@ export const TodayOperationsView: React.FC<TodayOperationsViewProps> = ({
     },
     {
       label: 'Revenue Captured',
-      value: `₦${customerRevenue > 0 ? (customerRevenue / 1000).toLocaleString() + 'k' : '0'}`,
-      sub: customerRevenue > 0 ? 'From confirmed customer plans' : '₦0 collected so far',
+      value: `₦${financials.revenueCollected.toLocaleString()}`,
+      sub: financials.revenueCollected > 0 ? 'Matches Revenue Collected in Ledger' : '₦0 collected so far',
       icon: CreditCard,
-      color: customerRevenue > 0 ? 'text-emerald-600' : 'text-zinc-400',
+      color: financials.revenueCollected > 0 ? 'text-emerald-600' : 'text-zinc-400',
     },
     {
       label: 'Pending Invoices',
-      value: `₦${pendingRevenue > 0 ? (pendingRevenue / 1000).toFixed(0) + 'k' : '0'}`,
-      sub: pendingOrders.length > 0 ? `${pendingOrders.length} slip(s) to verify` : '0 pending verification',
+      value: `₦${financials.revenuePending.toLocaleString()}`,
+      sub: financials.revenuePending > 0 ? `${pendingOrders.length} slip(s) to verify` : '0 pending verification',
       icon: Clock,
-      color: pendingOrders.length > 0 ? 'text-amber-600' : 'text-zinc-400',
+      color: financials.revenuePending > 0 ? 'text-amber-600' : 'text-zinc-400',
     },
     {
       label: 'Skipped Meals',

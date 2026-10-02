@@ -229,6 +229,7 @@ export const JusticeDashboardPage: React.FC<JusticeDashboardPageProps> = ({
         {activeTab === 'payments' && (
           <PaymentsManager
             submittedOrders={submittedOrders}
+            customers={customers}
             onConfirmOrderPayment={onConfirmOrderPayment}
           />
         )}

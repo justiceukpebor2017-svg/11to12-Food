@@ -445,11 +445,30 @@ export function parseStructuredMeal(
   };
 }
 
-// Global In-Memory Overrides for Admin Menu edits (Shared in sync with homepage)
-export const customMealOverrides: Record<string, StructuredMeal> = {};
+// Global In-Memory and LocalStorage Overrides for Admin Menu edits (Shared in sync with homepage and subscriber dashboard)
+const STORAGE_KEY = '11to12_custom_meals_v2';
+
+function loadStoredOverrides(): Record<string, StructuredMeal> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return {};
+}
+
+export const customMealOverrides: Record<string, StructuredMeal> = loadStoredOverrides();
 
 export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
   customMealOverrides[dateStr] = meal;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(customMealOverrides));
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 export function getCustomMealForDate(dateStr: string): StructuredMeal | undefined {

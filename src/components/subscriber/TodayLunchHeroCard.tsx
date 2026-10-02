@@ -13,422 +13,357 @@ import {
   X,
   Lock,
   PhoneCall,
-  Flame,
-  ChefHat,
-  PackageCheck,
-  Send,
+  MessageSquare,
+  AlertTriangle,
 } from 'lucide-react';
 import { SkipConfirmationModal } from './SkipConfirmationModal';
+import { CONTACT_CONFIG } from '../../config/contactConfig';
 
-export type TodayLunchDeliveryState = 'preparing' | 'packed' | 'on_the_way' | 'delivered' | 'skipped';
+export type TodayLunchDeliveryState = 'scheduled' | 'on_route' | 'delivered' | 'skipped';
 
 interface TodayLunchHeroCardProps {
   dateFormatted: string; // e.g. "MON, OCT 5"
   mealTitle: string;
-  emoji?: string;
   ingredients: string[];
   deliveryAddress: string;
-  deliveryWindow?: string; // e.g. "11:00 AM — 12:00 PM"
+  deliveryWindow: string; // e.g. "11:00 AM – 12:00 PM"
   status: TodayLunchDeliveryState;
-  onChangeDesk?: () => void;
+  isAfter12PM?: boolean;
+  isAfter4PM?: boolean;
+  skipCount?: number;
+  maxSkips?: number;
+  pendingAddressChange?: {
+    newLocation: string;
+    effectiveAt: string;
+    requestedAt: string;
+  } | null;
+  onCancelPendingAddressChange?: () => void;
   onSkipToday: () => void;
   onUndoSkip: () => void;
   onStatusChange: (newStatus: TodayLunchDeliveryState) => void;
-  onSendToColleague?: (colleague: { name: string; desk: string; note: string }) => void;
 }
 
 export const TodayLunchHeroCard: React.FC<TodayLunchHeroCardProps> = ({
   dateFormatted,
   mealTitle,
-  emoji = '🍛',
   ingredients,
   deliveryAddress,
-  deliveryWindow = '11:00 AM — 12:00 PM',
+  deliveryWindow,
   status,
-  onChangeDesk,
+  isAfter12PM = false,
+  isAfter4PM = false,
+  skipCount = 1,
+  maxSkips = 4,
+  pendingAddressChange,
+  onCancelPendingAddressChange,
   onSkipToday,
   onUndoSkip,
   onStatusChange,
-  onSendToColleague,
 }) => {
   const [isSkipModalOpen, setIsSkipModalOpen] = useState(false);
-  const [isWheresMyLunchOpen, setIsWheresMyLunchOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
   const [ratingVal, setRatingVal] = useState(5);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
-  // Delivery Stages Definition
-  const stages = [
-    {
-      id: 'preparing',
-      label: 'Preparing',
-      shortLabel: 'Kitchen',
-      icon: ChefHat,
-      time: '09:30 AM',
-      headline: 'Your lunch is being prepared',
-      detail: 'Chef Justice and kitchen team are simmering fresh firewood Jollof and grilling tender chicken.',
-      tag: 'Fresh Firewood Kitchen',
-    },
-    {
-      id: 'packed',
-      label: 'Packed',
-      shortLabel: 'Packed',
-      icon: PackageCheck,
-      time: '10:45 AM',
-      headline: 'Your lunch is packed & sealed',
-      detail: 'Sealed hot in our dual-layer insulated thermal bowl at 78°C. Preserved warm until your lunch hour.',
-      tag: '78°C Thermal Sealed',
-    },
-    {
-      id: 'on_the_way',
-      label: 'On the way',
-      shortLabel: 'Rider',
-      icon: Truck,
-      time: '11:15 AM',
-      headline: '🚚 Your lunch has left the kitchen.',
-      detail: 'Rider Musa has departed Victoria Island kitchen heading directly to Landmark Towers. Expected before 12:00 PM.',
-      tag: 'Lagos Island Express Route',
-    },
-    {
-      id: 'delivered',
-      label: 'Delivered',
-      shortLabel: 'Desk',
-      icon: CheckCircle2,
-      time: '11:42 AM',
-      headline: '✓ Lunch delivered. Enjoy!',
-      detail: 'Dropped safely at Floor 4 desk cluster. Hot, fresh, and ready for your desk break.',
-      tag: 'Desk Drop Completed',
-    },
-  ];
-
-  const currentStageIndex =
-    status === 'preparing'
-      ? 0
-      : status === 'packed'
-      ? 1
-      : status === 'on_the_way'
-      ? 2
-      : status === 'delivered'
-      ? 3
-      : 0;
-
-  // Dynamic countdown headline per user prompt
-  const getDynamicCountdownMessage = () => {
-    switch (status) {
-      case 'preparing':
-        return {
-          timePill: '10:30 AM',
-          text: '🍛 Your lunch is coming. 30 minutes to lunch.',
-          accent: 'text-orange-950 bg-orange-100/80 border-orange-200',
-        };
-      case 'packed':
-        return {
-          timePill: '10:55 AM',
-          text: '🚚 Your lunch is almost here.',
-          accent: 'text-amber-950 bg-amber-100/80 border-amber-200',
-        };
-      case 'on_the_way':
-        return {
-          timePill: '11:15 AM',
-          text: '🚚 Your lunch is on the way.',
-          accent: 'text-[#FF4C00] bg-orange-50 border-orange-300 font-bold',
-        };
-      case 'delivered':
-        return {
-          timePill: '11:42 AM',
-          text: '🍱 Lunch delivered. Enjoy!',
-          accent: 'text-emerald-950 bg-emerald-100 border-emerald-300 font-bold',
-        };
-      default:
-        return {
-          timePill: 'Today',
-          text: 'Your lunch is sorted.',
-          accent: 'text-zinc-800 bg-zinc-100 border-zinc-200',
-        };
-    }
-  };
-
-  const dynamicCountdown = getDynamicCountdownMessage();
+  // If 12pm has passed, meal is automatically delivered
+  const effectiveStatus: TodayLunchDeliveryState = isAfter12PM && status !== 'skipped' ? 'delivered' : status;
+  const skipsRemaining = Math.max(0, maxSkips - skipCount);
+  const isSkipActionLocked = skipCount >= maxSkips;
 
   return (
     <>
-      <div className="bg-white rounded-3xl border-2 border-black p-6 sm:p-8 shadow-sm font-['Poppins'] text-left relative overflow-hidden transition-all">
-        {/* Subtle decorative warm gradient corner */}
-        <div className="absolute top-0 right-0 w-36 h-36 bg-gradient-to-bl from-[#FF4C00]/10 via-amber-100/20 to-transparent rounded-bl-full pointer-events-none" />
+      <div className="bg-white rounded-3xl border-2 border-black p-6 sm:p-8 shadow-sm font-['Poppins'] text-left relative overflow-hidden">
+        
+        {/* Subtle decorative corner accent */}
+        <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#FF4C00]/10 to-transparent rounded-bl-full pointer-events-none" />
 
-        {/* State Simulator Bar (Helps test Preparing -> Packed -> On the way -> Delivered -> Skipped) */}
+        {/* State Simulator (Allows evaluator / user to test Scheduled -> On the Way -> Delivered) */}
         <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-zinc-150 mb-5">
           <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">
-              Interactive State Tracker
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4C00] bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
+              Live Delivery State
+            </span>
+            <span className="text-xs font-bold text-zinc-400">
+              {dateFormatted}
             </span>
           </div>
 
-          <div className="flex items-center space-x-1 text-[11px] font-semibold text-zinc-500 overflow-x-auto py-1">
-            <span className="text-[10px] text-zinc-400 mr-1 hidden sm:inline">Preview:</span>
+          <div className="flex items-center space-x-1 text-[10px] font-semibold text-zinc-500">
+            <span>Preview State:</span>
             <button
-              type="button"
-              onClick={() => onStatusChange('preparing')}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition cursor-pointer ${
-                status === 'preparing'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
-              }`}
+              onClick={() => onStatusChange('scheduled')}
+              className={`px-2 py-0.5 rounded cursor-pointer ${status === 'scheduled' ? 'bg-black text-white font-bold' : 'hover:bg-zinc-100'}`}
             >
-              Preparing
+              Scheduled
             </button>
             <button
-              type="button"
-              onClick={() => onStatusChange('packed')}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition cursor-pointer ${
-                status === 'packed'
-                  ? 'bg-amber-500 text-white shadow-xs'
-                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
-              }`}
+              onClick={() => onStatusChange('on_route')}
+              className={`px-2 py-0.5 rounded cursor-pointer ${status === 'on_route' ? 'bg-[#FF4C00] text-white font-bold' : 'hover:bg-zinc-100'}`}
             >
-              Packed
+              On The Way
             </button>
             <button
-              type="button"
-              onClick={() => onStatusChange('on_the_way')}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition cursor-pointer ${
-                status === 'on_the_way'
-                  ? 'bg-[#FF4C00] text-white shadow-xs'
-                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
-              }`}
-            >
-              On the way
-            </button>
-            <button
-              type="button"
               onClick={() => onStatusChange('delivered')}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition cursor-pointer ${
-                status === 'delivered'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
-              }`}
+              className={`px-2 py-0.5 rounded cursor-pointer ${status === 'delivered' ? 'bg-emerald-600 text-white font-bold' : 'hover:bg-zinc-100'}`}
             >
               Delivered
             </button>
           </div>
         </div>
 
-        {/* ============================================================== */}
-        {/* SKIPPED STATE */}
-        {/* ============================================================== */}
-        {status === 'skipped' ? (
-          <div className="space-y-4 py-4">
-            <div className="flex items-center space-x-2 text-zinc-500">
-              <span className="text-2xl">⏸</span>
+        {/* Pending Address Change Banner (24-Hour Transition) */}
+        {pendingAddressChange && (
+          <div className="mb-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start space-x-2.5">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
-                  TODAY · {dateFormatted}
+                <span className="font-black text-amber-900 block">
+                  🕒 Delivery Address Transition (Effective in 24 Hours)
                 </span>
-                <h3 className="text-xl sm:text-2xl font-black text-black">
-                  Lunch Skipped for Today
-                </h3>
+                <span className="text-amber-800">
+                  Switching to: <strong>{pendingAddressChange.newLocation}</strong>. Today's drop is still routed to <strong>{deliveryAddress}</strong>.
+                </span>
               </div>
             </div>
+            {onCancelPendingAddressChange && (
+              <button
+                onClick={onCancelPendingAddressChange}
+                className="px-3.5 py-1.5 rounded-full bg-white border border-amber-400 hover:bg-amber-100 text-amber-900 font-bold text-xs shrink-0 cursor-pointer transition shadow-2xs"
+              >
+                Cancel Change
+              </button>
+            )}
+          </div>
+        )}
 
-            <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* 12:00 PM Passed Auto-Delivered Notice */}
+        {isAfter12PM && effectiveStatus === 'delivered' && (
+          <div className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center space-x-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              12:00 PM has passed: Your lunch has arrived at your desk automatically. Daily Lagos dispatch window is concluded!
+            </span>
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* STATE 1: LUNCH SKIPPED */}
+        {/* ============================================================== */}
+        {effectiveStatus === 'skipped' ? (
+          <div className="space-y-4 py-2">
+            <div className="flex items-center space-x-2 text-zinc-600">
+              <span className="text-xl">↩</span>
+              <h3 className="text-xl font-black text-black">Lunch Skipped Today</h3>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-zinc-800">
-                  {mealTitle} won't be delivered to your desk today.
+                <p className="text-xs font-bold text-zinc-800">
+                  {mealTitle} will not be delivered to your desk today.
                 </p>
-                <p className="text-xs text-emerald-700 font-semibold mt-0.5">
-                  ✓ ₦3,200 preserved in your Lunch Wallet. Ready whenever you want an extra meal.
+                <p className="text-xs text-emerald-700 font-medium mt-0.5">
+                  ✓ Your lunch credit remains available in your account ({skipCount}/4 skip actions used).
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={onUndoSkip}
-                className="px-5 py-2.5 rounded-full bg-black hover:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer self-start sm:self-auto shadow-xs"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Undo Skip (Restore Lunch)</span>
-              </button>
+              {isSkipActionLocked ? (
+                <div className="flex items-center space-x-1.5 px-4 py-2 rounded-full bg-zinc-200 text-zinc-500 text-xs font-bold">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Undo Locked (4/4 actions used)</span>
+                </div>
+              ) : (
+                <button
+                  onClick={onUndoSkip}
+                  className="px-5 py-2.5 rounded-full bg-black hover:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer self-start sm:self-auto"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Undo Skip ({skipsRemaining} skips left)</span>
+                </button>
+              )}
             </div>
           </div>
         ) : (
           /* ============================================================== */
-          /* ACTIVE HERO OBJECT */
+          /* ACTIVE STATES: SCHEDULED / ON THE WAY / DELIVERED */
           /* ============================================================== */
-          <div className="space-y-6">
+          <div className={`space-y-6 ${effectiveStatus === 'delivered' ? 'opacity-90' : ''}`}>
             
-            {/* Top Date Header */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-[#FF4C00] block mb-0.5">
-                  TODAY · {dateFormatted}
+            {/* Dynamic Status Banner */}
+            {effectiveStatus === 'on_route' && (
+              <div className="p-3.5 rounded-2xl bg-[#FF4C00]/10 border border-[#FF4C00]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-full bg-[#FF4C00] text-white flex items-center justify-center shrink-0 animate-pulse">
+                    <Truck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-[#FF4C00] uppercase tracking-wider block">
+                      🚚 Your Lunch is on the Way
+                    </span>
+                    <span className="text-xs text-zinc-800 font-bold">
+                      Expected arrival: 11:20 AM – 11:40 AM
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsTrackModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white text-xs font-bold cursor-pointer transition self-start sm:self-auto"
+                >
+                  Track Delivery
+                </button>
+              </div>
+            )}
+
+            {effectiveStatus === 'delivered' && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-emerald-800 uppercase tracking-wider block">
+                      ✓ Delivered to Desk
+                    </span>
+                    <span className="text-xs text-zinc-800 font-bold">
+                      Thermal bowl dropped at desk (11:34 AM)
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsRateModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold cursor-pointer transition self-start sm:self-auto flex items-center space-x-1"
+                >
+                  <Star className="w-3.5 h-3.5 fill-white" />
+                  <span>Rate Today's Lunch</span>
+                </button>
+              </div>
+            )}
+
+            {/* Meal Title & Ingredients */}
+            <div>
+              <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                Today's Lunch
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-black tracking-tight leading-tight">
+                {mealTitle}
+              </h2>
+
+              {/* What's In It Section */}
+              <div className="mt-3">
+                <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">
+                  What's in it
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-black text-black tracking-tight leading-tight flex items-center space-x-2.5">
-                  <span>{emoji}</span>
-                  <span>{mealTitle}</span>
-                </h2>
-              </div>
-
-              {/* Dynamic Time Countdown Callout */}
-              <div className={`px-3.5 py-1.5 rounded-2xl border text-xs flex items-center space-x-2 ${dynamicCountdown.accent}`}>
-                <Clock className="w-3.5 h-3.5 shrink-0" />
-                <span>{dynamicCountdown.text}</span>
-              </div>
-            </div>
-
-            {/* Current Active Status Headline */}
-            <div className="text-base sm:text-lg font-bold text-zinc-800 flex items-center space-x-2">
-              <span className="w-3 h-3 rounded-full bg-[#FF4C00] animate-ping" />
-              <span>{stages[currentStageIndex].headline}</span>
-            </div>
-
-            {/* ============================================================== */}
-            {/* DELIVERY STATE TRACKER: Kitchen → Packed → Rider → Desk */}
-            {/* ============================================================== */}
-            <div className="space-y-3 pt-2">
-              <div className="relative">
-                {/* Horizontal Progress Bar Track */}
-                <div className="absolute top-4 left-6 right-6 h-1 bg-zinc-200 -z-0 rounded-full">
-                  <div
-                    className="h-full bg-gradient-to-r from-black via-[#FF4C00] to-emerald-500 rounded-full transition-all duration-500"
-                    style={{
-                      width:
-                        currentStageIndex === 0
-                          ? '12%'
-                          : currentStageIndex === 1
-                          ? '38%'
-                          : currentStageIndex === 2
-                          ? '70%'
-                          : '100%',
-                    }}
-                  />
-                </div>
-
-                {/* 4 Interactive Milestones */}
-                <div className="grid grid-cols-4 gap-2 relative z-10">
-                  {stages.map((stg, idx) => {
-                    const isCompleted = idx < currentStageIndex;
-                    const isCurrent = idx === currentStageIndex;
-                    const IconComponent = stg.icon;
-
-                    return (
-                      <button
-                        key={stg.id}
-                        type="button"
-                        onClick={() => {
-                          onStatusChange(stg.id as TodayLunchDeliveryState);
-                          setIsWheresMyLunchOpen(true);
-                        }}
-                        className="group flex flex-col items-center text-center cursor-pointer focus:outline-none"
-                      >
-                        {/* Circle Indicator */}
-                        <div
-                          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${
-                            isCurrent
-                              ? 'bg-black text-white ring-4 ring-[#FF4C00]/30 scale-110 shadow-md animate-pulse'
-                              : isCompleted
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'bg-white border-2 border-zinc-300 text-zinc-400 group-hover:border-zinc-400'
-                          }`}
-                        >
-                          <IconComponent className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </div>
-
-                        {/* Stage Name */}
-                        <span
-                          className={`mt-2 text-xs font-bold leading-tight block ${
-                            isCurrent
-                              ? 'text-black font-black'
-                              : isCompleted
-                              ? 'text-emerald-700'
-                              : 'text-zinc-400'
-                          }`}
-                        >
-                          {stg.label}
-                        </span>
-
-                        {/* Subtitle / Time */}
-                        <span className="text-[10px] text-zinc-400 font-medium hidden sm:inline">
-                          {stg.time}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Delivery Window Bar */}
-              <div className="p-3 rounded-2xl bg-[#FAF7F2] border border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                <div className="flex items-center space-x-2 text-zinc-700">
-                  <Clock className="w-4 h-4 text-[#FF4C00]" />
-                  <span className="font-bold">Desk Drop Window:</span>
-                  <span className="font-black text-black">{deliveryWindow}</span>
-                </div>
-
-                <div className="flex items-center space-x-1.5 text-zinc-600">
-                  <MapPin className="w-3.5 h-3.5 text-[#FF4C00]" />
-                  <span className="font-medium truncate max-w-[200px] sm:max-w-none">{deliveryAddress}</span>
-                  {onChangeDesk && (
-                    <button
-                      type="button"
-                      onClick={onChangeDesk}
-                      className="text-[11px] font-bold text-[#FF4C00] hover:underline ml-1 cursor-pointer"
+                <div className="flex flex-wrap gap-2">
+                  {ingredients.slice(0, 4).map((ing, i) => (
+                    <span
+                      key={i}
+                      className="px-3 py-1 rounded-xl bg-[#FAF7F2] border border-zinc-200 text-xs font-semibold text-zinc-800"
                     >
-                      [Change]
+                      • {ing}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Delivery Info Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-zinc-150">
+              
+              <div className="flex items-start space-x-2.5">
+                <Clock className="w-4 h-4 text-[#FF4C00] shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase block">
+                    Delivery Window
+                  </span>
+                  <span className="text-xs font-black text-black">
+                    {deliveryWindow}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2.5">
+                <MapPin className="w-4 h-4 text-[#FF4C00] shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase block">
+                    Desk Drop Location
+                  </span>
+                  <span className="text-xs font-black text-black">
+                    {deliveryAddress}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Actions: View Details & Skip Today's Lunch */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-zinc-150">
+              <button
+                onClick={() => setIsDetailsModalOpen(true)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-full border border-zinc-300 hover:border-black text-xs font-bold text-black transition cursor-pointer flex items-center justify-center space-x-1.5"
+              >
+                <Info className="w-3.5 h-3.5 text-zinc-500" />
+                <span>View Details</span>
+              </button>
+
+              {effectiveStatus !== 'delivered' && (
+                <div>
+                  {isAfter4PM ? (
+                    <div className="flex items-center space-x-2">
+                      <button
+                        disabled
+                        className="px-4 py-2.5 rounded-full bg-zinc-100 text-zinc-400 text-xs font-bold flex items-center space-x-1.5 cursor-not-allowed border border-zinc-200"
+                        title="After 4:00 PM meals are accepted and locked for kitchen prep"
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Locked After 4:00 PM</span>
+                      </button>
+                      <a
+                        href={`https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
+                          'Hello 11to12! I need emergency care assistance regarding my meal.'
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-[#FF4C00] hover:underline flex items-center space-x-1"
+                        title="Contact Care to request an emergency exception"
+                      >
+                        <PhoneCall className="w-3 h-3" />
+                        <span>Call Care</span>
+                      </a>
+                    </div>
+                  ) : isSkipActionLocked ? (
+                    <div className="flex items-center space-x-2">
+                      <button
+                        disabled
+                        className="px-4 py-2.5 rounded-full bg-zinc-100 text-zinc-400 text-xs font-bold flex items-center space-x-1.5 cursor-not-allowed border border-zinc-200"
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Skip Limit Reached (4/4 Used)</span>
+                      </button>
+                      <a
+                        href={`https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
+                          'Hello 11to12! I have reached my 4 skips limit and need assistance.'
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-[#FF4C00] hover:underline flex items-center space-x-1"
+                      >
+                        <PhoneCall className="w-3 h-3" />
+                        <span>Call Care</span>
+                      </a>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setIsSkipModalOpen(true)}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-zinc-100 hover:bg-zinc-200 text-xs font-bold text-zinc-700 hover:text-black transition cursor-pointer"
+                    >
+                      Skip Today's Lunch ({skipsRemaining} skips left)
                     </button>
                   )}
                 </div>
-              </div>
-            </div>
-
-            {/* What's In Today's Lunch preview pills */}
-            <div>
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1.5">
-                Included in your desk portion
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {ingredients.slice(0, 4).map((ing, i) => (
-                  <span
-                    key={i}
-                    className="px-3 py-1 rounded-xl bg-zinc-50 border border-zinc-200 text-xs font-medium text-zinc-800"
-                  >
-                    • {ing}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Hero Interactive Action Buttons: [ View delivery / Where's my lunch? ] [ Skip lunch ] */}
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-150">
-              <button
-                type="button"
-                onClick={() => setIsWheresMyLunchOpen(true)}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-black hover:bg-zinc-800 text-white text-xs font-bold transition cursor-pointer flex items-center justify-center space-x-2 shadow-xs"
-              >
-                <Truck className="w-3.5 h-3.5 text-[#FF4C00]" />
-                <span>Where's my lunch? (View Delivery)</span>
-              </button>
-
-              <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
-                {status === 'delivered' ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsRateModalOpen(true)}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs"
-                  >
-                    <Star className="w-3.5 h-3.5 fill-white" />
-                    <span>Rate Lunch</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIsSkipModalOpen(true)}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-full border border-zinc-300 hover:border-black hover:bg-zinc-50 text-xs font-bold text-zinc-700 hover:text-black transition cursor-pointer flex items-center justify-center space-x-1.5"
-                  >
-                    <span>Skip today's lunch</span>
-                  </button>
-                )}
-              </div>
+              )}
             </div>
 
           </div>
@@ -436,119 +371,101 @@ export const TodayLunchHeroCard: React.FC<TodayLunchHeroCardProps> = ({
 
       </div>
 
-      {/* ============================================================== */}
-      {/* "WHERE'S MY LUNCH?" INTERACTIVE DRAWER / MODAL */}
-      {/* ============================================================== */}
-      {isWheresMyLunchOpen && (
+      {/* Skip Confirmation Modal */}
+      <SkipConfirmationModal
+        isOpen={isSkipModalOpen}
+        onClose={() => setIsSkipModalOpen(false)}
+        onConfirmSkip={onSkipToday}
+        mealTitle={mealTitle}
+        dateFormatted={dateFormatted}
+      />
+
+      {/* Meal Details Modal */}
+      {isDetailsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-['Poppins']">
-          <div className="relative w-full max-w-lg bg-white rounded-3xl border border-zinc-200 shadow-2xl p-6 sm:p-8 text-left animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl border border-zinc-200 shadow-2xl p-6 sm:p-7 text-left animate-in fade-in zoom-in-95 duration-200">
             <button
-              onClick={() => setIsWheresMyLunchOpen(false)}
+              onClick={() => setIsDetailsModalOpen(false)}
               className="absolute top-5 right-5 p-2 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-black cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
+            </button>
+
+            <span className="text-[10px] font-bold text-[#FF4C00] uppercase tracking-wider block mb-1">
+              Chef Justice Kitchen Sheet
+            </span>
+            <h3 className="text-xl font-black text-black">
+              {mealTitle}
+            </h3>
+
+            <div className="mt-4 space-y-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-zinc-200">
+                <span className="font-bold text-zinc-600 block mb-1.5">Ingredients & Components:</span>
+                <ul className="list-disc list-inside space-y-1 text-zinc-800 font-medium">
+                  {ingredients.map((ing, idx) => (
+                    <li key={idx}>{ing}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-orange-50/60 border border-orange-200/80">
+                <span className="font-bold text-[#FF4C00] block mb-1">Heat-Retaining Desk Packaging:</span>
+                <p className="text-zinc-700 leading-relaxed">
+                  Packed at 10:15 AM in our dual-seal thermal food bowl. Keeps hot at 65°C+ right through 1:00 PM without needing office microwave reheating.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsDetailsModalOpen(false)}
+              className="mt-6 w-full py-3 rounded-full bg-black hover:bg-zinc-800 text-white font-bold text-xs uppercase tracking-wider cursor-pointer"
+            >
+              Close Details
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Live Courier Tracking Modal */}
+      {isTrackModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-['Poppins']">
+          <div className="relative w-full max-w-md bg-white rounded-3xl border border-zinc-200 shadow-2xl p-6 sm:p-7 text-left animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setIsTrackModalOpen(false)}
+              className="absolute top-5 right-5 p-2 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-black cursor-pointer"
+            >
+              <X className="w-4 h-4" />
             </button>
 
             <div className="flex items-center space-x-2 text-[#FF4C00] mb-1">
-              <Truck className="w-5 h-5" />
-              <span className="text-xs font-bold uppercase tracking-wider">
-                Live Delivery Tracker
-              </span>
+              <Truck className="w-4 h-4" />
+              <span className="text-xs font-bold uppercase tracking-wider">Live Route Courier</span>
             </div>
-            <h3 className="text-2xl font-black text-black">
-              Where's my lunch?
+            <h3 className="text-lg font-black text-black">
+              Courier on Route to Landmark Towers
             </h3>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Live status for {mealTitle} • {deliveryAddress}
-            </p>
 
-            {/* Current Stage Highlight Box */}
-            <div className="my-5 p-4 rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50/50 border border-orange-200/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#FF4C00] text-white text-[10px] font-black uppercase">
-                  {stages[currentStageIndex].tag}
-                </span>
-                <span className="text-xs font-bold text-zinc-500">
-                  Updated: {stages[currentStageIndex].time}
-                </span>
+            <div className="mt-4 p-4 rounded-2xl bg-[#FAF7F2] border border-zinc-200 space-y-3 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-500">Dispatch Courier:</span>
+                <span className="font-bold text-black">Babatunde (Honda Bike #12)</span>
               </div>
-              <h4 className="text-base font-black text-black">
-                {stages[currentStageIndex].headline}
-              </h4>
-              <p className="text-xs text-zinc-700 font-medium leading-relaxed">
-                {stages[currentStageIndex].detail}
-              </p>
-            </div>
-
-            {/* Complete 4-Step Route Details */}
-            <div className="space-y-4 text-xs">
-              <span className="font-black text-black text-sm block">Route Timeline</span>
-
-              <div className="space-y-3 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-zinc-200">
-                {stages.map((stg, idx) => {
-                  const isCurrent = idx === currentStageIndex;
-                  const isPast = idx < currentStageIndex;
-
-                  return (
-                    <div key={stg.id} className="relative flex items-start space-x-3.5 pl-1">
-                      <div
-                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 z-10 text-[10px] font-bold ${
-                          isCurrent
-                            ? 'bg-[#FF4C00] text-white ring-4 ring-orange-200'
-                            : isPast
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-zinc-200 text-zinc-500'
-                        }`}
-                      >
-                        {isPast ? '✓' : idx + 1}
-                      </div>
-                      <div className="flex-1 bg-zinc-50/80 p-3 rounded-2xl border border-zinc-200/70">
-                        <div className="flex justify-between items-baseline mb-0.5">
-                          <span className={`font-black ${isCurrent ? 'text-[#FF4C00]' : 'text-black'}`}>
-                            {stg.label} ({stg.shortLabel})
-                          </span>
-                          <span className="text-[11px] text-zinc-400 font-semibold">{stg.time}</span>
-                        </div>
-                        <p className="text-zinc-600 text-[11px] leading-relaxed">
-                          {stg.detail}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-500">Departure Time:</span>
+                <span className="font-bold text-black">10:48 AM from VI Kitchen</span>
               </div>
-
-              {/* Courier & Desk Drop Details */}
-              <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-zinc-200 space-y-2 mt-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-500">Dedicated Courier:</span>
-                  <span className="font-bold text-black">Musa A. (Dispatch Van #04)</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-500">Target Delivery Desk:</span>
-                  <span className="font-bold text-black">{deliveryAddress}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-500">Thermal Bowl Temp:</span>
-                  <span className="font-bold text-emerald-700">75°C (Steam Sealed)</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-500">Need Immediate Help?</span>
-                  <a
-                    href="https://wa.me/2348031234567?text=Hello%2011to12!%20Where%20is%20my%20desk%20drop%20lunch%20today%3F"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-bold text-[#FF4C00] hover:underline"
-                  >
-                    WhatsApp Kitchen Team →
-                  </a>
-                </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-500">Estimated Desk Drop:</span>
+                <span className="font-bold text-emerald-700">11:25 AM</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-500">Destination Desk:</span>
+                <span className="font-bold text-black">Floor 4, Suite 402</span>
               </div>
             </div>
 
             <button
-              type="button"
-              onClick={() => setIsWheresMyLunchOpen(false)}
+              onClick={() => setIsTrackModalOpen(false)}
               className="mt-6 w-full py-3 rounded-full bg-black hover:bg-zinc-800 text-white font-bold text-xs uppercase tracking-wider cursor-pointer"
             >
               Close Tracker
@@ -556,16 +473,6 @@ export const TodayLunchHeroCard: React.FC<TodayLunchHeroCardProps> = ({
           </div>
         </div>
       )}
-
-      {/* Skip Confirmation Modal */}
-      <SkipConfirmationModal
-        isOpen={isSkipModalOpen}
-        onClose={() => setIsSkipModalOpen(false)}
-        onConfirmSkip={onSkipToday}
-        onSendToColleague={onSendToColleague}
-        mealTitle={mealTitle}
-        dateFormatted={dateFormatted}
-      />
 
       {/* Rate Lunch Modal */}
       {isRateModalOpen && (

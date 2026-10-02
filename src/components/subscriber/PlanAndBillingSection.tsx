@@ -17,6 +17,7 @@ import {
 import { InvoiceSlipModal } from '../marketing/InvoiceSlipModal';
 import { AddPlanDaysModal } from './AddPlanDaysModal';
 import { OrderSubmission, UserProfile } from '../../types';
+import { CONTACT_CONFIG } from '../../config/contactConfig';
 
 interface PlanAndBillingSectionProps {
   planName: string; // "Desk Drop (20 Lunches)"
@@ -61,7 +62,7 @@ export const PlanAndBillingSection: React.FC<PlanAndBillingSectionProps> = ({
     id: '11TO12-2026-0842',
     fullName: userProfile?.name || 'Active Subscriber',
     email: userProfile?.email || 'subscriber@11to12.com',
-    phone: userProfile?.phone || '+234 803 123 4567',
+    phone: userProfile?.phone || CONTACT_CONFIG.whatsappDisplay,
     company: userProfile?.company || 'Corporate Desk Drop',
     officeAddress: userProfile?.address || 'Victoria Island, Lagos',
     selectedDays: Array.from({ length: totalLunches }).map((_, idx) => ({
@@ -307,7 +308,7 @@ export const PlanAndBillingSection: React.FC<PlanAndBillingSectionProps> = ({
           onClose={() => setShowAddDaysModal(false)}
           subscriberName={userProfile?.name || 'Active Subscriber'}
           subscriberEmail={userProfile?.email || 'subscriber@11to12.com'}
-          subscriberPhone={userProfile?.phone || '+234 803 123 4567'}
+          subscriberPhone={userProfile?.phone || CONTACT_CONFIG.whatsappDisplay}
           company={userProfile?.company || 'Corporate Desk Drop'}
           officeAddress={userProfile?.address || 'Victoria Island, Lagos'}
           onTopUpRequested={(days, amount, refId) => {

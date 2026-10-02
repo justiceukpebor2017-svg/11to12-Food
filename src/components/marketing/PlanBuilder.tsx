@@ -8,6 +8,7 @@ import {
   PER_DAY_FEE,
 } from '../../types';
 import { getStructuredMealForDate } from '../../data/menuRotation';
+import { LAUNCH_CONFIG, isDateBeforeLaunch } from '../../config/launchConfig';
 import {
   ChevronLeft,
   ChevronRight,
@@ -26,9 +27,9 @@ interface PlanBuilderProps {
 }
 
 export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout }) => {
-  // Anchored to October 2026 (Month 1 of the 26-week / 6-month cycle)
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(9); // 9 is October (0-indexed)
+  // Anchored to official Launch Date (November 2, 2026)
+  const [currentYear, setCurrentYear] = useState(LAUNCH_CONFIG.year);
+  const [currentMonth, setCurrentMonth] = useState(LAUNCH_CONFIG.monthIndex);
 
   // Map of dateStr -> SelectedLunchDay
   const [selectedDaysMap, setSelectedDaysMap] = useState<Record<string, SelectedLunchDay>>({});
@@ -51,15 +52,19 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
 
-  // 6-month quick navigation tabs
-  const sixMonthsCycle = [
-    { year: 2026, month: 9, label: 'Oct 2026' },
-    { year: 2026, month: 10, label: 'Nov 2026' },
-    { year: 2026, month: 11, label: 'Dec 2026' },
-    { year: 2027, month: 0, label: 'Jan 2027' },
-    { year: 2027, month: 1, label: 'Feb 2027' },
-    { year: 2027, month: 2, label: 'Mar 2027' },
-  ];
+  // 6-month quick navigation tabs starting from launch date
+  const sixMonthsCycle = useMemo(() => {
+    const tabs = [];
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(LAUNCH_CONFIG.year, LAUNCH_CONFIG.monthIndex + i, 1);
+      tabs.push({
+        year: d.getFullYear(),
+        month: d.getMonth(),
+        label: `${monthNames[d.getMonth()].substring(0, 3)} ${d.getFullYear()}`,
+      });
+    }
+    return tabs;
+  }, []);
 
   const prevMonth = () => {
     if (currentMonth === 0) {
@@ -79,8 +84,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     }
   };
 
-  // Generate calendar days for current month grid (Monday to Sunday Worldwide Standard)
-  // Monday = 0, Tuesday = 1, Wednesday = 2, Thursday = 3, Friday = 4, Saturday = 5, Sunday = 6
+  // Generate calendar days for current month grid (Monday to Sunday - Worldwide standard)
   const firstDayIndex = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7;
   const totalDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const prevMonthDays = new Date(currentYear, currentMonth, 0).getDate();
@@ -92,6 +96,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       date: Date;
       dateStr: string;
       isWeekend: boolean;
+      isBeforeLaunch: boolean;
       meal: StructuredMeal | null;
     }[] = [];
 
@@ -109,6 +114,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         date,
         dateStr,
         isWeekend,
+        isBeforeLaunch: isDateBeforeLaunch(date),
         meal: isWeekend ? null : getStructuredMealForDate(date),
       });
     }
@@ -126,13 +132,13 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         date,
         dateStr,
         isWeekend,
+        isBeforeLaunch: isDateBeforeLaunch(date),
         meal: isWeekend ? null : getStructuredMealForDate(date),
       });
     }
 
-    // Next month padding to fill out complete 5 or 6 rows of 7 days
-    const totalCellsNeeded = cells.length <= 35 ? 35 : 42;
-    const remainingCells = totalCellsNeeded - cells.length;
+    // Next month padding to fill grid
+    const remainingCells = 35 - cells.length > 0 ? 35 - cells.length : 42 - cells.length;
     for (let d = 1; d <= remainingCells; d++) {
       const date = new Date(currentYear, currentMonth + 1, d);
       const mm = String(date.getMonth() + 1).padStart(2, '0');
@@ -145,12 +151,13 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         date,
         dateStr,
         isWeekend,
+        isBeforeLaunch: isDateBeforeLaunch(date),
         meal: isWeekend ? null : getStructuredMealForDate(date),
       });
     }
 
     return cells;
-  }, [currentYear, currentMonth, firstDayIndex, totalDaysInMonth, prevMonthDays]);
+  }, [currentYear, currentMonth, firstDayIndex, prevMonthDays, totalDaysInMonth]);
 
   // Clean animation frame on unmount
   useEffect(() => {
@@ -244,6 +251,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     setValidationError(null);
   };
 
+  const isCurrentMonthPreLaunch =
+    currentYear < LAUNCH_CONFIG.year ||
+    (currentYear === LAUNCH_CONFIG.year && currentMonth < LAUNCH_CONFIG.monthIndex);
+
   // Sorted list of selected days (only deliverable days without holidays)
   const selectedDaysList = useMemo(() => {
     return (Object.values(selectedDaysMap) as SelectedLunchDay[])
@@ -256,9 +267,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   // Rule 5, 6, 7, 8, 9, 10, 11:
   // Calculate Order Button with dynamic downward animation from ~1.35x to actual Final Total
   const handleCalculateOrder = () => {
-    // Rule 15: Zero / Empty order validation
-    if (selectedCount === 0) {
-      setValidationError('Please select at least one lunch day.');
+    // Minimum Requirement: More than 8 days (9+ days)
+    if (selectedCount < 9) {
+      setValidationError('Minimum Requirement: More than 8 days (9+ days). You must select at least 9 lunch days to calculate your order.');
+      setShowOrderBill(false);
       return;
     }
 
@@ -427,15 +439,25 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             </div>
           </div>
 
-          {/* Calendar Day Header - Monday to Sunday Worldwide Standard */}
+          {/* Pre-launch alert banner */}
+          {isCurrentMonthPreLaunch && (
+            <div className="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-[#FF4C00] shrink-0" />
+              <span>
+                Pre-launch period. Deliveries begin <strong>{LAUNCH_CONFIG.displayDate}</strong>. All previous dates are locked.
+              </span>
+            </div>
+          )}
+
+          {/* Calendar Day Header: Monday to Sunday Worldwide */}
           <div className="grid grid-cols-7 gap-2 mb-3 text-center text-xs font-bold text-zinc-400 uppercase tracking-wider">
             <div>Mon</div>
             <div>Tue</div>
             <div>Wed</div>
             <div>Thu</div>
             <div>Fri</div>
-            <div className="text-zinc-400">Sat</div>
-            <div className="text-zinc-400">Sun</div>
+            <div className="text-zinc-400/80">Sat</div>
+            <div className="text-zinc-400/80">Sun</div>
           </div>
 
           {/* Calendar Days Grid */}
@@ -446,23 +468,34 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
               const selectedSwallow = selectedDaysMap[cell.dateStr]?.selectedSwallow || 'Semo';
               const isSwallowMeal = meal?.mealCategory === 'Swallow';
 
-              // Weekend styling (Strictly no meals on Saturday & Sunday)
+              // Pre-launch dates (Faded out till infinity)
+              if (cell.isBeforeLaunch) {
+                return (
+                  <div
+                    key={idx}
+                    className="min-h-[95px] sm:min-h-[115px] p-2 sm:p-2.5 rounded-2xl bg-zinc-100/40 border border-zinc-200/50 flex flex-col justify-between opacity-30 select-none cursor-not-allowed"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-zinc-400">{cell.dayNumber}</span>
+                      <span className="text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200 px-1 py-0.5 rounded">Pre-Launch</span>
+                    </div>
+                    <span className="text-[10px] text-zinc-400 italic text-center py-2">Locked</span>
+                  </div>
+                );
+              }
+
+              // Weekend styling (Strictly No Meals - Saturday & Sunday)
               if (cell.isWeekend) {
                 return (
                   <div
                     key={idx}
-                    className="min-h-[95px] sm:min-h-[115px] p-2 sm:p-2.5 rounded-2xl bg-zinc-50/80 border border-zinc-200/70 flex flex-col justify-between opacity-55 select-none cursor-not-allowed"
+                    className="min-h-[95px] sm:min-h-[115px] p-2 sm:p-2.5 rounded-2xl bg-zinc-50/70 border border-zinc-150 flex flex-col justify-between opacity-50 select-none cursor-not-allowed"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-zinc-400">{cell.dayNumber}</span>
-                      <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-wider bg-zinc-200/60 px-1 py-0.2 rounded">
-                        Weekend
-                      </span>
+                      <span className="text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200/60 px-1 py-0.5 rounded">Off</span>
                     </div>
-                    <div className="text-left">
-                      <span className="text-[10px] text-zinc-500 font-semibold block leading-tight">Kitchen Closed</span>
-                      <span className="text-[8px] text-zinc-400 font-medium block">Weekdays strictly</span>
-                    </div>
+                    <span className="text-[10px] text-zinc-400 font-medium italic text-center py-2">Strictly No Meals (Closed)</span>
                   </div>
                 );
               }
@@ -531,7 +564,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                     )}
                   </div>
 
-                  {/* Middle: Meal Name (STRICTLY NO PRICE DISPLAYED) */}
+                  {/* Middle: Meal Name (ONLY Food Title, no extra description) */}
                   <div className="my-1">
                     <p
                       className={`text-[11px] sm:text-xs font-bold leading-snug line-clamp-2 ${
@@ -542,7 +575,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                     </p>
                   </div>
 
-                  {/* Bottom: Category tag & Friday swallow selection if selected */}
+                  {/* Bottom: Friday swallow selection if selected */}
                   <div>
                     {isSelected && isSwallowMeal ? (
                       <div
@@ -564,17 +597,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                           </button>
                         ))}
                       </div>
-                    ) : (
-                      <span
-                        className={`inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded ${
-                          isSelected
-                            ? 'bg-white/20 text-white'
-                            : 'bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200'
-                        }`}
-                      >
-                        {meal.mealCategory}
-                      </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               );
@@ -607,10 +630,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   {validationError}
                 </span>
               ) : selectedCount === 0 ? (
-                <span>Click any workday above to select lunch days.</span>
+                <span>Click any workday above to select lunch days (Minimum requirement: 9+ days).</span>
+              ) : selectedCount < 9 ? (
+                <span className="text-amber-700 font-semibold">
+                  ⚠️ Minimum Requirement: More than 8 days ({selectedCount}/9 days selected. Please select {9 - selectedCount} more to calculate).
+                </span>
               ) : selectedCount < 20 ? (
                 <span>
-                  ✓ {selectedCount} {selectedCount === 1 ? 'day' : 'days'} selected. Ready to calculate!
+                  ✓ {selectedCount} days selected (Meets 9+ days requirement). Ready to calculate!
                 </span>
               ) : (
                 <span className="text-emerald-600 font-semibold">
@@ -624,8 +651,12 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
           <div>
             <button
               onClick={handleCalculateOrder}
-              disabled={isCalculating || isAnimationRunning}
-              className="w-full md:w-auto px-8 py-4 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-sm uppercase tracking-wider transition shadow-md active:scale-95 disabled:opacity-75 cursor-pointer flex items-center justify-center space-x-2"
+              disabled={isCalculating || isAnimationRunning || selectedCount < 9}
+              className={`w-full md:w-auto px-8 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition shadow-md active:scale-95 flex items-center justify-center space-x-2 ${
+                selectedCount < 9
+                  ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed'
+                  : 'bg-[#FF4C00] hover:bg-[#E04300] text-white cursor-pointer'
+              }`}
             >
               {isCalculating ? (
                 <>
@@ -634,7 +665,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 </>
               ) : (
                 <>
-                  <span>Calculate Order</span>
+                  <span>{selectedCount < 9 ? `Select 9+ Days (${selectedCount}/9)` : 'Calculate Order'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

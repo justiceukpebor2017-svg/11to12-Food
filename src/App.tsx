@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ViewMode,
   TimeWindow,
@@ -15,7 +15,6 @@ import {
   WaitlistLead,
   CreditRedemptionOrder,
   SwallowType,
-  parseLocalDate,
 } from './types';
 import {
   INITIAL_MENU_ITEMS,
@@ -39,25 +38,112 @@ import { FaqSection } from './components/marketing/FaqSection';
 import { Footer } from './components/Footer';
 import { CheckoutModal } from './components/marketing/CheckoutModal';
 import { SetPasswordModal } from './components/subscriber/SetPasswordModal';
+import { SubscriberAuthModal } from './components/subscriber/SubscriberAuthModal';
 import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
 import { JusticeDashboardPage } from './pages/JusticeDashboardPage';
+import { ActivateAccountPage } from './pages/ActivateAccountPage';
+import { parseMagicLinkFromUrl, createHydratedCustomerFromMagicLink } from './utils/magicLink';
+
+// Storage Keys to safeguard existing real dashboard users across updates and refreshes
+const APP_STORAGE_KEYS = {
+  CUSTOMERS: '11to12_persistent_customers_v1',
+  WAITLIST: '11to12_persistent_waitlist_leads_v1',
+  ORDERS: '11to12_persistent_submitted_orders_v1',
+  CREDIT_REDEMPTIONS: '11to12_persistent_credit_redemptions_v1',
+  USER_PROFILE: '11to12_persistent_user_profile_v1',
+};
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('marketing');
+  // Check if URL contains magic link parameters on load
+  const [activeActivation, setActiveActivation] = useState<{
+    customer: CustomerRecord;
+    token: string | null;
+  } | null>(() => {
+    const parsed = parseMagicLinkFromUrl();
+    if (!parsed.isActivateRoute) return null;
+
+    let found: CustomerRecord | null = null;
+    try {
+      const saved = localStorage.getItem(APP_STORAGE_KEYS.CUSTOMERS);
+      if (saved) {
+        const stored = JSON.parse(saved) as CustomerRecord[];
+        if (Array.isArray(stored)) {
+          found =
+            stored.find(
+              (c) =>
+                (parsed.email && c.email.toLowerCase() === parsed.email.toLowerCase()) ||
+                (parsed.token && c.magicLinkToken === parsed.token)
+            ) || null;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    if (!found && parsed.email) {
+      found = createHydratedCustomerFromMagicLink(parsed.email, parsed.token || '');
+    }
+
+    if (found) {
+      return { customer: found, token: parsed.token };
+    }
+    return null;
+  });
+
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const parsed = parseMagicLinkFromUrl();
+    if (parsed.isActivateRoute) return 'activate';
+    return 'marketing';
+  });
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('morning');
+  const [showSubscriberAuthModal, setShowSubscriberAuthModal] = useState(false);
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
-  const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    try {
+      const saved = localStorage.getItem(APP_STORAGE_KEYS.USER_PROFILE);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.email) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load user profile from storage', e);
+    }
+    return INITIAL_USER_PROFILE;
+  });
+
   const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>(INITIAL_ANNOUNCEMENTS);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(INITIAL_INVENTORY);
   const [tickets, setTickets] = useState<SupportTicket[]>(INITIAL_SUPPORT_TICKETS);
   const [ratingsHistory, setRatingsHistory] = useState<MealRating[]>(INITIAL_MEAL_RATINGS);
 
-  // Clean customer records list
-  const [customers, setCustomers] = useState<CustomerRecord[]>(INITIAL_CUSTOMERS);
+  // Customer records list with persistent storage (preserves existing users in the dashboard)
+  const [customers, setCustomers] = useState<CustomerRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem(APP_STORAGE_KEYS.CUSTOMERS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load customers from storage', e);
+    }
+    return INITIAL_CUSTOMERS;
+  });
 
-  // Website Waitlist Leads (populated in real time when visitors reserve)
-  const [waitlistLeads, setWaitlistLeads] = useState<WaitlistLead[]>(INITIAL_WAITLIST_LEADS);
+  // Website Waitlist Leads (persisted so signups are never lost)
+  const [waitlistLeads, setWaitlistLeads] = useState<WaitlistLead[]>(() => {
+    try {
+      const saved = localStorage.getItem(APP_STORAGE_KEYS.WAITLIST);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load waitlist from storage', e);
+    }
+    return INITIAL_WAITLIST_LEADS;
+  });
 
   // Magic Link Onboarding / Password Setup
   const [magicLinkCustomer, setMagicLinkCustomer] = useState<CustomerRecord | null>(null);
@@ -66,8 +152,108 @@ export default function App() {
   const [selectedLunchDays, setSelectedLunchDays] = useState<SelectedLunchDay[]>([]);
   const [calculatedOrderSummary, setCalculatedOrderSummary] = useState<OrderSummary | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [submittedOrders, setSubmittedOrders] = useState<OrderSubmission[]>([]);
-  const [creditRedemptions, setCreditRedemptions] = useState<CreditRedemptionOrder[]>([]);
+
+  // Submitted Orders (persisted so invoices and remittances are retained)
+  const [submittedOrders, setSubmittedOrders] = useState<OrderSubmission[]>(() => {
+    try {
+      const saved = localStorage.getItem(APP_STORAGE_KEYS.ORDERS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load orders from storage', e);
+    }
+    return [];
+  });
+
+  const [creditRedemptions, setCreditRedemptions] = useState<CreditRedemptionOrder[]>(() => {
+    try {
+      const saved = localStorage.getItem(APP_STORAGE_KEYS.CREDIT_REDEMPTIONS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load credit redemptions from storage', e);
+    }
+    return [];
+  });
+
+  // Automatic persistent background synchronization
+  useEffect(() => {
+    try {
+      localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+    } catch (e) {
+      console.error('Failed to save customers', e);
+    }
+  }, [customers]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(APP_STORAGE_KEYS.WAITLIST, JSON.stringify(waitlistLeads));
+    } catch (e) {
+      console.error('Failed to save waitlist', e);
+    }
+  }, [waitlistLeads]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(submittedOrders));
+    } catch (e) {
+      console.error('Failed to save orders', e);
+    }
+  }, [submittedOrders]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(APP_STORAGE_KEYS.CREDIT_REDEMPTIONS, JSON.stringify(creditRedemptions));
+    } catch (e) {
+      console.error('Failed to save credit redemptions', e);
+    }
+  }, [creditRedemptions]);
+
+  useEffect(() => {
+    try {
+      if (userProfile && userProfile.email) {
+        localStorage.setItem(APP_STORAGE_KEYS.USER_PROFILE, JSON.stringify(userProfile));
+      }
+    } catch (e) {
+      console.error('Failed to save user profile', e);
+    }
+  }, [userProfile]);
+
+  // Listen for browser navigation / URL magic link changes
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const parsed = parseMagicLinkFromUrl();
+      if (parsed.isActivateRoute) {
+        let found: CustomerRecord | null = null;
+        if (parsed.email || parsed.token) {
+          found =
+            customers.find(
+              (c) =>
+                (parsed.email && c.email.toLowerCase() === parsed.email.toLowerCase()) ||
+                (parsed.token && c.magicLinkToken === parsed.token)
+            ) || null;
+        }
+        if (!found && parsed.email) {
+          found = createHydratedCustomerFromMagicLink(parsed.email, parsed.token || '');
+        }
+        if (found) {
+          setActiveActivation({ customer: found, token: parsed.token });
+          setViewMode('activate');
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, [customers]);
 
   // Credit Redemption Handlers
   const handleAddCreditRedemption = (order: CreditRedemptionOrder) => {
@@ -89,7 +275,7 @@ export default function App() {
             return {
               ...it,
               dateStr: newDateStr,
-              isFriday: parseLocalDate(newDateStr).getDay() === 5,
+              isFriday: new Date(newDateStr).getDay() === 5,
               swallowChoice: newSwallow || it.swallowChoice,
             };
           }
@@ -113,7 +299,8 @@ export default function App() {
   };
 
   const handleOpenMagicLinkActivation = (customer: CustomerRecord) => {
-    setMagicLinkCustomer(customer);
+    setActiveActivation({ customer, token: customer.magicLinkToken || null });
+    setViewMode('activate');
   };
 
   const handlePasswordSet = (customer: CustomerRecord, newPass: string) => {
@@ -123,7 +310,19 @@ export default function App() {
       password: newPass,
       status: 'Active',
     };
-    setCustomers((prev) => prev.map((c) => (c.id === customer.id ? updatedCust : c)));
+    setCustomers((prev) => {
+      const exists = prev.some(
+        (c) => c.id === customer.id || (c.email && c.email.toLowerCase() === customer.email.toLowerCase())
+      );
+      if (exists) {
+        return prev.map((c) =>
+          c.id === customer.id || (c.email && c.email.toLowerCase() === customer.email.toLowerCase())
+            ? updatedCust
+            : c
+        );
+      }
+      return [updatedCust, ...prev];
+    });
 
     // Synchronize into current userProfile and load all selected days
     setUserProfile({
@@ -154,6 +353,7 @@ export default function App() {
     });
 
     setMagicLinkCustomer(null);
+    setActiveActivation(null);
     setViewMode('subscriber');
   };
 
@@ -529,12 +729,71 @@ export default function App() {
         />
       )}
 
-      {/* Global 11 to 12 Footer */}
-      <Footer
-        onNavigateToLanding={() => setViewMode('marketing')}
-        onNavigateToSubscriber={() => setViewMode('subscriber')}
-        onNavigateToAdmin={() => setViewMode('admin')}
-      />
+      {/* Subscriber Portal Authentication & Forgot Password Modal */}
+      {showSubscriberAuthModal && (
+        <SubscriberAuthModal
+          isOpen={showSubscriberAuthModal}
+          onClose={() => setShowSubscriberAuthModal(false)}
+          customers={customers}
+          onLoginSuccess={(customer) => {
+            handlePasswordSet(customer, customer.password || '');
+            setShowSubscriberAuthModal(false);
+          }}
+          onUpdateCustomerPassword={(customerId, newPass) => {
+            setCustomers((prev) =>
+              prev.map((c) =>
+                c.id === customerId
+                  ? { ...c, password: newPass, isPasswordSet: true, status: 'Active' }
+                  : c
+              )
+            );
+          }}
+        />
+      )}
+
+      {/* VIEW MODE 4: DEDICATED SUBSCRIBER ACTIVATION PAGE */}
+      {viewMode === 'activate' && (
+        <ActivateAccountPage
+          customer={
+            activeActivation?.customer ||
+            createHydratedCustomerFromMagicLink(
+              'justiceukpebor2017@gmail.com',
+              'drh4aqzg'
+            )
+          }
+          token={activeActivation?.token || 'drh4aqzg'}
+          onActivateSuccess={(activatedCust, newPass) => {
+            handlePasswordSet(activatedCust, newPass);
+            try {
+              if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+                const cleanPath = window.location.pathname.replace(/\/activate\/?/, '') || '/';
+                window.history.replaceState({}, document.title, cleanPath);
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }}
+          onNavigateHome={() => {
+            try {
+              if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+                window.history.replaceState({}, document.title, '/');
+              }
+            } catch (e) {
+              console.error(e);
+            }
+            setViewMode('marketing');
+          }}
+        />
+      )}
+
+      {/* Global 11 to 12 Footer (Hidden during focused Account Activation) */}
+      {viewMode !== 'activate' && (
+        <Footer
+          onNavigateToLanding={() => setViewMode('marketing')}
+          onNavigateToSubscriber={() => setShowSubscriberAuthModal(true)}
+          onNavigateToAdmin={() => setViewMode('admin')}
+        />
+      )}
 
     </div>
   );

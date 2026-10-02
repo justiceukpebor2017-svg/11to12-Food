@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle2, ArrowDown, Utensils, Users, Sparkles, CheckCircle, Copy, Check, Ticket, ArrowRight } from 'lucide-react';
 import { WaitlistLead } from '../../types';
+import { LAUNCH_CONFIG, getTimeUntilLaunch } from '../../config/launchConfig';
 
 interface DeskDropWaitlistAndTeaserProps {
   waitlistCount?: number;
@@ -23,30 +24,19 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
   const [generatedMemberCode, setGeneratedMemberCode] = useState<string>('');
   const [copiedCode, setCopiedCode] = useState(false);
 
-  // Simple countdown to launch
-  const [countdown, setCountdown] = useState({
-    days: 41,
-    hours: 0,
-    minutes: 36,
-    seconds: 25,
-  });
+  // Dynamic countdown anchored directly to LAUNCH_CONFIG
+  const [countdown, setCountdown] = useState(getTimeUntilLaunch());
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
-        if (prev.minutes > 0) return { ...prev, minutes: 59, seconds: 59 };
-        if (prev.hours > 0) return { ...prev, hours: prev.hours - 1, minutes: 59, seconds: 59 };
-        if (prev.days > 0) return { ...prev, days: prev.days - 1, hours: 23, minutes: 59, seconds: 59 };
-        return { days: 41, hours: 0, minutes: 36, seconds: 25 };
-      });
+      setCountdown(getTimeUntilLaunch());
     }, 1000);
     return () => clearInterval(timer);
   }, []);
 
   const handleReserve = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !email.trim()) return;
+    if (!fullName.trim() || !email.trim() || !phone.trim()) return;
 
     // Generate unique readable member code (e.g. DD-84920)
     const code = `DD-${Math.floor(10000 + Math.random() * 90000)}`;
@@ -55,9 +45,9 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
       id: `wl-${Date.now()}`,
       name: fullName.trim(),
       email: email.trim(),
-      phone: phone.trim() || '+234 800 000 0000',
-      workplace: workplace.trim() || 'Victoria Island Office',
-      addressFloor: addressFloor.trim() || 'Desk Drop Location',
+      phone: phone.trim(),
+      workplace: workplace.trim() || 'Workplace / Office Building',
+      addressFloor: addressFloor.trim() || 'Floor & Suite Location',
       createdAt: new Date().toISOString(),
       status: 'Waitlisted',
       memberCode: code,
@@ -107,7 +97,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
         {/* Launch Countdown Banner: Clean & Minimal */}
         <div className="text-center space-y-3">
           <h3 className="text-2xl sm:text-3xl font-bold text-white">
-            Deliveries Begin Monday, November 2, 2026
+            Deliveries Begin {LAUNCH_CONFIG.displayDate}
           </h3>
           <div className="flex justify-center items-center space-x-3 sm:space-x-6 text-center pt-2">
             <div>
@@ -246,7 +236,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
               Reserve Your Desk Drop
             </h2>
             <p className="text-sm sm:text-base text-zinc-400 font-normal">
-              Deliveries activate Monday, November 2nd.
+              Deliveries activate {LAUNCH_CONFIG.displayShort}.
             </p>
           </div>
 
@@ -260,7 +250,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Nonso Babatunde"
+                    placeholder="Your Full Name"
                     className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
                   />
                 </div>
@@ -271,7 +261,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="nonso@company.com"
+                    placeholder="name@company.com"
                     className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
                   />
                 </div>
@@ -285,7 +275,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="0803 123 4567"
+                    placeholder="Phone Number"
                     className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
                   />
                 </div>
@@ -333,7 +323,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                   You're on the Waitlist, {fullName}!
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-300 mt-1">
-                  Deliveries activate Monday, November 2nd at {workplace || 'your office'}.
+                  Deliveries activate {LAUNCH_CONFIG.displayShort} at {workplace || 'your office'}.
                 </p>
               </div>
 

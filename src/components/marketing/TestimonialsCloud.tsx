@@ -5,21 +5,27 @@ export const TestimonialsCloud: React.FC = () => {
   const testimonials = [
     {
       quote: "I used to survive on Gala and spite. Now I survive on Gala, spite, and this Jollof Rice. It's an improvement.",
-      author: 'Sarah J',
-      role: 'Professional Email Sender',
-      avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
+      author: 'Chinedu Okafor',
+      role: 'Financial Analyst, Marina',
+      initials: 'CO',
     },
     {
       quote: 'My VLOOKUPs are sharper and my soul is less crushed since I started ordering. Coincidence? Probably not.',
-      author: 'Michael B',
-      role: 'Spreadsheet Wizard',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+      author: 'Amina Bello',
+      role: 'Operations Lead, Victoria Island',
+      initials: 'AB',
     },
     {
       quote: "Finally, a lunch that doesn't make me question all my life choices. Just most of them. Which is a win.",
-      author: 'Emily R',
-      role: 'Manager of Things',
-      avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200',
+      author: 'Femi Adeleke',
+      role: 'Product Manager, Ikoyi',
+      initials: 'FA',
+    },
+    {
+      quote: "My team actually looks forward to 12 PM now. The swallow rotation and desk delivery have stopped our daily lunch debates.",
+      author: 'Blessing Eze',
+      role: 'Human Resources Lead, Lekki',
+      initials: 'BE',
     },
   ];
 
@@ -63,12 +69,10 @@ export const TestimonialsCloud: React.FC = () => {
           </blockquote>
 
           <div className="flex items-center justify-between border-t border-zinc-100 pt-6">
-            <div className="flex items-center space-x-4">
-              <img
-                src={current.avatarUrl}
-                alt={current.author}
-                className="w-12 h-12 rounded-full object-cover border border-zinc-200"
-              />
+            <div className="flex items-center space-x-3.5">
+              <div className="w-11 h-11 rounded-full bg-orange-100 border border-orange-200 text-[#FF4C00] font-black text-sm flex items-center justify-center">
+                {current.initials}
+              </div>
               <div>
                 <div className="text-base font-bold text-black">{current.author}</div>
                 <div className="text-xs text-zinc-500 font-medium">{current.role}</div>

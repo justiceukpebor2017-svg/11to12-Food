@@ -3,6 +3,7 @@ import { SelectedLunchDay, OrderSummary, OrderSubmission, WaitlistLead } from '.
 import { X, Copy, Check, ShieldCheck, MapPin, Building, Phone, Mail, User, CheckCircle2, MessageSquare, FileText, Download, Ticket, AlertCircle, Sparkles } from 'lucide-react';
 import { InvoiceSlipModal } from './InvoiceSlipModal';
 import { downloadInvoiceDocument } from '../../utils/invoiceDownload';
+import { CONTACT_CONFIG } from '../../config/contactConfig';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -41,32 +42,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   // Generated Order reference for the invoice slip
   const [createdOrder, setCreatedOrder] = useState<OrderSubmission | null>(null);
-
-  // Auto-detect saved waitlist code from localStorage on mount
-  useEffect(() => {
-    if (isOpen && !fullName) {
-      try {
-        const savedCode = localStorage.getItem('11to12_waitlist_code');
-        if (savedCode) {
-          setMemberCodeInput(savedCode);
-          const found = waitlistLeads.find(
-            (l) => l.memberCode && l.memberCode.toUpperCase() === savedCode.toUpperCase()
-          );
-          if (found) {
-            setFullName(found.name);
-            setEmail(found.email);
-            setPhone(found.phone);
-            setCompany(found.workplace);
-            setOfficeAddress(found.addressFloor);
-            setAppliedMemberCode(found.memberCode);
-            setMemberCodeSuccess(`✓ Auto-filled from your waitlist spot: ${found.name} (${found.memberCode})`);
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }, [isOpen, waitlistLeads]);
 
   const handleApplyMemberCode = () => {
     const cleanCode = memberCodeInput.trim().toUpperCase();
@@ -229,8 +204,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     Your invoice has been automatically generated. Please download your invoice below, and send both the <strong>Invoice Slip</strong> and your <strong>Bank Transfer Screenshot</strong> to:
                   </p>
                   <div className="mt-2 space-y-1 font-semibold text-zinc-800">
-                    <div>📱 WhatsApp / Phone: <span className="text-[#FF4C00]">+234 803 123 4567</span></div>
-                    <div>✉️ Email: <span className="text-[#FF4C00]">justiceukpebor2017@gmail.com</span></div>
+                    <div>📱 WhatsApp / Phone: <span className="text-[#FF4C00]">{CONTACT_CONFIG.whatsappDisplay}</span></div>
+                    <div>✉️ Email: <span className="text-[#FF4C00]">{CONTACT_CONFIG.supportEmail}</span></div>
                   </div>
                 </div>
 
@@ -265,7 +240,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {/* Secondary actions: Send WhatsApp or Return Home */}
               <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center">
                 <a
-                  href={`https://wa.me/2348031234567?text=${encodeURIComponent(
+                  href={`https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
                     `Hello 11 to 12! I have made the bank transfer for my order (${createdOrder.id}) for ${summary.totalDays} lunch days (₦${summary.finalTotalNGN.toLocaleString()}). Name: ${fullName}. Attached is my payment proof and invoice slip:`
                   )}`}
                   target="_blank"
@@ -372,7 +347,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="flex items-center space-x-2">
                   <input
                     type="text"
-                    placeholder="Enter Unique Member Code (e.g. DD-84920)"
+                    placeholder="Enter Unique Member Code"
                     value={memberCodeInput}
                     onChange={(e) => {
                       setMemberCodeInput(e.target.value);
@@ -408,7 +383,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </p>
               </div>
 
-              {/* Customer Details Form */}
+              {/* Customer Details Form: Your Contact & Desk Drop Details */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-black uppercase tracking-wider block">
@@ -434,7 +409,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       className="w-full bg-white border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
-                      placeholder="e.g. Nonso Babatunde"
+                      placeholder="Your Full Name"
                     />
                   </div>
                 </div>
@@ -450,7 +425,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="w-full bg-white border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
-                        placeholder="nonso@company.com"
+                        placeholder="name@company.com"
                       />
                     </div>
                   </div>
@@ -465,9 +440,35 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         className="w-full bg-white border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
-                        placeholder="0803 123 4567"
+                        placeholder="Phone Number"
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-700 mb-1">Workplace / Building</label>
+                    <input
+                      type="text"
+                      required
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
+                      placeholder="Workplace / Office Building"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-700 mb-1">Delivery Address & Floor</label>
+                    <input
+                      type="text"
+                      required
+                      value={officeAddress}
+                      onChange={(e) => setOfficeAddress(e.target.value)}
+                      className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
+                      placeholder="Floor 4, Suite 402"
+                    />
                   </div>
                 </div>
               </div>
