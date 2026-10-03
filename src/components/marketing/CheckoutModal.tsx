@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { SelectedLunchDay, OrderSummary, OrderSubmission, WaitlistLead } from '../../types';
+import { SelectedLunchDay, OrderSummary, OrderSubmission, WaitlistLead, CustomerRecord } from '../../types';
 import { X, Copy, Check, ShieldCheck, MapPin, Building, Phone, Mail, User, CheckCircle2, MessageSquare, FileText, Download, Ticket, AlertCircle, Sparkles } from 'lucide-react';
 import { InvoiceSlipModal } from './InvoiceSlipModal';
 import { downloadInvoiceDocument } from '../../utils/invoiceDownload';
 import { CONTACT_CONFIG } from '../../config/contactConfig';
+import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface CheckoutModalProps {
   summary: OrderSummary | null;
   onOrderSubmitted: (order: OrderSubmission) => void;
   waitlistLeads?: WaitlistLead[];
+  customers?: CustomerRecord[];
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -21,10 +23,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   summary,
   onOrderSubmitted,
   waitlistLeads = [],
+  customers = [],
 }) => {
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [showInvoiceSlip, setShowInvoiceSlip] = useState(false);
 
   // Form State
@@ -119,6 +123,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const handleSubmitOrder = (e: React.FormEvent) => {
     e.preventDefault();
+    setCheckoutError(null);
+
+    const targetEmail = normalizeEmail(email);
+    const targetPhoneKey = getStandardPhoneKey(phone);
+
+    const existingCustEmail = customers.find((c) => normalizeEmail(c.email) === targetEmail);
+    const existingCustPhone = customers.find((c) => getStandardPhoneKey(c.phone) === targetPhoneKey);
+
+    if (existingCustEmail) {
+      setCheckoutError(`An active subscription already exists for ${targetEmail}. If you need to add days, please use the Subscriber Dashboard top-up.`);
+      return;
+    }
+    if (existingCustPhone) {
+      setCheckoutError(`An active subscription already exists for phone number ${phone}. Please sign in to your dashboard.`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     const submission: OrderSubmission = {
@@ -472,6 +493,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Duplicate Error Alert */}
+              {checkoutError && (
+                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">Duplicate Registration:</span>
+                    <span>{checkoutError}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Payment Proof Notification */}
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">

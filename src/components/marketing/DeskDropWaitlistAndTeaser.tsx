@@ -1,17 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { Play, CheckCircle2, ArrowDown, Utensils, Users, Sparkles, CheckCircle, Copy, Check, Ticket, ArrowRight } from 'lucide-react';
-import { WaitlistLead } from '../../types';
+import { Play, CheckCircle2, ArrowDown, Utensils, Users, Sparkles, CheckCircle, Copy, Check, Ticket, ArrowRight, AlertTriangle, Loader2 } from 'lucide-react';
+import { WaitlistLead, CustomerRecord } from '../../types';
 import { LAUNCH_CONFIG, getTimeUntilLaunch } from '../../config/launchConfig';
+import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
 
 interface DeskDropWaitlistAndTeaserProps {
   waitlistCount?: number;
   confirmedSubscribersCount?: number;
-  onJoinWaitlist?: (lead: WaitlistLead) => void;
+  existingWaitlist?: WaitlistLead[];
+  existingCustomers?: CustomerRecord[];
+  onJoinWaitlist?: (leadData: {
+    name: string;
+    email: string;
+    phone: string;
+    workplace: string;
+    addressFloor: string;
+    memberCode: string;
+  }) => Promise<{ success: boolean; lead?: WaitlistLead; error?: string; message?: string; existingLead?: WaitlistLead }>;
 }
 
 export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps> = ({
   waitlistCount = 0,
   confirmedSubscribersCount = 0,
+  existingWaitlist = [],
+  existingCustomers = [],
   onJoinWaitlist,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -20,7 +32,11 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
   const [phone, setPhone] = useState('');
   const [workplace, setWorkplace] = useState('');
   const [addressFloor, setAddressFloor] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [duplicateFieldError, setDuplicateFieldError] = useState<'email' | 'phone' | 'both' | null>(null);
+  const [existingLeadMatch, setExistingLeadMatch] = useState<WaitlistLead | null>(null);
   const [generatedMemberCode, setGeneratedMemberCode] = useState<string>('');
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -34,38 +50,122 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
     return () => clearInterval(timer);
   }, []);
 
-  const handleReserve = (e: React.FormEvent) => {
+  // Clear duplicate errors when typing
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    if (duplicateFieldError === 'email' || duplicateFieldError === 'both') {
+      setDuplicateFieldError(null);
+      setFormError(null);
+    }
+  };
+
+  const handlePhoneChange = (val: string) => {
+    setPhone(val);
+    if (duplicateFieldError === 'phone' || duplicateFieldError === 'both') {
+      setDuplicateFieldError(null);
+      setFormError(null);
+    }
+  };
+
+  const handleReserve = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !email.trim() || !phone.trim()) return;
+    setFormError(null);
+    setDuplicateFieldError(null);
+    setExistingLeadMatch(null);
+
+    const cleanName = fullName.trim();
+    const cleanEmail = normalizeEmail(email);
+    const cleanPhone = phone.trim();
+    const phoneKey = getStandardPhoneKey(cleanPhone);
+
+    if (!cleanName || !cleanEmail || !cleanPhone) {
+      setFormError('Please fill in your full name, email address, and phone number.');
+      return;
+    }
+
+    // 1. Client-Side instant duplicate validation across both waitlist and customers
+    const emailInWaitlist = existingWaitlist.find((l) => normalizeEmail(l.email) === cleanEmail);
+    const emailInCustomers = existingCustomers.find((c) => normalizeEmail(c.email) === cleanEmail);
+    const phoneInWaitlist = existingWaitlist.find((l) => getStandardPhoneKey(l.phone) === phoneKey);
+    const phoneInCustomers = existingCustomers.find((c) => getStandardPhoneKey(c.phone) === phoneKey);
+
+    const isDupEmail = Boolean(emailInWaitlist || emailInCustomers);
+    const isDupPhone = Boolean(phoneInWaitlist || phoneInCustomers);
+
+    if (isDupEmail && isDupPhone) {
+      setDuplicateFieldError('both');
+      setFormError('Both this email address and phone number are already registered on our list.');
+      setExistingLeadMatch(emailInWaitlist || phoneInWaitlist || null);
+      return;
+    }
+
+    if (isDupEmail) {
+      setDuplicateFieldError('email');
+      setFormError(`The email address "${cleanEmail}" is already registered. You're already locked in for launch!`);
+      setExistingLeadMatch(emailInWaitlist || null);
+      return;
+    }
+
+    if (isDupPhone) {
+      setDuplicateFieldError('phone');
+      setFormError(`The phone number "${cleanPhone}" is already registered on our list. Each member can register once.`);
+      setExistingLeadMatch(phoneInWaitlist || null);
+      return;
+    }
 
     // Generate unique readable member code (e.g. DD-84920)
     const code = `DD-${Math.floor(10000 + Math.random() * 90000)}`;
 
-    const newLead: WaitlistLead = {
-      id: `wl-${Date.now()}`,
-      name: fullName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
+    const newLeadData = {
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone,
       workplace: workplace.trim() || 'Workplace / Office Building',
       addressFloor: addressFloor.trim() || 'Floor & Suite Location',
-      createdAt: new Date().toISOString(),
-      status: 'Waitlisted',
       memberCode: code,
     };
 
-    // Store in localStorage for quick auto-fill in checkout
-    try {
-      localStorage.setItem('11to12_waitlist_code', code);
-      localStorage.setItem('11to12_waitlist_lead', JSON.stringify(newLead));
-    } catch {
-      // ignore storage errors
-    }
+    setIsSubmitting(true);
 
-    setGeneratedMemberCode(code);
-    if (onJoinWaitlist) {
-      onJoinWaitlist(newLead);
+    try {
+      if (onJoinWaitlist) {
+        const result = await onJoinWaitlist(newLeadData);
+        if (!result.success) {
+          setIsSubmitting(false);
+          if (result.error === 'DUPLICATE_EMAIL') {
+            setDuplicateFieldError('email');
+          } else if (result.error === 'DUPLICATE_PHONE') {
+            setDuplicateFieldError('phone');
+          }
+          setFormError(result.message || 'This contact is already registered.');
+          if (result.existingLead) {
+            setExistingLeadMatch(result.existingLead);
+          }
+          return;
+        }
+
+        const registeredCode = result.lead?.memberCode || code;
+        setGeneratedMemberCode(registeredCode);
+
+        // Store in localStorage for quick auto-fill in checkout
+        try {
+          localStorage.setItem('11to12_waitlist_code', registeredCode);
+          if (result.lead) {
+            localStorage.setItem('11to12_waitlist_lead', JSON.stringify(result.lead));
+          }
+        } catch {
+          // ignore storage errors
+        }
+      } else {
+        setGeneratedMemberCode(code);
+      }
+
+      setIsSubmitted(true);
+    } catch (err: any) {
+      setFormError(err?.message || 'Failed to submit reservation. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitted(true);
   };
 
   const handleCopyCode = () => {
@@ -176,23 +276,32 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
 
         {/* LIVE COHORT COUNTER BANNER: EXACTLY ABOVE RESERVE YOUR DESK DROP */}
         <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-black rounded-3xl p-5 sm:p-7 border border-zinc-800 shadow-xl">
-          <div className="text-center mb-4">
+          <div className="text-center mb-4 flex items-center justify-center space-x-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
             <span className="text-[10px] font-black uppercase tracking-widest text-[#FF4C00] bg-[#FF4C00]/10 border border-[#FF4C00]/30 px-3 py-1 rounded-full">
-              Live Reservation Pulse
+              Live Real-Time Reservation Pulse • Synced Across Devices
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
             
             {/* Live Waitlist Counter */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-zinc-800 flex items-center space-x-4">
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-zinc-800 flex items-center space-x-4 transition-all duration-300">
               <div className="w-12 h-12 rounded-2xl bg-[#FF4C00]/15 text-[#FF4C00] border border-[#FF4C00]/30 flex items-center justify-center shrink-0">
                 <Sparkles className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">
-                  Waitlist Joined
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">
+                    Waitlist Joined
+                  </span>
+                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300">
+                    Live
+                  </span>
+                </div>
                 <div className="text-2xl sm:text-3xl font-black text-white">
                   {waitlistCount}{' '}
                   <span className="text-xs font-medium text-zinc-400">
@@ -206,14 +315,19 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
             </div>
 
             {/* Live Confirmed Subscribers Counter (from Admin Confirmed Customers) */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-emerald-950/70 flex items-center space-x-4">
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-emerald-950/70 flex items-center space-x-4 transition-all duration-300">
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
                 <CheckCircle className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-xs font-bold text-emerald-400/90 uppercase tracking-wider block">
-                  Confirmed Subscribers
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-bold text-emerald-400/90 uppercase tracking-wider block">
+                    Confirmed Subscribers
+                  </span>
+                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/40">
+                    Live
+                  </span>
+                </div>
                 <div className="text-2xl sm:text-3xl font-black text-emerald-400">
                   {confirmedSubscribersCount}{' '}
                   <span className="text-xs font-medium text-emerald-500/70">
@@ -236,12 +350,44 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
               Reserve Your Desk Drop
             </h2>
             <p className="text-sm sm:text-base text-zinc-400 font-normal">
-              Deliveries activate {LAUNCH_CONFIG.displayShort}.
+              Deliveries activate {LAUNCH_CONFIG.displayShort}. One registration per email and phone.
             </p>
           </div>
 
           {!isSubmitted ? (
             <form onSubmit={handleReserve} className="max-w-xl mx-auto space-y-4">
+              {/* Form Duplicate / Validation Alert */}
+              {formError && (
+                <div className="p-4 rounded-2xl bg-red-950/60 border border-red-800/80 text-red-200 text-xs sm:text-sm space-y-2">
+                  <div className="flex items-start space-x-2">
+                    <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-semibold text-white">{formError}</p>
+                      {existingLeadMatch && (
+                        <div className="mt-2 p-2.5 rounded-xl bg-black/60 border border-red-900/60 flex items-center justify-between">
+                          <div>
+                            <span className="text-[11px] text-zinc-400 block">Your Existing Member Code:</span>
+                            <span className="font-mono text-base font-bold text-[#FF4C00]">{existingLeadMatch.memberCode}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(existingLeadMatch.memberCode);
+                              setCopiedCode(true);
+                              setTimeout(() => setCopiedCode(false), 2000);
+                            }}
+                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1"
+                          >
+                            {copiedCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedCode ? 'Copied' : 'Copy Code'}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-zinc-400 mb-1">Full Name</label>
@@ -255,29 +401,51 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1">Email Address</label>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">
+                    Email Address <span className="text-zinc-500 font-normal">(Unique per user)</span>
+                  </label>
                   <input
                     type="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => handleEmailChange(e.target.value)}
                     placeholder="name@company.com"
-                    className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
+                    className={`w-full bg-[#141414] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition ${
+                      duplicateFieldError === 'email' || duplicateFieldError === 'both'
+                        ? 'border-2 border-red-500 focus:border-red-500'
+                        : 'border border-zinc-700 focus:border-[#FF4C00]'
+                    }`}
                   />
+                  {(duplicateFieldError === 'email' || duplicateFieldError === 'both') && (
+                    <span className="text-[11px] text-red-400 font-medium mt-1 block">
+                      ⚠️ Email address already registered
+                    </span>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1">Phone Number</label>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">
+                    Phone Number <span className="text-zinc-500 font-normal">(Unique per user)</span>
+                  </label>
                   <input
                     type="tel"
                     required
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Phone Number"
-                    className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    placeholder="0802 618 0680"
+                    className={`w-full bg-[#141414] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition ${
+                      duplicateFieldError === 'phone' || duplicateFieldError === 'both'
+                        ? 'border-2 border-red-500 focus:border-red-500'
+                        : 'border border-zinc-700 focus:border-[#FF4C00]'
+                    }`}
                   />
+                  {(duplicateFieldError === 'phone' || duplicateFieldError === 'both') && (
+                    <span className="text-[11px] text-red-400 font-medium mt-1 block">
+                      ⚠️ Phone number already registered
+                    </span>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-400 mb-1">Workplace / Building</label>
@@ -307,9 +475,17 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-base py-4 rounded-xl shadow-lg transition active:scale-98 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="w-full bg-[#FF4C00] hover:bg-[#E04300] disabled:bg-zinc-700 text-white font-bold text-base py-4 rounded-xl shadow-lg transition active:scale-98 cursor-pointer flex items-center justify-center space-x-2"
                 >
-                  Reserve Spot
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Locking In Your Reservation...</span>
+                    </>
+                  ) : (
+                    <span>Reserve Spot</span>
+                  )}
                 </button>
               </div>
             </form>

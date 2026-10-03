@@ -37,12 +37,11 @@ import { TestimonialsCloud } from './components/marketing/TestimonialsCloud';
 import { FaqSection } from './components/marketing/FaqSection';
 import { Footer } from './components/Footer';
 import { CheckoutModal } from './components/marketing/CheckoutModal';
-import { SetPasswordModal } from './components/subscriber/SetPasswordModal';
 import { SubscriberAuthModal } from './components/subscriber/SubscriberAuthModal';
 import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
 import { JusticeDashboardPage } from './pages/JusticeDashboardPage';
-import { ActivateAccountPage } from './pages/ActivateAccountPage';
-import { parseMagicLinkFromUrl, createHydratedCustomerFromMagicLink } from './utils/magicLink';
+import { generateDefaultPassword } from './utils/credentialUtils';
+import { liveSync } from './services/liveSyncService';
 
 // Storage Keys to safeguard existing real dashboard users across updates and refreshes
 const APP_STORAGE_KEYS = {
@@ -54,47 +53,7 @@ const APP_STORAGE_KEYS = {
 };
 
 export default function App() {
-  // Check if URL contains magic link parameters on load
-  const [activeActivation, setActiveActivation] = useState<{
-    customer: CustomerRecord;
-    token: string | null;
-  } | null>(() => {
-    const parsed = parseMagicLinkFromUrl();
-    if (!parsed.isActivateRoute) return null;
-
-    let found: CustomerRecord | null = null;
-    try {
-      const saved = localStorage.getItem(APP_STORAGE_KEYS.CUSTOMERS);
-      if (saved) {
-        const stored = JSON.parse(saved) as CustomerRecord[];
-        if (Array.isArray(stored)) {
-          found =
-            stored.find(
-              (c) =>
-                (parsed.email && c.email.toLowerCase() === parsed.email.toLowerCase()) ||
-                (parsed.token && c.magicLinkToken === parsed.token)
-            ) || null;
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    if (!found && parsed.email) {
-      found = createHydratedCustomerFromMagicLink(parsed.email, parsed.token || '');
-    }
-
-    if (found) {
-      return { customer: found, token: parsed.token };
-    }
-    return null;
-  });
-
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const parsed = parseMagicLinkFromUrl();
-    if (parsed.isActivateRoute) return 'activate';
-    return 'marketing';
-  });
+  const [viewMode, setViewMode] = useState<ViewMode>('marketing');
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('morning');
   const [showSubscriberAuthModal, setShowSubscriberAuthModal] = useState(false);
 
@@ -144,9 +103,6 @@ export default function App() {
     }
     return INITIAL_WAITLIST_LEADS;
   });
-
-  // Magic Link Onboarding / Password Setup
-  const [magicLinkCustomer, setMagicLinkCustomer] = useState<CustomerRecord | null>(null);
 
   // Selected Lunch Days and Calculated Summary for the 6-Month Plan
   const [selectedLunchDays, setSelectedLunchDays] = useState<SelectedLunchDay[]>([]);
@@ -223,37 +179,30 @@ export default function App() {
     }
   }, [userProfile]);
 
-  // Listen for browser navigation / URL magic link changes
+  // Real-time multi-device synchronization via LiveSync
   useEffect(() => {
-    const handleUrlChange = () => {
-      const parsed = parseMagicLinkFromUrl();
-      if (parsed.isActivateRoute) {
-        let found: CustomerRecord | null = null;
-        if (parsed.email || parsed.token) {
-          found =
-            customers.find(
-              (c) =>
-                (parsed.email && c.email.toLowerCase() === parsed.email.toLowerCase()) ||
-                (parsed.token && c.magicLinkToken === parsed.token)
-            ) || null;
-        }
-        if (!found && parsed.email) {
-          found = createHydratedCustomerFromMagicLink(parsed.email, parsed.token || '');
-        }
-        if (found) {
-          setActiveActivation({ customer: found, token: parsed.token });
-          setViewMode('activate');
-        }
+    const unsubscribe = liveSync.subscribe((liveState) => {
+      if (liveState.waitlistLeads && Array.isArray(liveState.waitlistLeads)) {
+        setWaitlistLeads(liveState.waitlistLeads);
       }
-    };
+      if (liveState.customers && Array.isArray(liveState.customers)) {
+        setCustomers(liveState.customers);
+      }
+      if (liveState.submittedOrders && Array.isArray(liveState.submittedOrders)) {
+        setSubmittedOrders(liveState.submittedOrders);
+      }
+      if (liveState.creditRedemptions && Array.isArray(liveState.creditRedemptions)) {
+        setCreditRedemptions(liveState.creditRedemptions);
+      }
+      if (liveState.announcements && liveState.announcements.length > 0) {
+        setAnnouncements(liveState.announcements);
+      }
+    });
 
-    window.addEventListener('popstate', handleUrlChange);
-    window.addEventListener('hashchange', handleUrlChange);
     return () => {
-      window.removeEventListener('popstate', handleUrlChange);
-      window.removeEventListener('hashchange', handleUrlChange);
+      unsubscribe();
     };
-  }, [customers]);
+  }, []);
 
   // Credit Redemption Handlers
   const handleAddCreditRedemption = (order: CreditRedemptionOrder) => {
@@ -292,15 +241,16 @@ export default function App() {
   // Customer Management Handlers
   const handleAddCustomer = (newCustomer: CustomerRecord) => {
     setCustomers((prev) => [newCustomer, ...prev]);
+    liveSync.registerCustomer(newCustomer);
   };
 
   const handleUpdateCustomer = (updated: CustomerRecord) => {
     setCustomers((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    liveSync.updateCustomer(updated.id, updated);
   };
 
-  const handleOpenMagicLinkActivation = (customer: CustomerRecord) => {
-    setActiveActivation({ customer, token: customer.magicLinkToken || null });
-    setViewMode('activate');
+  const handleSimulateUserLogin = (customer: CustomerRecord) => {
+    handlePasswordSet(customer, customer.password || customer.defaultPassword || 'DeskDrop#100');
   };
 
   const handlePasswordSet = (customer: CustomerRecord, newPass: string) => {
@@ -308,8 +258,13 @@ export default function App() {
       ...customer,
       isPasswordSet: true,
       password: newPass,
+      defaultPassword: newPass,
+      isDefaultPassword: false,
+      mustChangePassword: false,
+      passwordLastChangedAt: new Date().toISOString(),
       status: 'Active',
     };
+    liveSync.updateCustomer(updatedCust.id, updatedCust);
     setCustomers((prev) => {
       const exists = prev.some(
         (c) => c.id === customer.id || (c.email && c.email.toLowerCase() === customer.email.toLowerCase())
@@ -335,7 +290,7 @@ export default function App() {
       address: customer.officeAddress,
       floorSuite: customer.floorSuite,
       deliveryArea: customer.deliveryArea || 'Victoria Island',
-      creditsBalance: 0,
+      creditsBalance: customer.creditsBalance || 0,
       spicePreference: 'Medium',
       proteinsPreferred: ['Spiced Grilled Chicken', 'Assorted Goat Meat'],
       dislikes: customer.notes ? [customer.notes] : [],
@@ -352,8 +307,6 @@ export default function App() {
       pendingAddressChange: null,
     });
 
-    setMagicLinkCustomer(null);
-    setActiveActivation(null);
     setViewMode('subscriber');
   };
 
@@ -377,6 +330,7 @@ export default function App() {
     setSubmittedOrders((prev) => [order, ...prev]);
 
     // Create a real customer record from the paid/submitted plan
+    const initialDefaultPassword = generateDefaultPassword();
     const newCustomer: CustomerRecord = {
       id: `cust-${Date.now()}`,
       fullName: order.fullName,
@@ -399,10 +353,17 @@ export default function App() {
       orderRef: order.id,
       memberCode: order.memberCode,
       createdAt: order.submittedAt,
-      isPasswordSet: false,
-      magicLinkToken: Math.random().toString(36).substring(2, 10),
+      isPasswordSet: true,
+      defaultPassword: initialDefaultPassword,
+      password: initialDefaultPassword,
+      isDefaultPassword: true,
+      mustChangePassword: true,
     };
     setCustomers((prev) => [newCustomer, ...prev]);
+
+    // Save to central live database and broadcast across all devices
+    liveSync.registerCustomer(newCustomer);
+    liveSync.submitOrder(order);
 
     // Deduplicate: If this person was in the waitlist (by unique code or email), remove from waitlist so admin has 0 duplicates
     setWaitlistLeads((prev) =>
@@ -432,6 +393,7 @@ export default function App() {
   // Top-Up Order submission from active subscriber dashboard
   const handleTopUpOrderSubmitted = (order: OrderSubmission) => {
     setSubmittedOrders((prev) => [order, ...prev]);
+    liveSync.submitOrder(order);
 
     // Create an urgent admin announcement so the admin gets an instant notification
     const topUpAnnouncement: AdminAnnouncement = {
@@ -449,6 +411,8 @@ export default function App() {
   const handleConfirmTopUpOrder = (orderId: string) => {
     const order = submittedOrders.find((o) => o.id === orderId);
     if (!order) return;
+
+    liveSync.confirmOrderPayment(orderId);
 
     // 1. Mark order payment as Confirmed
     setSubmittedOrders((prev) =>
@@ -522,8 +486,11 @@ export default function App() {
         orderRef: order.id,
         memberCode: order.memberCode,
         createdAt: order.submittedAt,
-        isPasswordSet: false,
-        magicLinkToken: Math.random().toString(36).substring(2, 10),
+        isPasswordSet: true,
+        defaultPassword: generateDefaultPassword(),
+        password: generateDefaultPassword(),
+        isDefaultPassword: true,
+        mustChangePassword: true,
       };
       setCustomers((prev) => [newCustomer, ...prev]);
     }
@@ -600,6 +567,11 @@ export default function App() {
     );
   };
 
+  const handleDeleteCustomer = async (customerId: string) => {
+    setCustomers((prev) => prev.filter((c) => c.id !== customerId));
+    await liveSync.deleteCustomer(customerId);
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1A1A] font-['Poppins'] antialiased selection:bg-[#FF4C00] selection:text-white">
       
@@ -608,6 +580,7 @@ export default function App() {
         <Header
           currentTab={viewMode}
           setCurrentTab={setViewMode}
+          onOpenSubscriberLogin={() => setShowSubscriberAuthModal(true)}
           timeWindow={timeWindow}
           setTimeWindow={setTimeWindow}
           creditsBalance={userProfile.creditsBalance}
@@ -624,8 +597,16 @@ export default function App() {
           {/* 2. Watch Before You Reserve & Reserve Your Desk Drop */}
           <DeskDropWaitlistAndTeaser
             waitlistCount={waitlistLeads.length}
-            confirmedSubscribersCount={customers.length}
-            onJoinWaitlist={(lead) => setWaitlistLeads((prev) => [lead, ...prev])}
+            confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
+            existingWaitlist={waitlistLeads}
+            existingCustomers={customers}
+            onJoinWaitlist={async (leadData) => {
+              const res = await liveSync.joinWaitlist(leadData);
+              if (res.success && res.lead) {
+                setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
+              }
+              return res;
+            }}
           />
 
           {/* 3. Escape Your Lunch Rut (Process Grid) */}
@@ -651,6 +632,7 @@ export default function App() {
             summary={calculatedOrderSummary}
             onOrderSubmitted={handleOrderSubmitted}
             waitlistLeads={waitlistLeads}
+            customers={customers}
           />
 
         </main>
@@ -673,6 +655,12 @@ export default function App() {
           onAddCreditRedemption={handleAddCreditRedemption}
           onMoveCreditDate={handleMoveCreditDate}
           onTopUpOrderSubmitted={handleTopUpOrderSubmitted}
+          onChangePassword={(newPass) => {
+            const cust = customers.find((c) => c.id === userProfile.id || c.email === userProfile.email);
+            if (cust) {
+              handlePasswordSet(cust, newPass);
+            }
+          }}
         />
       )}
 
@@ -690,12 +678,14 @@ export default function App() {
           creditRedemptions={creditRedemptions}
           onConfirmCreditRedemption={handleConfirmCreditRedemption}
           onConfirmTopUpOrder={handleConfirmTopUpOrder}
-          onUpdateWaitlistLead={(updated) =>
-            setWaitlistLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
-          }
+          onUpdateWaitlistLead={(updated) => {
+            setWaitlistLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+            liveSync.updateWaitlistLead(updated.id, updated);
+          }}
           onAddCustomer={handleAddCustomer}
           onUpdateCustomer={handleUpdateCustomer}
-          onSimulateUserActivation={handleOpenMagicLinkActivation}
+          onDeleteCustomer={handleDeleteCustomer}
+          onSimulateUserActivation={handleSimulateUserLogin}
           onNavigateToSubscriber={() => setViewMode('subscriber')}
           userProfile={userProfile}
           onUpdateProfile={handleUpdateProfile}
@@ -706,6 +696,7 @@ export default function App() {
             setSubmittedOrders((prev) =>
               prev.map((o) => (o.id === orderId ? { ...o, paymentStatus: 'Confirmed' } : o))
             );
+            liveSync.confirmOrderPayment(orderId);
           }}
           onNavigateToHome={() => setViewMode('marketing')}
           onAddAnnouncement={handleAddAnnouncement}
@@ -719,16 +710,6 @@ export default function App() {
         />
       )}
 
-      {/* Magic Link / Set Password Activation Modal */}
-      {magicLinkCustomer && (
-        <SetPasswordModal
-          isOpen={!!magicLinkCustomer}
-          customer={magicLinkCustomer}
-          onClose={() => setMagicLinkCustomer(null)}
-          onPasswordSet={handlePasswordSet}
-        />
-      )}
-
       {/* Subscriber Portal Authentication & Forgot Password Modal */}
       {showSubscriberAuthModal && (
         <SubscriberAuthModal
@@ -736,64 +717,39 @@ export default function App() {
           onClose={() => setShowSubscriberAuthModal(false)}
           customers={customers}
           onLoginSuccess={(customer) => {
-            handlePasswordSet(customer, customer.password || '');
+            handlePasswordSet(customer, customer.password || customer.defaultPassword || '');
             setShowSubscriberAuthModal(false);
           }}
           onUpdateCustomerPassword={(customerId, newPass) => {
-            setCustomers((prev) =>
-              prev.map((c) =>
-                c.id === customerId
-                  ? { ...c, password: newPass, isPasswordSet: true, status: 'Active' }
-                  : c
-              )
-            );
+            const cust = customers.find((c) => c.id === customerId);
+            if (cust) {
+              const patched: CustomerRecord = {
+                ...cust,
+                password: newPass,
+                defaultPassword: newPass,
+                isDefaultPassword: false,
+                mustChangePassword: false,
+                isPasswordSet: true,
+                passwordLastChangedAt: new Date().toISOString(),
+                status: 'Active',
+              };
+              setCustomers((prev) => prev.map((c) => (c.id === customerId ? patched : c)));
+              liveSync.updateCustomer(customerId, patched);
+            }
+          }}
+          onOpenAdminLogin={() => {
+            setShowSubscriberAuthModal(false);
+            setViewMode('admin');
           }}
         />
       )}
 
-      {/* VIEW MODE 4: DEDICATED SUBSCRIBER ACTIVATION PAGE */}
-      {viewMode === 'activate' && (
-        <ActivateAccountPage
-          customer={
-            activeActivation?.customer ||
-            createHydratedCustomerFromMagicLink(
-              'justiceukpebor2017@gmail.com',
-              'drh4aqzg'
-            )
-          }
-          token={activeActivation?.token || 'drh4aqzg'}
-          onActivateSuccess={(activatedCust, newPass) => {
-            handlePasswordSet(activatedCust, newPass);
-            try {
-              if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
-                const cleanPath = window.location.pathname.replace(/\/activate\/?/, '') || '/';
-                window.history.replaceState({}, document.title, cleanPath);
-              }
-            } catch (e) {
-              console.error(e);
-            }
-          }}
-          onNavigateHome={() => {
-            try {
-              if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
-                window.history.replaceState({}, document.title, '/');
-              }
-            } catch (e) {
-              console.error(e);
-            }
-            setViewMode('marketing');
-          }}
-        />
-      )}
-
-      {/* Global 11 to 12 Footer (Hidden during focused Account Activation) */}
-      {viewMode !== 'activate' && (
-        <Footer
-          onNavigateToLanding={() => setViewMode('marketing')}
-          onNavigateToSubscriber={() => setShowSubscriberAuthModal(true)}
-          onNavigateToAdmin={() => setViewMode('admin')}
-        />
-      )}
+      {/* Global 11 to 12 Footer */}
+      <Footer
+        onNavigateToLanding={() => setViewMode('marketing')}
+        onNavigateToSubscriber={() => setShowSubscriberAuthModal(true)}
+        onNavigateToAdmin={() => setViewMode('admin')}
+      />
 
     </div>
   );

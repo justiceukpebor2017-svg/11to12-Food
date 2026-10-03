@@ -4,6 +4,24 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import {
+  initLiveDatabase,
+  getPulseStats,
+  registerSSEClient,
+  unregisterSSEClient,
+  getDatabaseState,
+  addWaitlistLead,
+  updateWaitlistLead,
+  deleteWaitlistLead,
+  addCustomerRecord,
+  updateCustomerRecord,
+  addOrderSubmission,
+  confirmOrderPaymentInDb,
+  addCreditRedemptionInDb,
+  findDuplicateInWaitlist,
+  findDuplicateInCustomers,
+  deleteCustomerRecord,
+} from './src/server/liveDatabase';
 
 dotenv.config();
 
@@ -14,6 +32,33 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// In-memory rate limiting to protect API from automated abuse / brute-force
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const apiRateLimiter = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute
+  const maxRequests = 150;
+
+  const record = rateLimitMap.get(ip);
+  if (!record || now > record.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
+    return next();
+  }
+
+  if (record.count >= maxRequests) {
+    return res.status(429).json({
+      error: 'Too many requests. Please slow down and try again shortly.',
+      retryAfter: Math.ceil((record.resetAt - now) / 1000),
+    });
+  }
+
+  record.count += 1;
+  next();
+};
+
+app.use('/api', apiRateLimiter);
 
 // Initialize Gemini Client
 const ai = new GoogleGenAI({
@@ -104,6 +149,160 @@ app.get('/api/admin/giveaway-entries', (_req, res) => {
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// Live Database Initialization
+initLiveDatabase();
+
+// SSE Live Stream Endpoint for real-time push to all devices
+app.get('/api/live-stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (typeof (res as any).flushHeaders === 'function') {
+    (res as any).flushHeaders();
+  }
+
+  registerSSEClient(res);
+
+  const keepAliveTimer = setInterval(() => {
+    try {
+      res.write(': keepalive\n\n');
+    } catch {
+      clearInterval(keepAliveTimer);
+    }
+  }, 20000);
+
+  req.on('close', () => {
+    clearInterval(keepAliveTimer);
+    unregisterSSEClient(res);
+  });
+});
+
+// Live Pulse Summary (Ultra fast for instant counter checks)
+app.get('/api/pulse', (_req, res) => {
+  res.json(getPulseStats());
+});
+
+// Full Database Bootstrap
+app.get('/api/bootstrap', (_req, res) => {
+  res.json({
+    db: getDatabaseState(),
+    stats: getPulseStats(),
+  });
+});
+
+// Duplicate Pre-Check Endpoint
+app.post('/api/check-duplicate', (req, res) => {
+  const { email, phone } = req.body || {};
+  const inWaitlist = findDuplicateInWaitlist(email || '', phone || '');
+  const inCustomers = findDuplicateInCustomers(email || '', phone || '');
+
+  const duplicateEmail = inWaitlist.duplicateEmail || inCustomers.duplicateEmail;
+  const duplicatePhone = inWaitlist.duplicatePhone || inCustomers.duplicatePhone;
+
+  let message: string | null = null;
+  if (duplicateEmail && duplicatePhone) {
+    message = 'Both this email and phone number are already registered on our list!';
+  } else if (duplicateEmail) {
+    message = `The email ${email} is already registered on our list.`;
+  } else if (duplicatePhone) {
+    message = `The phone number ${phone} is already registered on our list.`;
+  }
+
+  res.json({
+    duplicateEmail,
+    duplicatePhone,
+    isDuplicate: duplicateEmail || duplicatePhone,
+    message,
+    existingLead: inWaitlist.existingLead,
+  });
+});
+
+// Waitlist Endpoints
+app.get('/api/waitlist', (_req, res) => {
+  res.json({ waitlistLeads: getDatabaseState().waitlistLeads });
+});
+
+app.post('/api/waitlist', (req, res) => {
+  const result = addWaitlistLead(req.body);
+  if (!result.success) {
+    return res.status(409).json(result);
+  }
+  return res.status(201).json({
+    ...result,
+    stats: getPulseStats(),
+  });
+});
+
+app.patch('/api/waitlist/:id', (req, res) => {
+  const updated = updateWaitlistLead(req.params.id, req.body);
+  if (!updated) {
+    return res.status(404).json({ error: 'Lead not found' });
+  }
+  return res.json(updated);
+});
+
+app.delete('/api/waitlist/:id', (req, res) => {
+  const deleted = deleteWaitlistLead(req.params.id);
+  return res.json({ success: deleted });
+});
+
+// Customer Endpoints
+app.get('/api/customers', (_req, res) => {
+  res.json({ customers: getDatabaseState().customers });
+});
+
+app.post('/api/customers', (req, res) => {
+  const result = addCustomerRecord(req.body);
+  if (!result.success) {
+    return res.status(409).json(result);
+  }
+  return res.status(201).json({
+    ...result,
+    stats: getPulseStats(),
+  });
+});
+
+app.patch('/api/customers/:id', (req, res) => {
+  const updated = updateCustomerRecord(req.params.id, req.body);
+  if (!updated) {
+    return res.status(404).json({ error: 'Customer not found' });
+  }
+  return res.json(updated);
+});
+
+app.delete('/api/customers/:id', (req, res) => {
+  const deleted = deleteCustomerRecord(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: 'Customer not found' });
+  }
+  return res.json({ success: true, id: req.params.id });
+});
+
+// Orders Endpoints
+app.get('/api/orders', (_req, res) => {
+  res.json({ submittedOrders: getDatabaseState().submittedOrders });
+});
+
+app.post('/api/orders', (req, res) => {
+  const order = addOrderSubmission(req.body);
+  return res.status(201).json(order);
+});
+
+app.post('/api/orders/:id/confirm-payment', (req, res) => {
+  const result = confirmOrderPaymentInDb(req.params.id);
+  if (!result) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+  return res.json(result);
+});
+
+// Credit Redemptions
+app.post('/api/credit-redemptions', (req, res) => {
+  const redemption = addCreditRedemptionInDb(req.body);
+  return res.status(201).json(redemption);
 });
 
 async function startServer() {

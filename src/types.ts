@@ -1,6 +1,6 @@
 export type DayOfWeek = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat';
 
-export type ViewMode = 'marketing' | 'subscriber' | 'admin' | 'activate';
+export type ViewMode = 'marketing' | 'subscriber' | 'admin';
 
 export type MealCategory =
   | 'Rice'
@@ -216,10 +216,13 @@ export interface CustomerRecord {
   orderRef?: string;
   memberCode?: string;
   createdAt: string;
-  magicLinkToken?: string;
-  magicLinkUrl?: string;
   isPasswordSet: boolean;
   password?: string;
+  defaultPassword?: string;
+  isDefaultPassword?: boolean;
+  mustChangePassword?: boolean;
+  passwordLastChangedAt?: string;
+  isTrial?: boolean;
 }
 
 export interface UserProfile {
@@ -248,6 +251,8 @@ export interface UserProfile {
   skipCount?: number;
   selectedDays?: SelectedLunchDay[];
   isPasswordSet?: boolean;
+  isTrial?: boolean;
+  trialDaysLeft?: number;
   pendingAddressChange?: {
     newLocation: string;
     effectiveAt: string;

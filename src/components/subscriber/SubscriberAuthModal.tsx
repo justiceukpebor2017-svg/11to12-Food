@@ -9,12 +9,13 @@ import {
   CheckCircle2,
   X,
   Sparkles,
-  RotateCcw,
   Eye,
   EyeOff,
-  Send,
-  Ticket,
+  ShieldCheck,
+  UserCheck,
 } from 'lucide-react';
+import { CONTACT_CONFIG } from '../../config/contactConfig';
+import { SignInPage } from '../ui/sign-in';
 
 interface SubscriberAuthModalProps {
   isOpen: boolean;
@@ -22,9 +23,10 @@ interface SubscriberAuthModalProps {
   customers: CustomerRecord[];
   onLoginSuccess: (customer: CustomerRecord) => void;
   onUpdateCustomerPassword: (customerId: string, newPass: string) => void;
+  onOpenAdminLogin?: () => void;
 }
 
-type AuthMode = 'login' | 'forgot_email' | 'enter_code' | 'reset_password' | 'magic_token';
+type AuthMode = 'login' | 'forgot_email' | 'enter_code' | 'reset_password' | 'first_login_change_password';
 
 export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
   isOpen,
@@ -32,6 +34,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
   customers,
   onLoginSuccess,
   onUpdateCustomerPassword,
+  onOpenAdminLogin,
 }) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -49,45 +52,115 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
   } | null>(null);
   const [matchedCustomer, setMatchedCustomer] = useState<CustomerRecord | null>(null);
 
-  // New Password Reset State
+  // Password Change / First Login States
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
 
-  // Magic Link Token State
-  const [magicTokenInput, setMagicTokenInput] = useState('');
-
   if (!isOpen) return null;
 
-  // 1. Regular Login with password
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Execute login verification
+  const executeLogin = (cleanEmail: string, cleanPass: string) => {
     setError(null);
 
-    const cleanEmail = email.trim().toLowerCase();
-    const customer = customers.find((c) => c.email.toLowerCase() === cleanEmail);
+    // Check if this is an admin logging in via the main modal
+    if (cleanEmail === 'admin@11to12.food' && cleanPass === 'XGa4Z#j0;F') {
+      if (onOpenAdminLogin) {
+        onOpenAdminLogin();
+      }
+      onClose();
+      return;
+    }
+
+    const customer = customers.find((c) => c.email && c.email.toLowerCase() === cleanEmail);
 
     if (!customer) {
-      setError('No subscriber account found with this email address. Please check your spelling or contact support.');
+      setError('No subscriber account found with this email address. Please make sure you are using your registered office email, or contact Chef Justice.');
       return;
     }
 
-    if (!customer.isPasswordSet || !customer.password) {
-      setError(
-        'You have not set your password yet! Please use the magic link sent to your email by the kitchen, or request a password reset below.'
-      );
+    const matchesPassword =
+      (customer.password && cleanPass === customer.password.trim()) ||
+      (customer.defaultPassword && cleanPass === customer.defaultPassword.trim());
+
+    if (!matchesPassword) {
+      setError('Incorrect password. Please verify the default password provided to you or use "Forgot Password".');
       return;
     }
 
-    if (customer.password !== password) {
-      setError('Incorrect password. Please try again or click "Forgot Password" to receive a verification code.');
+    // Check if the user is logging in with a default password and must set their permanent password one-time
+    const requiresPasswordChange = customer.isDefaultPassword !== false || customer.mustChangePassword;
+
+    if (requiresPasswordChange) {
+      setMatchedCustomer(customer);
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setMode('first_login_change_password');
       return;
     }
 
-    // Success
+    // Direct Login Success!
     onLoginSuccess(customer);
     onClose();
   };
+
+  // 1. Regular Login with password or default password
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeLogin(email.trim().toLowerCase(), password.trim());
+  };
+
+  // If in login mode, render the full-featured SignInPage from components/ui/sign-in.tsx
+  if (mode === 'login') {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center animate-fadeIn">
+        <SignInPage
+          title={<span className="font-black text-zinc-900 tracking-tight">Subscriber Portal</span>}
+          description="Access your lunch control center, calendar days, and desk drop tracking."
+          heroImageSrc="https://i.ibb.co/rG6JFnyY/0904-ezgif-com-resize.gif"
+          error={error}
+          onClose={onClose}
+          onSignIn={(e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            const formData = new FormData(form);
+            const cleanEmail = ((formData.get('email') as string) || '').trim().toLowerCase();
+            const cleanPass = ((formData.get('password') as string) || '').trim();
+            setEmail(cleanEmail);
+            setPassword(cleanPass);
+            executeLogin(cleanEmail, cleanPass);
+          }}
+          onResetPassword={() => {
+            setError(null);
+            setMode('forgot_email');
+          }}
+          onGoogleSignIn={() => {
+            const activeCust = customers.find((c) => c.status === 'Active' && c.email) || customers[0];
+            if (activeCust) {
+              if (activeCust.isDefaultPassword !== false || activeCust.mustChangePassword) {
+                setMatchedCustomer(activeCust);
+                setNewPassword('');
+                setConfirmNewPassword('');
+                setMode('first_login_change_password');
+              } else {
+                onLoginSuccess(activeCust);
+                onClose();
+              }
+            } else {
+              setError('No corporate subscriber found with Google Workspace. Please enter your work email and password.');
+            }
+          }}
+          onCreateAccount={() => {
+            onClose();
+            const reserveSection = document.getElementById('reserve-section') || document.getElementById('plans-section');
+            if (reserveSection) {
+              reserveSection.scrollIntoView({ behavior: 'smooth' });
+            }
+          }}
+        />
+      </div>
+    );
+  }
 
   // 2. Request Password Reset Verification Code
   const handleRequestVerificationCode = (e: React.FormEvent) => {
@@ -107,7 +180,6 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
     setGeneratedCode(code);
     setMatchedCustomer(customer);
 
-    // Simulate real-time dispatch with live notification toast
     setRealtimeEmailToast({
       to: customer.email,
       code,
@@ -123,15 +195,14 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
     setError(null);
 
     if (verificationCodeInput.trim() !== generatedCode) {
-      setError('Invalid verification code. Please check your email or enter the 6-digit code shown in the dispatch notice.');
+      setError('Invalid verification code. Please enter the 6-digit code shown in the dispatch notice.');
       return;
     }
 
-    // Verification code matches! Advance to password reset
     setMode('reset_password');
   };
 
-  // 4. Save New Password & Log In (Old password completely deleted)
+  // 4. Save New Password & Log In
   const handleSaveNewPassword = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -147,18 +218,22 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
     }
 
     if (!matchedCustomer) {
-      setError('Session expired. Please try again.');
+      setError('Session expired. Please sign in again.');
       setMode('login');
       return;
     }
 
-    // Delete old password and save new password
+    // Update password in local and central live database
     onUpdateCustomerPassword(matchedCustomer.id, newPassword);
 
     const updatedCustomer: CustomerRecord = {
       ...matchedCustomer,
       password: newPassword,
+      defaultPassword: newPassword,
+      isDefaultPassword: false,
+      mustChangePassword: false,
       isPasswordSet: true,
+      passwordLastChangedAt: new Date().toISOString(),
       status: 'Active',
     };
 
@@ -166,32 +241,11 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
     onClose();
   };
 
-  // 5. Use Magic Link Token directly
-  const handleUseMagicToken = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    const cleanToken = magicTokenInput.trim();
-    const customer = customers.find(
-      (c) =>
-        (c.magicLinkToken && c.magicLinkToken === cleanToken) ||
-        (c.magicLinkUrl && c.magicLinkUrl.includes(cleanToken))
-    );
-
-    if (!customer) {
-      setError('Invalid magic link token. Please check the link from your email.');
-      return;
-    }
-
-    setMatchedCustomer(customer);
-    setMode('reset_password');
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-['Poppins']">
-      <div className="relative w-full max-w-md bg-white text-zinc-900 rounded-3xl border border-zinc-200 shadow-2xl overflow-hidden my-6">
+      <div className="relative w-full max-w-md bg-white text-zinc-900 rounded-3xl border border-zinc-200 shadow-2xl overflow-hidden my-6 animate-fadeIn">
         
-        {/* Real-time Email Toast Banner (Live Dispatch Proof) */}
+        {/* Real-time Email Toast Banner (Live Verification Notice) */}
         {realtimeEmailToast && (
           <div className="bg-[#141414] text-white p-3.5 border-b border-zinc-800 text-xs flex items-center justify-between animate-fadeIn">
             <div className="flex items-center space-x-2">
@@ -222,10 +276,10 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
               <h3 className="text-base font-bold text-black">Subscriber Portal</h3>
               <p className="text-xs text-zinc-500">
                 {mode === 'login' && 'Sign in to access your lunch dashboard'}
+                {mode === 'first_login_change_password' && 'One-Time Password Setup'}
                 {mode === 'forgot_email' && 'Reset your dashboard password'}
                 {mode === 'enter_code' && 'Enter 6-digit verification code'}
                 {mode === 'reset_password' && 'Create your new password'}
-                {mode === 'magic_token' && 'Redeem your onboarding magic link'}
               </p>
             </div>
           </div>
@@ -289,7 +343,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
                     setPassword(e.target.value);
                     if (error) setError(null);
                   }}
-                  placeholder="Enter your subscriber password"
+                  placeholder="Enter password or default password"
                   className="bg-transparent w-full text-zinc-900 text-sm font-medium focus:outline-none"
                 />
                 <button
@@ -310,18 +364,92 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
               <ArrowRight className="w-4 h-4" />
             </button>
 
-            <div className="pt-2 text-center border-t border-zinc-100">
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setMode('magic_token');
-                }}
-                className="text-xs text-zinc-500 hover:text-black font-semibold cursor-pointer"
-              >
-                Have an activation magic token? Click here
-              </button>
+            <div className="pt-2 text-center text-xs text-zinc-500">
+              New subscriber? Use the default password sent to you on WhatsApp by Chef Justice.
             </div>
+          </form>
+        )}
+
+        {/* MODE: FIRST LOGIN - MANDATORY PASSWORD CHANGE */}
+        {mode === 'first_login_change_password' && (
+          <form onSubmit={handleSaveNewPassword} className="p-6 sm:p-7 space-y-4 text-left">
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed space-y-1">
+              <div className="flex items-center space-x-2 font-bold text-amber-950">
+                <Sparkles className="w-4 h-4 text-[#FF4C00]" />
+                <span>Welcome, {matchedCustomer?.fullName}!</span>
+              </div>
+              <p>
+                Chef Justice created your default login. Please set your personal permanent password to officially secure your lunch dashboard.
+              </p>
+            </div>
+
+            {error && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-bold text-zinc-700 block mb-1">Your Registered Account Email</label>
+              <input
+                type="text"
+                readOnly
+                value={matchedCustomer?.email || ''}
+                className="w-full bg-zinc-100 border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-zinc-600 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-zinc-700 block mb-1">Create Permanent Password</label>
+              <div className="flex items-center space-x-2 bg-zinc-50 border border-zinc-300 focus-within:border-[#FF4C00] rounded-xl px-3.5 py-2.5 text-zinc-900 transition">
+                <Lock className="w-4 h-4 text-zinc-400 shrink-0" />
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  required
+                  value={newPassword}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  placeholder="At least 6 characters"
+                  className="bg-transparent w-full text-zinc-900 text-sm font-medium focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="text-zinc-400 hover:text-zinc-700 cursor-pointer"
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-zinc-700 block mb-1">Confirm Permanent Password</label>
+              <div className="flex items-center space-x-2 bg-zinc-50 border border-zinc-300 focus-within:border-[#FF4C00] rounded-xl px-3.5 py-2.5 text-zinc-900 transition">
+                <KeyRound className="w-4 h-4 text-zinc-400 shrink-0" />
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  required
+                  value={confirmNewPassword}
+                  onChange={(e) => {
+                    setConfirmNewPassword(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  placeholder="Re-type your password"
+                  className="bg-transparent w-full text-zinc-900 text-sm font-medium focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
+            >
+              <span>Set Password & Enter Dashboard</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </form>
         )}
 
@@ -329,7 +457,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
         {mode === 'forgot_email' && (
           <form onSubmit={handleRequestVerificationCode} className="p-6 sm:p-7 space-y-4 text-left">
             <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800 leading-relaxed">
-              Enter your registered work email. We will send a secure 6-digit verification code to your mail in real time to generate your reset magic link.
+              Enter your registered work email. We will send a secure 6-digit verification code to reset your password.
             </div>
 
             {error && (
@@ -361,8 +489,8 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
               type="submit"
               className="w-full py-3.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
             >
-              <Send className="w-4 h-4" />
               <span>Send Verification Code</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
 
             <button
@@ -378,11 +506,11 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
           </form>
         )}
 
-        {/* MODE 3: ENTER REAL-TIME VERIFICATION CODE */}
+        {/* MODE 3: ENTER 6-DIGIT CODE */}
         {mode === 'enter_code' && (
           <form onSubmit={handleVerifyCode} className="p-6 sm:p-7 space-y-4 text-left">
-            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 leading-relaxed">
-              ✓ Verification code sent to <strong>{email}</strong> in real time. Please enter the 6-digit code below:
+            <div className="p-3 rounded-2xl bg-zinc-100 border border-zinc-200 text-xs text-zinc-700 leading-relaxed">
+              We dispatched a 6-digit verification code to <strong>{matchedCustomer?.email}</strong>.
             </div>
 
             {error && (
@@ -393,47 +521,50 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
             )}
 
             <div>
-              <label className="text-xs font-bold text-zinc-700 block mb-1">6-Digit Verification Code</label>
-              <input
-                type="text"
-                required
-                maxLength={6}
-                value={verificationCodeInput}
-                onChange={(e) => {
-                  setVerificationCodeInput(e.target.value);
-                  if (error) setError(null);
-                }}
-                placeholder="e.g. 592814"
-                className="w-full bg-zinc-50 border border-zinc-300 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-center text-lg font-mono font-bold tracking-widest text-black outline-none transition"
-              />
+              <label className="text-xs font-bold text-zinc-700 block mb-1">Enter 6-Digit Code</label>
+              <div className="flex items-center space-x-2 bg-zinc-50 border border-zinc-300 focus-within:border-[#FF4C00] rounded-xl px-3.5 py-2.5 text-zinc-900 transition">
+                <KeyRound className="w-4 h-4 text-zinc-400 shrink-0" />
+                <input
+                  type="text"
+                  maxLength={6}
+                  required
+                  value={verificationCodeInput}
+                  onChange={(e) => {
+                    setVerificationCodeInput(e.target.value.trim());
+                    if (error) setError(null);
+                  }}
+                  placeholder="e.g. 749201"
+                  className="bg-transparent w-full text-zinc-900 text-base font-mono font-bold tracking-widest focus:outline-none"
+                />
+              </div>
             </div>
 
             <button
               type="submit"
               className="w-full py-3.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Verify Code & Open Reset Magic Link</span>
+              <span>Verify Code & Continue</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
 
             <button
               type="button"
               onClick={() => {
                 setError(null);
-                setMode('forgot_email');
+                setMode('login');
               }}
               className="w-full py-2 text-xs font-bold text-zinc-500 hover:text-black transition cursor-pointer"
             >
-              Didn't receive it? Re-enter email
+              ← Back to Sign In
             </button>
           </form>
         )}
 
-        {/* MODE 4: RESET PASSWORD (Old password completely deleted) */}
+        {/* MODE 4: RESET PASSWORD (FROM FORGOT PASSWORD) */}
         {mode === 'reset_password' && (
           <form onSubmit={handleSaveNewPassword} className="p-6 sm:p-7 space-y-4 text-left">
-            <div className="p-3 rounded-2xl bg-zinc-100 border border-zinc-200 text-xs text-zinc-700 leading-relaxed">
-              Verification confirmed! Setting a new password will completely delete your previous password.
+            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 leading-relaxed">
+              Code verified! Create your new personal password for <strong>{matchedCustomer?.email}</strong>.
             </div>
 
             {error && (
@@ -446,7 +577,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
             <div>
               <label className="text-xs font-bold text-zinc-700 block mb-1">New Password</label>
               <div className="flex items-center space-x-2 bg-zinc-50 border border-zinc-300 focus-within:border-[#FF4C00] rounded-xl px-3.5 py-2.5 text-zinc-900 transition">
-                <KeyRound className="w-4 h-4 text-zinc-400 shrink-0" />
+                <Lock className="w-4 h-4 text-zinc-400 shrink-0" />
                 <input
                   type={showNewPassword ? 'text' : 'password'}
                   required
@@ -490,64 +621,28 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
               type="submit"
               className="w-full py-3.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
             >
-              <span>Save Password & Open Dashboard</span>
+              <span>Save New Password & Enter Dashboard</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
         )}
 
-        {/* MODE 5: REDEEM MAGIC TOKEN */}
-        {mode === 'magic_token' && (
-          <form onSubmit={handleUseMagicToken} className="p-6 sm:p-7 space-y-4 text-left">
-            <div className="p-3 rounded-2xl bg-zinc-100 border border-zinc-200 text-xs text-zinc-700 leading-relaxed">
-              Paste the activation token or magic link URL provided to you to set up your password:
-            </div>
-
-            {error && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div>
-              <label className="text-xs font-bold text-zinc-700 block mb-1">Magic Token or URL</label>
-              <div className="flex items-center space-x-2 bg-zinc-50 border border-zinc-300 focus-within:border-[#FF4C00] rounded-xl px-3.5 py-2.5 text-zinc-900 transition">
-                <Ticket className="w-4 h-4 text-zinc-400 shrink-0" />
-                <input
-                  type="text"
-                  required
-                  value={magicTokenInput}
-                  onChange={(e) => {
-                    setMagicTokenInput(e.target.value);
-                    if (error) setError(null);
-                  }}
-                  placeholder="Paste magic link or token"
-                  className="bg-transparent w-full text-zinc-900 text-sm font-medium focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
-            >
-              <span>Activate with Magic Link</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setMode('login');
-              }}
-              className="w-full py-2 text-xs font-bold text-zinc-500 hover:text-black transition cursor-pointer"
-            >
-              ← Back to Sign In
-            </button>
-          </form>
-        )}
+        {/* Footer Admin Switch */}
+        <div className="p-3 bg-zinc-50 border-t border-zinc-100 text-center text-xs text-zinc-500 flex items-center justify-center space-x-2">
+          <span>Are you kitchen management?</span>
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenAdminLogin) {
+                onOpenAdminLogin();
+              }
+              onClose();
+            }}
+            className="text-[#FF4C00] font-bold hover:underline cursor-pointer"
+          >
+            Chef Justice Admin Portal →
+          </button>
+        </div>
 
       </div>
     </div>

@@ -40,6 +40,7 @@ interface JusticeDashboardPageProps {
   onUpdateWaitlistLead?: (lead: WaitlistLead) => void;
   onAddCustomer?: (customer: CustomerRecord) => void;
   onUpdateCustomer?: (customer: CustomerRecord) => void;
+  onDeleteCustomer?: (customerId: string) => void;
   onSimulateUserActivation?: (customer: CustomerRecord) => void;
   onNavigateToSubscriber?: () => void;
   onConfirmOrderPayment?: (orderId: string) => void;
@@ -64,6 +65,7 @@ export const JusticeDashboardPage: React.FC<JusticeDashboardPageProps> = ({
   onUpdateWaitlistLead,
   onAddCustomer,
   onUpdateCustomer,
+  onDeleteCustomer,
   onSimulateUserActivation,
   onNavigateToSubscriber,
   userProfile,
@@ -174,6 +176,7 @@ export const JusticeDashboardPage: React.FC<JusticeDashboardPageProps> = ({
             customers={customers}
             onAddCustomer={onAddCustomer}
             onUpdateCustomer={onUpdateCustomer}
+            onDeleteCustomer={onDeleteCustomer}
             onSimulateUserActivation={onSimulateUserActivation}
             onNavigateToSubscriber={onNavigateToSubscriber}
             currentUserProfile={userProfile}

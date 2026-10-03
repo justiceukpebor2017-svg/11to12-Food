@@ -43,6 +43,10 @@ import {
   ExternalLink,
   ShieldCheck,
   Plus,
+  Play,
+  Pause,
+  Video,
+  X,
 } from 'lucide-react';
 
 interface SubscriberDashboardPageProps {
@@ -63,6 +67,7 @@ interface SubscriberDashboardPageProps {
   onAddCreditRedemption?: (order: CreditRedemptionOrder) => void;
   onMoveCreditDate?: (redemptionId: string, oldDateStr: string, newDateStr: string, newSwallow?: SwallowType) => void;
   onTopUpOrderSubmitted?: (order: OrderSubmission) => void;
+  onChangePassword?: (newPassword: string) => void;
 }
 
 export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = ({
@@ -83,6 +88,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
   onAddCreditRedemption,
   onMoveCreditDate,
   onTopUpOrderSubmitted,
+  onChangePassword,
 }) => {
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'dashboard' | 'lunches' | 'menu' | 'billing' | 'help'>('dashboard');
@@ -97,7 +103,16 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [isPlayingVideo, setIsPlayingVideo] = useState(false);
+  const [activeVideoChapter, setActiveVideoChapter] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const isTrialUser = Boolean(
+    userProfile.isTrial ||
+    userProfile.planName?.toLowerCase().includes('trial') ||
+    userProfile.totalSubscribedDays === 5
+  );
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -479,10 +494,24 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
                 </p>
               </div>
 
-              {/* Desk Drop Live Badge */}
-              <div className="flex items-center space-x-2 bg-white border border-zinc-200 px-4 py-2 rounded-2xl shadow-xs self-start sm:self-auto">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-bold text-black">Desk Drop Active: {defaultLocation.building}</span>
+              {/* Desk Drop Live Badge & Video Guide Quick Link */}
+              <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsVideoModalOpen(true);
+                    setIsPlayingVideo(true);
+                  }}
+                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-2xl bg-zinc-900 hover:bg-[#FF4C00] text-white text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+                  title="Watch 60-second video on how to use your lunch dashboard"
+                >
+                  <Play className="w-3.5 h-3.5 fill-white" />
+                  <span>How to Use Dashboard (Video)</span>
+                </button>
+                <div className="flex items-center space-x-2 bg-white border border-zinc-200 px-3.5 py-2 rounded-2xl shadow-xs">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold text-black">Desk Drop Active: {defaultLocation.building}</span>
+                </div>
               </div>
             </div>
 
@@ -520,15 +549,15 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
                     Your Plan
                   </span>
                   <p className="text-base font-black text-black leading-snug">
-                    Desk Drop (20 Lunches)
+                    {isTrialUser ? '5-Day Trial Plan' : `Desk Drop (${totalSubscribed} Lunches)`}
                   </p>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    Oct 5 – Mar 30
+                    {isTrialUser ? '5 Office Trial Days' : 'Oct 5 – Mar 30'}
                   </p>
                 </div>
                 <div className="mt-4 pt-3 border-t border-zinc-150 flex items-center space-x-1.5 text-xs font-bold text-emerald-700">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span>● Active Desk Subscription</span>
+                  <span>● {isTrialUser ? 'Active Trial Mode' : 'Active Desk Subscription'}</span>
                 </div>
               </div>
 
@@ -557,6 +586,41 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
               </div>
 
             </div>
+
+            {/* TRIAL PLAN NOTIFICATION BANNER (Skipping & Unskipping Trial Meals) */}
+            {isTrialUser && (
+              <div className="p-4 sm:p-5 rounded-3xl bg-amber-50 border border-amber-200 text-left flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs animate-in fade-in">
+                <div className="flex items-start space-x-3.5">
+                  <div className="p-2.5 bg-amber-100 text-[#FF4C00] rounded-2xl shrink-0 mt-0.5 border border-amber-200">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-amber-950">
+                        5-Day Trial Plan • Skipping & Unskipping Enabled
+                      </h4>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Preserve 100% Credits
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+                      You have full flexibility during your trial! If you have offsite meetings or work from home, skip any trial day to preserve your credits for later, or unskip anytime before the daily 12:00 PM cutoff.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('lunches')}
+                    className="px-4 py-2 rounded-full bg-zinc-900 hover:bg-[#FF4C00] text-white font-bold text-xs cursor-pointer transition shadow-xs flex items-center space-x-1.5"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-[#FF4C00]" />
+                    <span>Manage Trial Days</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Layout: Main Hero Column + Side Progress & Actions */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -672,6 +736,71 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
                   <p className="text-[11px] text-zinc-500 leading-relaxed">
                     Whenever you skip lunch, your credit is saved here. Use it anytime for an extra plate for colleagues or rollovers.
                   </p>
+                </div>
+
+                {/* 4. "HOW TO USE THE DASHBOARD" VIDEO PLACEHOLDER CARD */}
+                <div className="bg-white rounded-3xl border border-zinc-200 p-5 shadow-xs text-left space-y-3 overflow-hidden relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4C00] bg-[#FF4C00]/10 border border-[#FF4C00]/20 px-2.5 py-0.5 rounded-full">
+                      Video Walkthrough
+                    </span>
+                    <span className="text-[11px] font-bold text-zinc-400 flex items-center space-x-1">
+                      <Clock className="w-3 h-3" />
+                      <span>1:15 min</span>
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-black text-black leading-snug">
+                      How to Use Your Lunch Dashboard
+                    </h3>
+                    <p className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
+                      Watch this 60-second video anytime to master picking meals, skipping/unskipping trial or monthly days, and live desk delivery.
+                    </p>
+                  </div>
+
+                  {/* Video Thumbnail with Interactive Play Button */}
+                  <div
+                    onClick={() => {
+                      setIsVideoModalOpen(true);
+                      setIsPlayingVideo(true);
+                    }}
+                    className="relative w-full h-36 rounded-2xl overflow-hidden cursor-pointer group border border-zinc-200 shadow-inner bg-zinc-900"
+                  >
+                    <img
+                      src="https://i.ibb.co/rG6JFnyY/0904-ezgif-com-resize.gif"
+                      alt="How to use dashboard video tutorial"
+                      className="w-full h-full object-cover opacity-75 group-hover:opacity-90 group-hover:scale-105 transition duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/20" />
+                    
+                    {/* Pulsing Play Button */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="relative flex items-center justify-center">
+                        <span className="absolute w-12 h-12 rounded-full bg-[#FF4C00]/40 animate-ping" />
+                        <div className="w-12 h-12 rounded-full bg-[#FF4C00] group-hover:bg-[#E04300] text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition">
+                          <Play className="w-5 h-5 ml-0.5 fill-white" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-white text-[10px] font-bold">
+                      <span className="bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-xs">▶ Watch Anytime</span>
+                      <span className="bg-[#FF4C00] px-2 py-0.5 rounded-md">Full Guide</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsVideoModalOpen(true);
+                      setIsPlayingVideo(true);
+                    }}
+                    className="w-full py-2.5 rounded-2xl bg-zinc-900 hover:bg-[#FF4C00] text-white font-bold text-xs transition cursor-pointer flex items-center justify-center space-x-2 shadow-xs active:scale-98"
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    <span>Watch Dashboard Video Walkthrough</span>
+                  </button>
                 </div>
 
               </div>
@@ -821,7 +950,145 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
           onUpdateProfile(updated);
           showToast('Profile and preferences updated.');
         }}
+        onChangePassword={(newPass) => {
+          if (onChangePassword) {
+            onChangePassword(newPass);
+          }
+          showToast('Password updated successfully. Synced across all devices.');
+        }}
       />
+
+      {/* HOW TO USE THE DASHBOARD - INTERACTIVE VIDEO MODAL */}
+      {isVideoModalOpen && (
+        <div className="fixed inset-0 z-80 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-sm overflow-y-auto font-['Poppins']">
+          <div className="relative w-full max-w-2xl bg-zinc-900 text-white rounded-3xl border border-zinc-700 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150 my-6">
+            
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-[#FF4C00]/20 rounded-xl border border-[#FF4C00]/30 text-[#FF4C00]">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">How to Use Your 11 to 12 Lunch Dashboard</h3>
+                  <p className="text-xs text-zinc-400">Official subscriber walkthrough & desk drop guide</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsVideoModalOpen(false);
+                  setIsPlayingVideo(false);
+                }}
+                className="p-2 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Video Player Display */}
+            <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
+              <img
+                src="https://i.ibb.co/rG6JFnyY/0904-ezgif-com-resize.gif"
+                alt="11 to 12 dashboard tutorial video"
+                className={`w-full h-full object-cover transition-opacity ${isPlayingVideo ? 'opacity-95' : 'opacity-65'}`}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+
+              {/* Center Play Overlay if paused */}
+              {!isPlayingVideo && (
+                <button
+                  type="button"
+                  onClick={() => setIsPlayingVideo(true)}
+                  className="absolute p-4 rounded-full bg-[#FF4C00] text-white shadow-2xl hover:scale-110 transition cursor-pointer z-10"
+                >
+                  <Play className="w-8 h-8 ml-1 fill-white" />
+                </button>
+              )}
+
+              {/* Bottom Video Controls Bar */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/80 to-transparent space-y-2">
+                {/* Progress bar */}
+                <div
+                  onClick={() => setIsPlayingVideo(!isPlayingVideo)}
+                  className="w-full bg-zinc-700/80 h-1.5 rounded-full overflow-hidden cursor-pointer"
+                >
+                  <div
+                    className="bg-[#FF4C00] h-full transition-all duration-300"
+                    style={{ width: isPlayingVideo ? '70%' : '25%' }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsPlayingVideo(!isPlayingVideo)}
+                      className="p-1 hover:text-[#FF4C00] transition cursor-pointer"
+                    >
+                      {isPlayingVideo ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white" />}
+                    </button>
+                    <span className="font-mono text-zinc-300 text-[11px]">
+                      {isPlayingVideo ? '0:52 / 1:15' : '0:18 / 1:15'}
+                    </span>
+                  </div>
+
+                  <span className="text-[10px] font-bold text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded-md border border-amber-800">
+                    Chapter {activeVideoChapter + 1} of 4
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Video Chapters & Interactive Navigation */}
+            <div className="p-4 sm:p-5 bg-zinc-950 space-y-3.5 text-left">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block">
+                Video Chapters (Click to Jump)
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {[
+                  { time: '0:00', title: 'Welcome & Desk Drop Window (11:00–12:00)' },
+                  { time: '0:25', title: 'Selecting Lunches & Choosing Swallow' },
+                  { time: '0:45', title: 'Skipping a Meal (+1 Credit Preserved 100%)' },
+                  { time: '1:05', title: 'Unskipping Meals & Trial Plan Rules' },
+                ].map((chap, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setActiveVideoChapter(idx);
+                      setIsPlayingVideo(true);
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex items-center space-x-2.5 ${
+                      activeVideoChapter === idx
+                        ? 'border-[#FF4C00] bg-[#FF4C00]/15 text-white'
+                        : 'border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300'
+                    }`}
+                  >
+                    <span className="font-mono font-bold text-[#FF4C00] text-[11px] shrink-0">{chap.time}</span>
+                    <span className="truncate">{chap.title}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Key Takeaways */}
+              <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 space-y-1.5">
+                <div className="font-bold text-white flex items-center space-x-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#FF4C00]" />
+                  <span>Key Rules for All Subscribers & Trials:</span>
+                </div>
+                <ul className="list-disc pl-4 space-y-1 text-zinc-400">
+                  <li><strong>Meal Skipping:</strong> Skip any lunch anytime before 12:00 PM cutoff to save your credit.</li>
+                  <li><strong>Unskipping:</strong> If your schedule opens up, unskip the lunch to restore kitchen preparation.</li>
+                  <li><strong>Trial Subscriptions:</strong> Trial accounts have full skip and unskip privileges across their trial days.</li>
+                </ul>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

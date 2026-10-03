@@ -484,6 +484,28 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
         </div>
       )}
 
+      {/* Trial Plan Skipping & Unskipping Banner */}
+      {(userProfile?.isTrial || userProfile?.planName?.toLowerCase().includes('trial') || totalSubscribed === 5) && (
+        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-4 sm:p-5 text-left flex items-start space-x-3.5 shadow-xs">
+          <div className="p-2 bg-amber-100 text-[#FF4C00] rounded-xl shrink-0 border border-amber-200">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-amber-950">
+                Trial Meal Skipping & Unskipping
+              </h4>
+              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                100% Flexible
+              </span>
+            </div>
+            <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+              As a trial member, you can click on any meal day below to <strong>Skip</strong> (preserves your lunch credit) or <strong>Unskip</strong> (restores kitchen preparation) before 12:00 PM. No trial meals are lost!
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Month Navigation & View Toggle */}
       <div className="bg-white rounded-3xl border border-zinc-200 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
         

@@ -4,6 +4,7 @@ import { User, LogIn, AlertCircle, X, ShieldAlert, ShieldCheck, ArrowRight, Lock
 interface HeaderProps {
   currentTab: 'marketing' | 'subscriber' | 'admin';
   setCurrentTab: (tab: 'marketing' | 'subscriber' | 'admin') => void;
+  onOpenSubscriberLogin?: () => void;
   timeWindow?: 'morning' | 'delivery' | 'post_lunch';
   setTimeWindow?: (tw: 'morning' | 'delivery' | 'post_lunch') => void;
   creditsBalance?: number;
@@ -12,6 +13,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentTab,
   setCurrentTab,
+  onOpenSubscriberLogin,
 }) => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
@@ -108,8 +110,12 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setLoginError('');
-                  setShowLoginModal(true);
+                  if (onOpenSubscriberLogin) {
+                    onOpenSubscriberLogin();
+                  } else {
+                    setLoginError('');
+                    setShowLoginModal(true);
+                  }
                 }}
                 className="px-4 py-2 rounded-full bg-white/15 hover:bg-white/25 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 transition cursor-pointer border border-white/20 shadow-xs"
                 title="Log In"
@@ -131,8 +137,12 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <button
               onClick={() => {
-                setLoginError('');
-                setShowLoginModal(true);
+                if (onOpenSubscriberLogin) {
+                  onOpenSubscriberLogin();
+                } else {
+                  setLoginError('');
+                  setShowLoginModal(true);
+                }
               }}
               className="text-white font-bold underline flex items-center space-x-1 cursor-pointer"
             >

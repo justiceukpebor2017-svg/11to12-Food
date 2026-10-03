@@ -1,0 +1,80 @@
+{
+  "waitlistLeads": [],
+  "customers": [
+    {
+      "id": "cust-1790980501721",
+      "fullName": "Justice Nonso",
+      "email": "justiceukpebor2017@gmail.com",
+      "phone": "07033972316",
+      "company": "dvdfvdfv",
+      "officeAddress": "15 Omorinre Johnson Street",
+      "floorSuite": "Floor 4, Desk Drop",
+      "deliveryArea": "Victoria Island",
+      "notes": "",
+      "status": "Active",
+      "paymentStatus": "Paid",
+      "planName": "2 Workday Lunch Plan",
+      "totalDays": 2,
+      "selectedDays": [
+        {
+          "dateStr": "2026-11-02",
+          "meal": {
+            "id": "meal-2026-11-02",
+            "dateStr": "2026-11-02",
+            "day": "Monday",
+            "mealName": "White rice + stew + grilled chicken",
+            "mealCategory": "Rice",
+            "baseIngredient": "White Rice",
+            "protein": "Spiced Grilled Chicken",
+            "soup": "Tomato Stew",
+            "price": 5900,
+            "isHoliday": false,
+            "isNoDelivery": false,
+            "imageUrl": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&q=80&w=800",
+            "ingredients": [
+              "White Rice",
+              "Spiced Grilled Chicken",
+              "Tomato Stew"
+            ]
+          }
+        },
+        {
+          "dateStr": "2026-11-03",
+          "meal": {
+            "id": "meal-2026-11-03",
+            "dateStr": "2026-11-03",
+            "day": "Tuesday",
+            "mealName": "Beans + plantain + fried fish",
+            "mealCategory": "Beans / Moi Moi",
+            "baseIngredient": "Honey Beans (Oloyin)",
+            "protein": "Titus / Catfish Seasoned Cut",
+            "isHoliday": false,
+            "isNoDelivery": false,
+            "imageUrl": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&q=80&w=800",
+            "ingredients": [
+              "Honey Beans (Oloyin)",
+              "Titus / Catfish Seasoned Cut",
+              "Fried Sweet Plantain (Dodo)"
+            ]
+          }
+        }
+      ],
+      "subtotalNGN": 9400,
+      "discountNGN": 0,
+      "finalTotalNGN": 9400,
+      "orderRef": "ORD-877682",
+      "createdAt": "2026-10-02T22:35:01.722Z",
+      "magicLinkToken": "mag_skeu5alrzw",
+      "magicLinkUrl": "https://ais-dev-secg2iyogbtgqwhfhfcqb5-158555251553.europe-west1.run.app/activate?token=mag_skeu5alrzw&email=justiceukpebor2017%40gmail.com",
+      "isPasswordSet": true,
+      "password": "DeskDrop#2026",
+      "isDefaultPassword": true,
+      "mustChangePassword": true,
+      "passwordLastChangedAt": "2026-10-02T22:50:00.000Z",
+      "defaultPassword": "DeskDrop#2026"
+    }
+  ],
+  "submittedOrders": [],
+  "creditRedemptions": [],
+  "announcements": []
+}

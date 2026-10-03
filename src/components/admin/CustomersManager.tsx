@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   Search,
@@ -17,6 +17,7 @@ import {
   Play,
   DollarSign,
   Eye,
+  EyeOff,
   ExternalLink,
   ShieldCheck,
   Plus,
@@ -28,16 +29,19 @@ import {
   KeyRound,
   CheckCircle2,
   CalendarPlus,
+  Trash2,
 } from 'lucide-react';
 import { OrderSubmission, UserProfile, MenuItem, TimeWindow, CustomerRecord, SelectedLunchDay, calculateOrderSummary } from '../../types';
 import { CustomerMealCalendarPicker } from './CustomerMealCalendarPicker';
-import { generateMagicLinkUrl } from '../../utils/magicLink';
+import { generateDefaultPassword } from '../../utils/credentialUtils';
+import { CustomerCredentialsModal } from './CustomerCredentialsModal';
 
 interface CustomersManagerProps {
   submittedOrders: OrderSubmission[];
   customers?: CustomerRecord[];
   onAddCustomer?: (customer: CustomerRecord) => void;
   onUpdateCustomer?: (customer: CustomerRecord) => void;
+  onDeleteCustomer?: (customerId: string) => void;
   onSimulateUserActivation?: (customer: CustomerRecord) => void;
   currentUserProfile?: UserProfile;
   onUpdateCurrentUserProfile?: (updated: UserProfile) => void;
@@ -53,6 +57,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   customers: externalCustomers,
   onAddCustomer: externalOnAddCustomer,
   onUpdateCustomer: externalOnUpdateCustomer,
+  onDeleteCustomer,
   onSimulateUserActivation,
   currentUserProfile,
   onUpdateCurrentUserProfile,
@@ -72,6 +77,22 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   // Selected Customer for Detailed Profile Modal
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null);
 
+  // Delete Customer state
+  const [customerToDelete, setCustomerToDelete] = useState<CustomerRecord | null>(null);
+
+  const handleConfirmDeleteCustomer = () => {
+    if (!customerToDelete) return;
+    const targetId = customerToDelete.id;
+    if (onDeleteCustomer) {
+      onDeleteCustomer(targetId);
+    }
+    setInternalCustomers((prev) => prev.filter((c) => c.id !== targetId));
+    if (selectedCustomer?.id === targetId) {
+      setSelectedCustomer(null);
+    }
+    setCustomerToDelete(null);
+  };
+
   // Add / Onboard Customer Modal State
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [modalTab, setModalTab] = useState<'details' | 'calendar'>('details');
@@ -87,15 +108,24 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   const [custNotes, setCustNotes] = useState('');
   const [custPaymentStatus, setCustPaymentStatus] = useState<'Paid' | 'Pending Verification'>('Paid');
   const [custSelectedDays, setCustSelectedDays] = useState<SelectedLunchDay[]>([]);
+  const [custDefaultPassword, setCustDefaultPassword] = useState(generateDefaultPassword());
+  const [showAddCustPass, setShowAddCustPass] = useState(true);
   const [syncedOrderRef, setSyncedOrderRef] = useState<string | undefined>(undefined);
 
-  // Magic Link Notification Modal State
-  const [magicLinkNotice, setMagicLinkNotice] = useState<{
-    customer: CustomerRecord;
-    url: string;
-    token: string;
-  } | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
+  // Credentials Notification Modal State
+  const [credentialsNotice, setCredentialsNotice] = useState<CustomerRecord | null>(null);
+
+  // Sync open modals with real-time updates from live database / SSE
+  useEffect(() => {
+    if (selectedCustomer) {
+      const fresh = customersList.find((c) => c.id === selectedCustomer.id);
+      if (fresh) setSelectedCustomer(fresh);
+    }
+    if (credentialsNotice) {
+      const fresh = customersList.find((c) => c.id === credentialsNotice.id);
+      if (fresh) setCredentialsNotice(fresh);
+    }
+  }, [customersList]);
 
   // Give Credit Modal State
   const [showGiveCreditModal, setShowGiveCreditModal] = useState(false);
@@ -206,8 +236,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
     }
 
     const newId = `cust-${Date.now()}`;
-    const token = `mag_${Math.random().toString(36).substring(2, 12)}`;
-    const magicUrl = generateMagicLinkUrl(token, custEmail.trim());
+    const initialDefaultPassword = custDefaultPassword.trim() || generateDefaultPassword();
     
     const summary = calculateOrderSummary(custSelectedDays);
     const totalDays = custSelectedDays.length > 0 ? custSelectedDays.length : 20;
@@ -232,9 +261,11 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
       finalTotalNGN: summary.finalTotalNGN,
       orderRef: syncedOrderRef || `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
       createdAt: new Date().toISOString(),
-      magicLinkToken: token,
-      magicLinkUrl: magicUrl,
-      isPasswordSet: false,
+      password: initialDefaultPassword,
+      defaultPassword: initialDefaultPassword,
+      isDefaultPassword: true,
+      mustChangePassword: true,
+      isPasswordSet: true,
     };
 
     if (externalOnAddCustomer) {
@@ -248,33 +279,66 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
     }
 
     setShowAddCustomerModal(false);
+    // Reset password generator for next customer
+    setCustDefaultPassword(generateDefaultPassword());
 
-    // Show magic link result modal immediately
-    setMagicLinkNotice({
-      customer: newCustomer,
-      url: magicUrl,
-      token,
-    });
+    // Show credentials modal with dispatch links
+    setCredentialsNotice(newCustomer);
   };
 
-  const handleGenerateMagicLinkForExisting = (customer: CustomerRecord) => {
-    const token = customer.magicLinkToken || `mag_${Math.random().toString(36).substring(2, 12)}`;
-    const magicUrl = generateMagicLinkUrl(token, customer.email);
-    setMagicLinkNotice({
-      customer,
-      url: magicUrl,
-      token,
-    });
+  const handleOpenCredentialsModal = (customer: CustomerRecord) => {
+    // If customer has no password recorded yet, generate a default one
+    if (!customer.password && !customer.defaultPassword) {
+      const generated = generateDefaultPassword();
+      const updated: CustomerRecord = {
+        ...customer,
+        password: generated,
+        defaultPassword: generated,
+        isDefaultPassword: true,
+        mustChangePassword: true,
+        isPasswordSet: true,
+      };
+      if (externalOnUpdateCustomer) {
+        externalOnUpdateCustomer(updated);
+      }
+      setCredentialsNotice(updated);
+    } else {
+      setCredentialsNotice(customer);
+    }
   };
 
-  const handleCopyMagicLink = (url: string) => {
-    navigator.clipboard.writeText(url);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
+  const handleUpdateCustomerPassword = (customerId: string, newPassword: string) => {
+    const cust = customersList.find((c) => c.id === customerId);
+    if (!cust) return;
+
+    const updated: CustomerRecord = {
+      ...cust,
+      password: newPassword,
+      defaultPassword: newPassword,
+      isDefaultPassword: true,
+      mustChangePassword: true,
+      isPasswordSet: true,
+      passwordLastChangedAt: new Date().toISOString(),
+    };
+
+    if (externalOnUpdateCustomer) {
+      externalOnUpdateCustomer(updated);
+    } else {
+      setInternalCustomers((prev) => prev.map((c) => (c.id === customerId ? updated : c)));
+    }
+
+    if (selectedCustomer?.id === customerId) {
+      setSelectedCustomer(updated);
+    }
+    if (credentialsNotice?.id === customerId) {
+      setCredentialsNotice(updated);
+    }
+
+    showToast(`✓ Updated login password for ${cust.fullName}!`);
   };
 
-  const handleLaunchSetPasswordFlow = (customer: CustomerRecord) => {
-    setMagicLinkNotice(null);
+  const handleLaunchSubscriberPortal = (customer: CustomerRecord) => {
+    setCredentialsNotice(null);
     if (onSimulateUserActivation) {
       onSimulateUserActivation(customer);
     } else if (onUpdateCurrentUserProfile) {
@@ -349,7 +413,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
             Customers ({customersList.length})
           </h1>
           <p className="text-xs sm:text-sm text-zinc-500 font-normal">
-            Onboard new clients, sync paid invoices, select meal days on the calendar, and generate magic links.
+            Onboard new clients, sync paid invoices, select meal days on the calendar, and generate default login credentials.
           </p>
         </div>
 
@@ -378,7 +442,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                   Pending Homepage Orders & Invoices
                 </h3>
                 <p className="text-xs text-zinc-500">
-                  These customers selected their meal days on the homepage and completed payment. Sync to create their profile and issue their magic link.
+                  These customers selected their meal days on the homepage and completed payment. Sync to create their profile and issue their default login credentials.
                 </p>
               </div>
             </div>
@@ -544,14 +608,22 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                           {cust.status}
                         </span>
                         <div>
-                          {cust.isPasswordSet ? (
-                            <span className="text-[10px] font-semibold text-emerald-600 block">
-                              ● Password Activated
-                            </span>
+                          {cust.isDefaultPassword !== false ? (
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full inline-block">
+                                🔑 Default: {cust.defaultPassword || cust.password || 'Set'}
+                              </span>
+                              <span className="text-[9px] text-zinc-400 block">Needs 1st login change</span>
+                            </div>
                           ) : (
-                            <span className="text-[10px] font-semibold text-amber-600 block">
-                              ⏳ Awaiting Magic Link
-                            </span>
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-block">
+                                ✓ Personal Password Set
+                              </span>
+                              <span className="text-[9px] text-zinc-400 block font-mono">
+                                Pass: {cust.password}
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -559,15 +631,15 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
 
                     <td className="py-4 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end space-x-2">
-                        {/* Magic Link Action */}
+                        {/* Credentials Action */}
                         <button
                           type="button"
-                          onClick={() => handleGenerateMagicLinkForExisting(cust)}
-                          className="px-3 py-1.5 rounded-xl border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold text-xs transition cursor-pointer flex items-center space-x-1"
-                          title="Generate or view magic onboarding link"
+                          onClick={() => handleOpenCredentialsModal(cust)}
+                          className="px-3 py-1.5 rounded-xl border border-zinc-300 bg-zinc-50 hover:bg-zinc-100 text-zinc-900 font-bold text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-2xs"
+                          title="View login email & generate/manage default password"
                         >
-                          <KeyRound className="w-3.5 h-3.5 text-purple-600" />
-                          <span>Magic Link</span>
+                          <KeyRound className="w-3.5 h-3.5 text-[#FF4C00]" />
+                          <span>Login Details</span>
                         </button>
 
                         {/* Add More Meal Days Action */}
@@ -579,6 +651,17 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                         >
                           <CalendarPlus className="w-3.5 h-3.5 text-[#FF4C00]" />
                           <span>Add Meal Days</span>
+                        </button>
+
+                        {/* Remove / Delete Customer Action */}
+                        <button
+                          type="button"
+                          onClick={() => setCustomerToDelete(cust)}
+                          className="px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 transition cursor-pointer flex items-center space-x-1 font-bold text-xs shadow-2xs"
+                          title="Remove user completely from dashboard"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="hidden xl:inline">Remove</span>
                         </button>
                       </div>
                     </td>
@@ -612,7 +695,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                   Onboard Customer & Assign Meal Days
                 </h3>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  Fill in customer details matching their invoice, pick their paid days on the calendar, and generate a magic link.
+                  Fill in customer details matching their invoice, pick their paid days on the calendar, and generate default login credentials.
                 </p>
               </div>
 
@@ -788,6 +871,44 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                     </div>
                   </div>
 
+                  {/* Default Login Password for Customer */}
+                  <div className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-zinc-200 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-zinc-800 text-xs block">
+                        Default Login Password <span className="text-zinc-500 font-normal">(Sent to user to log in)</span> *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setCustDefaultPassword(generateDefaultPassword())}
+                        className="text-[11px] font-bold text-[#FF4C00] hover:underline flex items-center space-x-1 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Generate Random</span>
+                      </button>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showAddCustPass ? 'text' : 'password'}
+                        required
+                        placeholder="e.g. DeskDrop#842"
+                        value={custDefaultPassword}
+                        onChange={(e) => setCustDefaultPassword(e.target.value)}
+                        className="w-full bg-white border border-zinc-300 rounded-xl pl-3.5 pr-10 py-2.5 text-xs font-mono font-bold text-black focus:outline-hidden focus:border-[#FF4C00]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAddCustPass(!showAddCustPass)}
+                        className="absolute right-3 text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                        title={showAddCustPass ? 'Hide password' : 'Show password'}
+                      >
+                        {showAddCustPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-zinc-500">
+                      The user will use their email and this default password to log in, and will be prompted to set their permanent password on first login.
+                    </p>
+                  </div>
+
                   <div className="pt-2 flex justify-end">
                     <button
                       type="button"
@@ -849,7 +970,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                         className="flex-1 sm:flex-none px-6 py-2.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] disabled:bg-zinc-300 disabled:cursor-not-allowed text-white font-black text-xs uppercase tracking-wider transition shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
                       >
                         <KeyRound className="w-4 h-4" />
-                        <span>Create & Generate Magic Link</span>
+                        <span>Create Customer & View Login Details</span>
                       </button>
                     </div>
                   </div>
@@ -861,136 +982,13 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
         </div>
       )}
 
-      {/* MAGIC LINK RESULT MODAL (Section 4 & 5 Flow) */}
-      {magicLinkNotice && (
-        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto font-['Poppins']">
-          <div className="relative w-full max-w-lg bg-white rounded-3xl p-6 sm:p-7 border border-zinc-200 shadow-2xl text-left space-y-5 animate-in fade-in zoom-in duration-150">
-            
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
-              <div className="flex items-center space-x-2">
-                <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
-                  <KeyRound className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
-                    Magic Link Generated
-                  </span>
-                  <h4 className="text-lg font-black text-zinc-900 mt-0.5">
-                    Account Activation Ready
-                  </h4>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setMagicLinkNotice(null)}
-                className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Customer & Plan Summary Card */}
-            <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-zinc-200 space-y-2 text-xs">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className="font-bold text-zinc-900 text-sm block">
-                    {magicLinkNotice.customer.fullName}
-                  </span>
-                  <span className="text-zinc-500 font-medium">
-                    {magicLinkNotice.customer.email} • {magicLinkNotice.customer.company}
-                  </span>
-                </div>
-                <span className="font-black text-[#FF4C00] text-sm">
-                  {magicLinkNotice.customer.totalDays} Lunches
-                </span>
-              </div>
-              <p className="text-[11px] text-zinc-500 border-t border-zinc-200/60 pt-2">
-                📍 {magicLinkNotice.customer.officeAddress} ({magicLinkNotice.customer.floorSuite})
-              </p>
-            </div>
-
-            {/* Important Flow Notice */}
-            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
-              <span className="font-bold flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-amber-700" />
-                Customer First-Time Experience:
-              </span>
-              <p className="text-[11px] leading-relaxed text-amber-800">
-                When the user opens this link, the <strong>very first thing they do is set their password</strong>.
-                Once set, they immediately enter their Lunch Dashboard with the exact days and meals you assigned!
-              </p>
-            </div>
-
-            {/* Magic Link URL Field with Copy */}
-            <div>
-              <label className="text-[11px] font-bold text-zinc-600 uppercase tracking-wider block mb-1.5">
-                Magic Activation Link
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={magicLinkNotice.url}
-                  className="flex-1 bg-zinc-100 border border-zinc-300 rounded-xl px-3 py-2 text-xs font-mono text-zinc-800 select-all focus:outline-hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleCopyMagicLink(magicLinkNotice.url)}
-                  className="px-4 py-2 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-xs flex items-center space-x-1.5 transition cursor-pointer shrink-0"
-                >
-                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedLink ? 'Copied!' : 'Copy'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Share Actions */}
-            <div className="pt-2 border-t border-zinc-100 flex flex-col sm:flex-row gap-2.5">
-              
-              {/* WhatsApp Share Button */}
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(
-                  `Hello ${magicLinkNotice.customer.fullName}, your 11 to 12 corporate lunch subscription (${magicLinkNotice.customer.totalDays} meals) is confirmed! Click here to set your password and access your Lunch Dashboard: ${magicLinkNotice.url}`
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer"
-              >
-                <MessageSquare className="w-4 h-4 text-emerald-600" />
-                <span>Send WhatsApp</span>
-              </a>
-
-              {/* Email Share Button */}
-              <a
-                href={`mailto:${magicLinkNotice.customer.email}?subject=${encodeURIComponent(
-                  'Your 11 to 12 Lunch Subscription Activation Link'
-                )}&body=${encodeURIComponent(
-                  `Hello ${magicLinkNotice.customer.fullName},\n\nYour ${magicLinkNotice.customer.totalDays} workday lunch plan is set up.\n\nClick this magic link to set your password and access your Lunch Dashboard:\n${magicLinkNotice.url}\n\nWarm regards,\n11 to 12 Kitchen Team`
-                )}`}
-                className="flex-1 py-2.5 rounded-xl border border-zinc-300 hover:bg-zinc-100 text-zinc-800 font-bold text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer"
-              >
-                <Mail className="w-4 h-4 text-zinc-600" />
-                <span>Send Email</span>
-              </a>
-
-              {/* Direct Open Activation Page Button */}
-              <a
-                href={magicLinkNotice.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 py-2.5 rounded-xl bg-[#FF4C00] hover:bg-[#E04300] text-white font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-1.5 transition shadow-sm cursor-pointer"
-                title="Open user's personalized activation portal"
-              >
-                <ExternalLink className="w-4 h-4" />
-                <span>Open Activation Page</span>
-              </a>
-
-            </div>
-
-          </div>
-        </div>
-      )}
+      {/* CUSTOMER CREDENTIALS MODAL */}
+      <CustomerCredentialsModal
+        isOpen={!!credentialsNotice}
+        onClose={() => setCredentialsNotice(null)}
+        customer={credentialsNotice}
+        onUpdatePassword={handleUpdateCustomerPassword}
+      />
 
       {/* CUSTOMER PROFILE DETAILS MODAL */}
       {selectedCustomer && (
@@ -1101,13 +1099,25 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    handleGenerateMagicLinkForExisting(selectedCustomer);
+                    const cust = selectedCustomer;
                     setSelectedCustomer(null);
+                    handleOpenCredentialsModal(cust);
                   }}
-                  className="px-4 py-2 rounded-full border border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100 font-bold text-xs cursor-pointer flex items-center space-x-1.5"
+                  className="px-4 py-2 rounded-full border border-zinc-300 bg-zinc-50 text-zinc-900 hover:bg-zinc-100 font-bold text-xs cursor-pointer flex items-center space-x-1.5"
                 >
-                  <KeyRound className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Generate Magic Link</span>
+                  <KeyRound className="w-3.5 h-3.5 text-[#FF4C00]" />
+                  <span>Login Details & Password</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cust = selectedCustomer;
+                    setCustomerToDelete(cust);
+                  }}
+                  className="px-4 py-2 rounded-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-600 hover:text-white font-bold text-xs cursor-pointer flex items-center space-x-1.5 transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remove User Completely</span>
                 </button>
               </div>
 
@@ -1221,6 +1231,50 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* DELETE / REMOVE CUSTOMER CONFIRMATION MODAL */}
+      {customerToDelete && (
+        <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-['Poppins']">
+          <div className="relative w-full max-w-md bg-white rounded-3xl border border-red-200 shadow-2xl p-6 text-left animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-black">Remove Subscriber Completely</h3>
+                <p className="text-xs text-zinc-500">Irreversible admin action</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 text-xs text-zinc-700 space-y-2 mb-5">
+              <p>
+                Are you sure you want to remove <strong>{customerToDelete.fullName}</strong> ({customerToDelete.email}) from the dashboard?
+              </p>
+              <p className="text-red-600 font-semibold text-[11px]">
+                ⚠️ This will permanently remove their subscriber account, active lunch plan, login credentials, and calendar selections across all devices.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setCustomerToDelete(null)}
+                className="px-4 py-2.5 rounded-full border border-zinc-300 text-zinc-700 hover:bg-zinc-100 font-bold text-xs cursor-pointer transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteCustomer}
+                className="px-5 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer transition flex items-center space-x-1.5 shadow-md active:scale-95"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Yes, Delete User Completely</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
