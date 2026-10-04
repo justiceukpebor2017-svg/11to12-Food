@@ -343,3 +343,15 @@ export interface CreditRedemptionOrder {
   status: 'Pending Verification' | 'Confirmed';
   submittedAt: string;
 }
+
+export interface TestimonialItem {
+  id: string;
+  name: string;
+  role: string;
+  company?: string;
+  text: string;
+  officeLocation?: string;
+  date?: string;
+  rating?: number;
+  featured?: boolean;
+}

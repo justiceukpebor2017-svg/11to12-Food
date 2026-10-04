@@ -15,6 +15,7 @@ import {
   WaitlistLead,
   CreditRedemptionOrder,
   SwallowType,
+  TestimonialItem,
 } from './types';
 import {
   INITIAL_MENU_ITEMS,
@@ -33,7 +34,7 @@ import { DeskDropWaitlistAndTeaser } from './components/marketing/DeskDropWaitli
 import { ProcessGrid } from './components/marketing/ProcessGrid';
 import { InteractiveCalendar } from './components/marketing/InteractiveCalendar';
 import { PlanBuilder } from './components/marketing/PlanBuilder';
-import { TestimonialsCloud } from './components/marketing/TestimonialsCloud';
+import { Testimonials } from './components/ui/testimonials-columns-1';
 import { FaqSection } from './components/marketing/FaqSection';
 import { Footer } from './components/Footer';
 import { CheckoutModal } from './components/marketing/CheckoutModal';
@@ -136,7 +137,28 @@ export default function App() {
     return [];
   });
 
+  // Dynamic Testimonials (Admin manageable and synced in real-time)
+  const [liveTestimonials, setLiveTestimonials] = useState<TestimonialItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('11to12_testimonials_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load testimonials from storage', e);
+    }
+    return liveSync.getState().testimonials || [];
+  });
+
   // Automatic persistent background synchronization
+  useEffect(() => {
+    try {
+      localStorage.setItem('11to12_testimonials_v1', JSON.stringify(liveTestimonials));
+    } catch (e) {
+      console.error('Failed to save testimonials', e);
+    }
+  }, [liveTestimonials]);
   useEffect(() => {
     try {
       localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
@@ -197,12 +219,38 @@ export default function App() {
       if (liveState.announcements && liveState.announcements.length > 0) {
         setAnnouncements(liveState.announcements);
       }
+      if (liveState.testimonials && Array.isArray(liveState.testimonials)) {
+        setLiveTestimonials(liveState.testimonials);
+      }
     });
 
     return () => {
       unsubscribe();
     };
   }, []);
+
+  // Testimonials Handlers (Admin CRUD synced with central database and homepage)
+  const handleAddTestimonial = async (item: Omit<TestimonialItem, 'id'>) => {
+    const created = await liveSync.addTestimonial(item);
+    setLiveTestimonials((prev) => [created, ...prev.filter((t) => t.id !== created.id)]);
+    return created;
+  };
+
+  const handleUpdateTestimonial = async (id: string, patch: Partial<TestimonialItem>) => {
+    const updated = await liveSync.updateTestimonial(id, patch);
+    if (updated) {
+      setLiveTestimonials((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    }
+    return updated;
+  };
+
+  const handleDeleteTestimonial = async (id: string) => {
+    const ok = await liveSync.deleteTestimonial(id);
+    if (ok) {
+      setLiveTestimonials((prev) => prev.filter((t) => t.id !== id));
+    }
+    return ok;
+  };
 
   // Credit Redemption Handlers
   const handleAddCreditRedemption = (order: CreditRedemptionOrder) => {
@@ -618,8 +666,12 @@ export default function App() {
           {/* 5. Build Your Lunch Plan (Calendar Style, >8 days rule, 20th day free, Calculate Order trigger) */}
           <PlanBuilder onProceedToCheckout={handleProceedToCheckout} />
 
-          {/* 6. People Tolerate Us (Testimonials) */}
-          <TestimonialsCloud />
+          {/* 6. People Tolerate Us (Testimonials - Animated 3-Column Display with Initials, No Images) */}
+          <Testimonials
+            testimonials={liveTestimonials}
+            title="What Lagos Office Teams Say"
+            subtitle="Piping-hot Nigerian corporate lunches delivered directly to workstations between 11:00 AM and 12:00 PM."
+          />
 
           {/* 7. Your Burning Questions, Answered (FAQ) */}
           <FaqSection />
@@ -707,6 +759,10 @@ export default function App() {
           onToggleUserStatus={handleToggleUserStatus}
           onRefundCredit={handleRefundCredit}
           onResolveTicket={handleResolveTicket}
+          testimonials={liveTestimonials}
+          onAddTestimonial={handleAddTestimonial}
+          onUpdateTestimonial={handleUpdateTestimonial}
+          onDeleteTestimonial={handleDeleteTestimonial}
         />
       )}
 
@@ -716,6 +772,7 @@ export default function App() {
           isOpen={showSubscriberAuthModal}
           onClose={() => setShowSubscriberAuthModal(false)}
           customers={customers}
+          testimonials={liveTestimonials}
           onLoginSuccess={(customer) => {
             handlePasswordSet(customer, customer.password || customer.defaultPassword || '');
             setShowSubscriberAuthModal(false);

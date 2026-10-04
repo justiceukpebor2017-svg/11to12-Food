@@ -12,6 +12,7 @@ import {
   Sliders,
   ChevronRight,
   ExternalLink,
+  Quote,
 } from 'lucide-react';
 
 export type AdminTab =
@@ -23,7 +24,8 @@ export type AdminTab =
   | 'production'
   | 'payments'
   | 'credits-skips'
-  | 'homepage-sync';
+  | 'homepage-sync'
+  | 'testimonials';
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -85,8 +87,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       ],
     },
     {
-      group: 'CONTENT',
+      group: 'CONTENT & SOCIAL PROOF',
       items: [
+        { id: 'testimonials' as AdminTab, label: 'Testimonials', icon: Quote },
         { id: 'homepage-sync' as AdminTab, label: 'Homepage Sync', icon: Sliders },
       ],
     },

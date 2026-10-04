@@ -145,9 +145,9 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
           {/* Calendar Grid (7 Cols) */}
-          <div className="lg:col-span-7 bg-[#FAF7F2] border border-zinc-200/80 rounded-3xl p-6 sm:p-8">
+          <div className="lg:col-span-7 bg-[#FAF7F2] border border-zinc-200/80 rounded-3xl p-4 sm:p-8 max-w-full overflow-hidden">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-black">
+              <h3 className="text-base sm:text-lg font-bold text-black">
                 {monthNames[currentMonth]} {currentYear}
               </h3>
               <div className="flex space-x-2">
@@ -188,7 +188,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
             </div>
 
             {/* Date cells */}
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {calendarCells.map((cell, idx) => {
                 const disabled = !cell.isCurrentMonth || cell.isWeekend || cell.isBeforeLaunch;
                 return (
@@ -198,7 +198,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
                     onClick={() => {
                       if (!disabled) setSelectedDate(cell.date);
                     }}
-                    className={`h-11 sm:h-12 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition-all ${
+                    className={`h-10 sm:h-12 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition-all ${
                       cell.isSelected
                         ? 'bg-[#FF4C00] text-white shadow-sm scale-105'
                         : cell.isBeforeLaunch
@@ -214,7 +214,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
               })}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-zinc-200 text-xs text-zinc-500 flex items-center justify-between">
+            <div className="mt-6 pt-4 border-t border-zinc-200 text-xs text-zinc-500 flex flex-wrap gap-2 items-center justify-between">
               <span>Weekends reserved for kitchen prep</span>
               <a href="#pricing" className="text-[#FF4C00] font-semibold hover:underline">
                 Build your plan →
@@ -223,7 +223,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
           </div>
 
           {/* Meal Details Card (5 Cols) - Clean: Only Meal Title and What's In It */}
-          <div className="lg:col-span-5 bg-[#FAF7F2] border border-zinc-200/80 rounded-3xl p-6 sm:p-8">
+          <div className="lg:col-span-5 bg-[#FAF7F2] border border-zinc-200/80 rounded-3xl p-5 sm:p-8 max-w-full overflow-hidden">
             <div className="flex items-center justify-between text-xs text-zinc-500 font-medium mb-3">
               <span className="uppercase tracking-wider font-semibold text-[#FF4C00]">
                 {selectedMeal.day}

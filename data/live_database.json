@@ -1,5 +1,18 @@
 {
-  "waitlistLeads": [],
+  "waitlistLeads": [
+    {
+      "id": "wl-1791072597095-590",
+      "name": "Test User",
+      "email": "test@example.com",
+      "phone": "08012345678",
+      "workplace": "Test Ltd",
+      "addressFloor": "Floor 2",
+      "createdAt": "2026-10-04T00:09:57.095Z",
+      "status": "Waitlisted",
+      "memberCode": "DD-25295",
+      "notes": ""
+    }
+  ],
   "customers": [
     {
       "id": "cust-1790980501721",

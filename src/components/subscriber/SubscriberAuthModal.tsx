@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CustomerRecord } from '../../types';
+import { CustomerRecord, TestimonialItem } from '../../types';
 import {
   Lock,
   Mail,
@@ -24,6 +24,7 @@ interface SubscriberAuthModalProps {
   onLoginSuccess: (customer: CustomerRecord) => void;
   onUpdateCustomerPassword: (customerId: string, newPass: string) => void;
   onOpenAdminLogin?: () => void;
+  testimonials?: TestimonialItem[];
 }
 
 type AuthMode = 'login' | 'forgot_email' | 'enter_code' | 'reset_password' | 'first_login_change_password';
@@ -35,6 +36,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
   onLoginSuccess,
   onUpdateCustomerPassword,
   onOpenAdminLogin,
+  testimonials,
 }) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -118,6 +120,15 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
           title={<span className="font-black text-zinc-900 tracking-tight">Subscriber Portal</span>}
           description="Access your lunch control center, calendar days, and desk drop tracking."
           heroImageSrc="https://i.ibb.co/rG6JFnyY/0904-ezgif-com-resize.gif"
+          testimonials={
+            testimonials && testimonials.length > 0
+              ? testimonials.slice(0, 4).map((t) => ({
+                  name: t.name,
+                  handle: `${t.role}${t.company ? ` • ${t.company}` : ''}`,
+                  text: t.text,
+                }))
+              : undefined
+          }
           error={error}
           onClose={onClose}
           onSignIn={(e) => {

@@ -21,6 +21,10 @@ import {
   findDuplicateInWaitlist,
   findDuplicateInCustomers,
   deleteCustomerRecord,
+  getTestimonialsList,
+  addTestimonialRecord,
+  updateTestimonialRecord,
+  deleteTestimonialRecord,
 } from './src/server/liveDatabase';
 
 dotenv.config();
@@ -303,6 +307,34 @@ app.post('/api/orders/:id/confirm-payment', (req, res) => {
 app.post('/api/credit-redemptions', (req, res) => {
   const redemption = addCreditRedemptionInDb(req.body);
   return res.status(201).json(redemption);
+});
+
+// Testimonials Endpoints (Admin manageable)
+app.get('/api/testimonials', (_req, res) => {
+  return res.json({ testimonials: getTestimonialsList() });
+});
+
+app.post('/api/testimonials', (req, res) => {
+  const item = addTestimonialRecord(req.body);
+  return res.status(201).json(item);
+});
+
+app.patch('/api/testimonials/:id', (req, res) => {
+  const updated = updateTestimonialRecord(req.params.id, req.body);
+  if (!updated) {
+    return res.status(404).json({ error: 'Testimonial not found' });
+  }
+  return res.json(updated);
+});
+
+app.delete('/api/testimonials/:id', (req, res) => {
+  const deleted = deleteTestimonialRecord(req.params.id);
+  return res.json({ success: deleted, id: req.params.id });
+});
+
+// Guard: strictly ensure no /api/ request ever falls through to Vite HTML response
+app.all('/api/*', (req, res) => {
+  return res.status(404).json({ error: `API route ${req.method} ${req.path} not found` });
 });
 
 async function startServer() {

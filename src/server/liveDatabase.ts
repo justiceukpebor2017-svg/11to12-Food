@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Response } from 'express';
-import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement } from '../types';
+import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem } from '../types';
 import { getStandardPhoneKey, normalizeEmail } from '../utils/phoneUtils';
 
 export interface LiveDatabaseSchema {
@@ -10,7 +10,101 @@ export interface LiveDatabaseSchema {
   submittedOrders: OrderSubmission[];
   creditRedemptions: CreditRedemptionOrder[];
   announcements: AdminAnnouncement[];
+  testimonials: TestimonialItem[];
 }
+
+const DEFAULT_TESTIMONIALS: TestimonialItem[] = [
+  {
+    id: 'test-1',
+    name: 'Briana Patton',
+    role: 'Operations Lead',
+    company: 'Paystack, Victoria Island',
+    text: '11 to 12 revolutionized lunch for our product team. Piping hot Nigerian meals arrive at our desks by 11:30 AM without interrupting meetings.',
+    officeLocation: 'Victoria Island',
+    rating: 5,
+    featured: true,
+  },
+  {
+    id: 'test-2',
+    name: 'Bilal Ahmed',
+    role: 'Senior Software Engineer',
+    company: 'Flutterwave, Ikoyi',
+    text: 'Skipping days and swallow swaps make this the most flexible office meal setup in Lagos. Lunch is always ready when our sprint standup ends.',
+    officeLocation: 'Ikoyi',
+    rating: 5,
+    featured: true,
+  },
+  {
+    id: 'test-3',
+    name: 'Saman Malik',
+    role: 'Finance Associate',
+    company: 'KPMG Nigeria',
+    text: 'The desk drop logistics are flawless. No more waiting downstairs in long delivery lines or dealing with dispatch rider calls.',
+    officeLocation: 'Victoria Island',
+    rating: 5,
+    featured: true,
+  },
+  {
+    id: 'test-4',
+    name: 'Omar Raza',
+    role: 'Managing Director',
+    company: 'Landmark Towers',
+    text: 'Our entire floor switched to 11 to 12. Fresh ingredients, consistent quality every workday, and completely hassle-free.',
+    officeLocation: 'Victoria Island',
+    rating: 5,
+    featured: true,
+  },
+  {
+    id: 'test-5',
+    name: 'Zainab Hussain',
+    role: 'Product Manager',
+    company: 'Sterling Bank Marina',
+    text: 'The calendar system makes planning meals effortless. The Jollof Rice with grilled chicken is restaurant-grade every single delivery.',
+    officeLocation: 'Marina',
+    rating: 5,
+    featured: true,
+  },
+  {
+    id: 'test-6',
+    name: 'Aliza Khan',
+    role: 'People Operations Lead',
+    company: 'Mulliner Towers',
+    text: 'Team productivity jumped noticeably when nobody had to leave their desk or wonder what to eat for lunch. Highly recommended.',
+    officeLocation: 'Ikoyi',
+    rating: 5,
+    featured: true,
+  },
+  {
+    id: 'test-7',
+    name: 'Farhan Siddiqui',
+    role: 'Growth Director',
+    company: 'Techstars Lagos',
+    text: 'Exceptional service and packaging. The meals stay hot and fresh, and customer support via WhatsApp is immediate.',
+    officeLocation: 'Victoria Island',
+    rating: 5,
+    featured: true,
+  },
+  {
+    id: 'test-8',
+    name: 'Sana Sheikh',
+    role: 'Legal Counsel',
+    company: 'Churchgate Tower',
+    text: 'The transparent pricing and wallet rollover when I have court appearances or off-site meetings give me complete peace of mind.',
+    officeLocation: 'Victoria Island',
+    rating: 5,
+    featured: true,
+  },
+  {
+    id: 'test-9',
+    name: 'Hassan Ali',
+    role: 'Head of Operations',
+    company: 'Eko Atlantic Hub',
+    text: 'Best corporate lunch provider in Lagos. Every meal tastes like high-end home cooking, delivered like clockwork between 11 and 12.',
+    officeLocation: 'Victoria Island',
+    rating: 5,
+    featured: true,
+  },
+];
 
 const DB_FILE_PATH = path.join(process.cwd(), 'data', 'live_database.json');
 
@@ -21,6 +115,7 @@ let dbState: LiveDatabaseSchema = {
   submittedOrders: [],
   creditRedemptions: [],
   announcements: [],
+  testimonials: [...DEFAULT_TESTIMONIALS],
 };
 
 // Connected SSE clients for instantaneous real-time push to all devices
@@ -45,6 +140,9 @@ export function initLiveDatabase(): void {
         submittedOrders: Array.isArray(parsed.submittedOrders) ? parsed.submittedOrders : [],
         creditRedemptions: Array.isArray(parsed.creditRedemptions) ? parsed.creditRedemptions : [],
         announcements: Array.isArray(parsed.announcements) ? parsed.announcements : [],
+        testimonials: Array.isArray(parsed.testimonials) && parsed.testimonials.length > 0
+          ? parsed.testimonials
+          : [...DEFAULT_TESTIMONIALS],
       };
       console.log(`[LiveDB] Loaded ${dbState.waitlistLeads.length} waitlist leads, ${dbState.customers.length} customers from disk.`);
     } else {
@@ -425,3 +523,63 @@ export function addCreditRedemptionInDb(redemption: CreditRedemptionOrder): Cred
   broadcastLiveUpdate('CREDIT_REDEEMED', redemption);
   return redemption;
 }
+
+/**
+ * Gets all testimonials
+ */
+export function getTestimonialsList(): TestimonialItem[] {
+  return dbState.testimonials || [];
+}
+
+/**
+ * Adds a new testimonial
+ */
+export function addTestimonialRecord(item: Omit<TestimonialItem, 'id'> & { id?: string }): TestimonialItem {
+  const newTestimonial: TestimonialItem = {
+    id: item.id || `test-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    name: item.name.trim(),
+    role: item.role.trim(),
+    company: item.company?.trim() || '',
+    text: item.text.trim(),
+    officeLocation: item.officeLocation?.trim() || 'Victoria Island',
+    rating: item.rating || 5,
+    featured: item.featured ?? true,
+    date: item.date || new Date().toISOString().split('T')[0],
+  };
+
+  dbState.testimonials = [newTestimonial, ...(dbState.testimonials || [])];
+  saveLiveDatabase();
+  broadcastLiveUpdate('TESTIMONIALS_UPDATED', dbState.testimonials);
+  return newTestimonial;
+}
+
+/**
+ * Updates a testimonial
+ */
+export function updateTestimonialRecord(id: string, patch: Partial<TestimonialItem>): TestimonialItem | null {
+  const index = (dbState.testimonials || []).findIndex((t) => t.id === id);
+  if (index === -1) return null;
+
+  dbState.testimonials[index] = {
+    ...dbState.testimonials[index],
+    ...patch,
+  };
+  saveLiveDatabase();
+  broadcastLiveUpdate('TESTIMONIALS_UPDATED', dbState.testimonials);
+  return dbState.testimonials[index];
+}
+
+/**
+ * Deletes a testimonial
+ */
+export function deleteTestimonialRecord(id: string): boolean {
+  const initialLength = (dbState.testimonials || []).length;
+  dbState.testimonials = (dbState.testimonials || []).filter((t) => t.id !== id);
+  if (dbState.testimonials.length < initialLength) {
+    saveLiveDatabase();
+    broadcastLiveUpdate('TESTIMONIALS_UPDATED', dbState.testimonials);
+    return true;
+  }
+  return false;
+}
+

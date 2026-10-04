@@ -31,16 +31,16 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* Links matching prompt */}
-        <div className="flex items-center space-x-6 text-xs sm:text-sm font-medium text-zinc-400">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs sm:text-sm font-medium text-zinc-400 text-center">
           <a href="#how-it-works" className="hover:text-white transition">About Us</a>
-          <span>•</span>
+          <span className="hidden sm:inline">•</span>
           <a href="#faq" className="hover:text-white transition">Contact</a>
-          <span>•</span>
+          <span className="hidden sm:inline">•</span>
           <a href="#pricing" className="hover:text-white transition">Terms of Service</a>
         </div>
 
         {/* Discrete Portal access & Copyright */}
-        <div className="flex items-center space-x-4 text-xs text-zinc-500 font-normal">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-zinc-500 font-normal text-center">
           {onNavigateToSubscriber && (
             <button
               onClick={onNavigateToSubscriber}
@@ -61,7 +61,7 @@ export const Footer: React.FC<FooterProps> = ({
             </>
           )}
           <span>•</span>
-          <span>© 2024 11 to 12 Inc.</span>
+          <span>© {new Date().getFullYear()} 11 to 12 Inc.</span>
         </div>
 
       </div>

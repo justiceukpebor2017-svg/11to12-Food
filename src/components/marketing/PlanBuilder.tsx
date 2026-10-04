@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   StructuredMeal,
   SelectedLunchDay,
@@ -20,7 +21,14 @@ import {
   ArrowRight,
   CheckCircle2,
   Loader2,
+  Utensils,
 } from 'lucide-react';
+
+interface MealPopupState {
+  meal: StructuredMeal;
+  action: 'added' | 'removed';
+  formattedDate: string;
+}
 
 interface PlanBuilderProps {
   onProceedToCheckout: (selectedDays: SelectedLunchDay[], summary: OrderSummary) => void;
@@ -33,6 +41,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
   // Map of dateStr -> SelectedLunchDay
   const [selectedDaysMap, setSelectedDaysMap] = useState<Record<string, SelectedLunchDay>>({});
+
+  // 2-Second Top Floating Meal Preview Popup state
+  const [activeMealPopup, setActiveMealPopup] = useState<MealPopupState | null>(null);
+  const popupTimeoutRef = useRef<number | null>(null);
 
   // Calculation Modal & Animation State
   const [showOrderBill, setShowOrderBill] = useState(false);
@@ -159,11 +171,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     return cells;
   }, [currentYear, currentMonth, firstDayIndex, prevMonthDays, totalDaysInMonth]);
 
-  // Clean animation frame on unmount
+  // Clean animation frame & popup timer on unmount
   useEffect(() => {
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (popupTimeoutRef.current) {
+        clearTimeout(popupTimeoutRef.current);
       }
     };
   }, []);
@@ -171,6 +186,9 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   // Toggle selection for a workday meal
   const toggleSelectMeal = (meal: StructuredMeal) => {
     if (meal.isHoliday || meal.isNoDelivery) return;
+
+    const isCurrentlySelected = Boolean(selectedDaysMap[meal.dateStr]);
+    const action: 'added' | 'removed' = isCurrentlySelected ? 'removed' : 'added';
 
     setSelectedDaysMap((prev) => {
       const copy = { ...prev };
@@ -187,6 +205,28 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     });
 
     setValidationError(null);
+
+    // Show floating top popup displaying the meal for this day, fading out in 2 seconds
+    const dateObj = new Date(meal.dateStr + 'T12:00:00');
+    const formattedDate = dateObj.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
+
+    if (popupTimeoutRef.current) {
+      clearTimeout(popupTimeoutRef.current);
+    }
+
+    setActiveMealPopup({
+      meal,
+      action,
+      formattedDate,
+    });
+
+    popupTimeoutRef.current = window.setTimeout(() => {
+      setActiveMealPopup(null);
+    }, 2000);
 
     // Rule 14: If customer changes their selected dates:
     // Clear previous calculated result and reset animation state
@@ -215,6 +255,31 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         },
       };
     });
+
+    // Also display the meal with updated swallow choice in the top popup for 2 seconds
+    const dateObj = new Date(dateStr + 'T12:00:00');
+    const formattedDate = dateObj.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
+    const currentMeal = selectedDaysMap[dateStr]?.meal || getStructuredMealForDate(dateObj);
+    if (currentMeal) {
+      if (popupTimeoutRef.current) {
+        clearTimeout(popupTimeoutRef.current);
+      }
+      setActiveMealPopup({
+        meal: {
+          ...currentMeal,
+          mealName: `${currentMeal.mealName.split('(')[0].trim()} (Swallow: ${swallow})`,
+        },
+        action: 'added',
+        formattedDate,
+      });
+      popupTimeoutRef.current = window.setTimeout(() => {
+        setActiveMealPopup(null);
+      }, 2000);
+    }
   };
 
   // Select all deliverable workdays in current month
@@ -337,7 +402,102 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   };
 
   return (
-    <section id="pricing" className="py-20 bg-[#FAF7F2] border-t border-zinc-200/80">
+    <section id="pricing" className="py-20 bg-[#FAF7F2] border-t border-zinc-200/80 relative">
+      
+      {/* 2-Second Floating Top Meal Preview Popup with Smooth Fade Out */}
+      <AnimatePresence>
+        {activeMealPopup && (
+          <motion.div
+            key={`${activeMealPopup.meal.dateStr}-${activeMealPopup.action}-${activeMealPopup.meal.mealName}`}
+            initial={{ opacity: 0, y: -24, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -16, scale: 0.95 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className={`fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[100] w-[94%] max-w-md sm:max-w-xl rounded-2xl sm:rounded-3xl border shadow-2xl p-4 sm:p-5 backdrop-blur-md font-['Poppins'] ${
+              activeMealPopup.action === 'added'
+                ? 'bg-zinc-950/95 text-white border-[#FF4C00]/40 shadow-orange-500/10'
+                : 'bg-zinc-900/95 text-zinc-200 border-zinc-700/80 shadow-black/40'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
+                  activeMealPopup.action === 'added'
+                    ? 'bg-[#FF4C00] text-white border-[#FF4C00]/50 shadow-md shadow-[#FF4C00]/25'
+                    : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                }`}
+              >
+                {activeMealPopup.action === 'added' ? (
+                  <Utensils className="w-5 h-5" />
+                ) : (
+                  <X className="w-5 h-5" />
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0 pr-1">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-zinc-400">
+                      {activeMealPopup.formattedDate}
+                    </span>
+                    <span
+                      className={`text-[9px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                        activeMealPopup.action === 'added'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                      }`}
+                    >
+                      {activeMealPopup.action === 'added' ? '✓ Added to Plan' : 'Removed from Plan'}
+                    </span>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setActiveMealPopup(null)}
+                    className="text-zinc-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition cursor-pointer shrink-0"
+                    title="Close"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Full Meal Title */}
+                <h4 className="text-sm sm:text-base font-extrabold text-white leading-snug break-words">
+                  {activeMealPopup.meal.mealName}
+                </h4>
+
+                {/* Meal Composition Tags */}
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-300">
+                  {activeMealPopup.meal.mealCategory && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/10 text-white/90">
+                      {activeMealPopup.meal.mealCategory}
+                    </span>
+                  )}
+                  {activeMealPopup.meal.protein && (
+                    <span className="truncate">Protein: <strong className="text-white">{activeMealPopup.meal.protein}</strong></span>
+                  )}
+                  {activeMealPopup.meal.soup && (
+                    <span className="truncate">• Soup: <strong className="text-white">{activeMealPopup.meal.soup}</strong></span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 2-Second Visual Countdown Indicator Bar */}
+            <div className="mt-3 w-full bg-white/10 h-0.5 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: '100%' }}
+                animate={{ width: '0%' }}
+                transition={{ duration: 2, ease: 'linear' }}
+                className={`h-full ${
+                  activeMealPopup.action === 'added' ? 'bg-[#FF4C00]' : 'bg-zinc-500'
+                }`}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header Block */}
@@ -461,7 +621,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
           </div>
 
           {/* Calendar Days Grid */}
-          <div className="grid grid-cols-7 gap-2 sm:gap-3">
+          <div className="grid grid-cols-7 gap-1 sm:gap-3">
             {calendarDays.map((cell, idx) => {
               const meal = cell.meal;
               const isSelected = Boolean(selectedDaysMap[cell.dateStr]);
@@ -473,13 +633,16 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 return (
                   <div
                     key={idx}
-                    className="min-h-[95px] sm:min-h-[115px] p-2 sm:p-2.5 rounded-2xl bg-zinc-100/40 border border-zinc-200/50 flex flex-col justify-between opacity-30 select-none cursor-not-allowed"
+                    className="min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2.5 rounded-2xl bg-zinc-100/40 border border-zinc-200/50 flex flex-col justify-between opacity-30 select-none cursor-not-allowed overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-zinc-400">{cell.dayNumber}</span>
-                      <span className="text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200 px-1 py-0.5 rounded">Pre-Launch</span>
+                      <span className="text-[7px] sm:text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200 px-1 py-0.5 rounded truncate">
+                        <span className="hidden sm:inline">Pre-Launch</span>
+                        <span className="sm:hidden">Pre</span>
+                      </span>
                     </div>
-                    <span className="text-[10px] text-zinc-400 italic text-center py-2">Locked</span>
+                    <span className="text-[9px] sm:text-[10px] text-zinc-400 italic text-center py-1 sm:py-2">Locked</span>
                   </div>
                 );
               }
@@ -489,13 +652,16 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 return (
                   <div
                     key={idx}
-                    className="min-h-[95px] sm:min-h-[115px] p-2 sm:p-2.5 rounded-2xl bg-zinc-50/70 border border-zinc-150 flex flex-col justify-between opacity-50 select-none cursor-not-allowed"
+                    className="min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2.5 rounded-2xl bg-zinc-50/70 border border-zinc-150 flex flex-col justify-between opacity-50 select-none cursor-not-allowed overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-zinc-400">{cell.dayNumber}</span>
-                      <span className="text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200/60 px-1 py-0.5 rounded">Off</span>
+                      <span className="text-[7px] sm:text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200/60 px-1 py-0.5 rounded">Off</span>
                     </div>
-                    <span className="text-[10px] text-zinc-400 font-medium italic text-center py-2">Strictly No Meals (Closed)</span>
+                    <span className="text-[8px] sm:text-[10px] text-zinc-400 font-medium italic text-center py-1 sm:py-2 leading-tight">
+                      <span className="hidden sm:inline">Strictly No Meals (Closed)</span>
+                      <span className="sm:hidden">Closed</span>
+                    </span>
                   </div>
                 );
               }
@@ -505,16 +671,16 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 return (
                   <div
                     key={idx}
-                    className="min-h-[95px] sm:min-h-[115px] p-2 sm:p-2.5 rounded-2xl bg-amber-50/50 border border-amber-200/60 flex flex-col justify-between select-none"
+                    className="min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2.5 rounded-2xl bg-amber-50/50 border border-amber-200/60 flex flex-col justify-between select-none overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-amber-700">{cell.dayNumber}</span>
-                      <span className="text-[9px] font-semibold text-amber-600 uppercase bg-amber-100 px-1.5 py-0.5 rounded">
+                      <span className="text-[8px] sm:text-[9px] font-semibold text-amber-600 uppercase bg-amber-100 px-1 py-0.5 rounded truncate">
                         Holiday
                       </span>
                     </div>
-                    <span className="text-[10px] font-semibold text-amber-800 line-clamp-2">
-                      {cell.meal?.holidayName || 'Public Holiday'}
+                    <span className="text-[9px] sm:text-[10px] font-semibold text-amber-800 line-clamp-2 leading-tight break-words">
+                      {cell.meal?.holidayName || 'Holiday'}
                     </span>
                   </div>
                 );
@@ -525,7 +691,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 return (
                   <div
                     key={idx}
-                    className="min-h-[95px] sm:min-h-[115px] p-2 rounded-2xl bg-zinc-50/40 border border-zinc-100 opacity-40 select-none"
+                    className="min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2 rounded-2xl bg-zinc-50/40 border border-zinc-100 opacity-40 select-none"
                   >
                     <span className="text-xs font-semibold text-zinc-300">{cell.dayNumber}</span>
                   </div>
@@ -537,9 +703,9 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 <div
                   key={cell.dateStr}
                   onClick={() => toggleSelectMeal(meal)}
-                  className={`min-h-[95px] sm:min-h-[115px] p-2 sm:p-2.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group relative text-left ${
+                  className={`min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group relative text-left overflow-hidden ${
                     isSelected
-                      ? 'bg-[#FF4C00] text-white border-[#FF4C00] shadow-md scale-[1.02]'
+                      ? 'bg-[#FF4C00] text-white border-[#FF4C00] shadow-md scale-[1.01]'
                       : 'bg-white text-zinc-800 border-zinc-200 hover:border-[#FF4C00]/60 hover:bg-[#FAF7F2]'
                   }`}
                 >
@@ -554,20 +720,20 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                     </span>
 
                     {isSelected ? (
-                      <span className="w-4 h-4 rounded-full bg-white text-[#FF4C00] flex items-center justify-center shadow-xs">
-                        <Check className="w-3 h-3 stroke-[3]" />
+                      <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-white text-[#FF4C00] flex items-center justify-center shadow-xs shrink-0">
+                        <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[3]" />
                       </span>
                     ) : (
-                      <span className="text-[9px] font-semibold text-zinc-400 group-hover:text-zinc-600">
+                      <span className="text-[8px] sm:text-[9px] font-semibold text-zinc-400 group-hover:text-zinc-600 truncate">
                         {meal.day.substring(0, 3)}
                       </span>
                     )}
                   </div>
 
                   {/* Middle: Meal Name (ONLY Food Title, no extra description) */}
-                  <div className="my-1">
+                  <div className="my-0.5 sm:my-1 min-w-0">
                     <p
-                      className={`text-[11px] sm:text-xs font-bold leading-snug line-clamp-2 ${
+                      className={`text-[9px] sm:text-xs font-bold leading-tight line-clamp-2 break-words ${
                         isSelected ? 'text-white' : 'text-zinc-800'
                       }`}
                     >
@@ -578,25 +744,43 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   {/* Bottom: Friday swallow selection if selected */}
                   <div>
                     {isSelected && isSwallowMeal ? (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="mt-1 pt-1 border-t border-white/30 flex items-center space-x-1"
-                      >
-                        {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
-                          <button
-                            key={swallow}
-                            type="button"
-                            onClick={(e) => handleSelectSwallow(cell.dateStr, swallow, e)}
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-black transition cursor-pointer ${
-                              selectedSwallow === swallow
-                                ? 'bg-black text-white shadow-xs'
-                                : 'bg-white/30 text-white hover:bg-white/50'
-                            }`}
-                          >
-                            {swallow}
-                          </button>
-                        ))}
-                      </div>
+                      <>
+                        {/* Mobile Swallow Switcher */}
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const nextSwallow: SwallowType =
+                              selectedSwallow === 'Semo' ? 'Eba' : selectedSwallow === 'Eba' ? 'Fufu' : 'Semo';
+                            handleSelectSwallow(cell.dateStr, nextSwallow, e);
+                          }}
+                          className="sm:hidden mt-0.5 pt-0.5 border-t border-white/30 flex items-center justify-between text-[8px] font-black uppercase text-white cursor-pointer"
+                          title="Tap to change swallow"
+                        >
+                          <span className="truncate">{selectedSwallow}</span>
+                          <span className="text-[8px] opacity-80">↻</span>
+                        </div>
+
+                        {/* Desktop Swallow Buttons */}
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="hidden sm:flex mt-1 pt-1 border-t border-white/30 items-center space-x-1"
+                        >
+                          {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
+                            <button
+                              key={swallow}
+                              type="button"
+                              onClick={(e) => handleSelectSwallow(cell.dateStr, swallow, e)}
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-black transition cursor-pointer ${
+                                selectedSwallow === swallow
+                                  ? 'bg-black text-white shadow-xs'
+                                  : 'bg-white/30 text-white hover:bg-white/50'
+                              }`}
+                            >
+                              {swallow}
+                            </button>
+                          ))}
+                        </div>
+                      </>
                     ) : null}
                   </div>
                 </div>
@@ -607,15 +791,15 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         </div>
 
         {/* Action Bar & Order Calculation Trigger (No Prices While Picking Days!) */}
-        <div className="mt-8 bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="mt-8 bg-white border border-zinc-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 max-w-full overflow-hidden">
           
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="text-2xl font-black text-black">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xl sm:text-2xl font-black text-black">
                 {selectedCount} lunch {selectedCount === 1 ? 'day' : 'days'} selected
               </span>
               {selectedCount >= 20 && (
-                <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center space-x-1">
+                <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center space-x-1 shrink-0">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                   <span>20th Day Free!</span>
                 </span>
@@ -623,7 +807,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             </div>
 
             {/* Helper status text */}
-            <div className="mt-1 text-xs text-zinc-500 font-medium">
+            <div className="mt-1 text-xs text-zinc-500 font-medium break-words">
               {validationError ? (
                 <span className="text-rose-600 font-semibold flex items-center space-x-1">
                   <AlertCircle className="w-4 h-4 inline mr-1 shrink-0" />

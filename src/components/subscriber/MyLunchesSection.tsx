@@ -561,10 +561,10 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
       {/* 1. CALENDAR VIEW (HYBRID WORKDAY GRID) */}
       {/* ============================================================== */}
       {viewMode === 'calendar' && (
-        <div className="bg-white rounded-3xl border border-zinc-200 p-5 sm:p-6 shadow-xs overflow-hidden">
+        <div className="bg-white rounded-3xl border border-zinc-200 p-3.5 sm:p-6 shadow-xs overflow-hidden max-w-full">
           
           {/* Day of Week Header: Monday - Sunday Worldwide */}
-          <div className="grid grid-cols-7 gap-2 text-center pb-3 border-b border-zinc-150 text-[11px] font-black text-zinc-400 uppercase tracking-wider">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center pb-3 border-b border-zinc-150 text-[10px] sm:text-[11px] font-black text-zinc-400 uppercase tracking-wider">
             <span>Mon</span>
             <span>Tue</span>
             <span>Wed</span>
@@ -575,14 +575,14 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
           </div>
 
           {/* Calendar Grid: Monday to Sunday */}
-          <div className="mt-3 grid grid-cols-7 gap-2 sm:gap-3">
+          <div className="mt-3 grid grid-cols-7 gap-1 sm:gap-3">
             {calendarGridCells.map((cell, idx) => {
               // Non-current month padding
               if (!cell.isCurrentMonth) {
                 return (
                   <div
                     key={`pad-${idx}`}
-                    className="p-2 sm:p-2.5 rounded-2xl bg-zinc-50/40 border border-zinc-100 flex flex-col justify-between min-h-[105px] sm:min-h-[120px] opacity-30 select-none"
+                    className="p-1.5 sm:p-2.5 rounded-2xl bg-zinc-50/40 border border-zinc-100 flex flex-col justify-between min-h-[90px] sm:min-h-[120px] opacity-30 select-none overflow-hidden"
                   >
                     <span className="text-xs font-semibold text-zinc-400">{cell.dayNum}</span>
                   </div>
@@ -594,14 +594,15 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                 return (
                   <div
                     key={`weekend-${cell.dateStr}`}
-                    className="p-2 sm:p-2.5 rounded-2xl bg-zinc-50/70 border border-zinc-150 flex flex-col justify-between min-h-[105px] sm:min-h-[120px] opacity-45 select-none cursor-not-allowed"
+                    className="p-1.5 sm:p-2.5 rounded-2xl bg-zinc-50/70 border border-zinc-150 flex flex-col justify-between min-h-[90px] sm:min-h-[120px] opacity-45 select-none cursor-not-allowed overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs sm:text-sm font-bold text-zinc-400">{cell.dayNum}</span>
-                      <span className="text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200/60 px-1 py-0.5 rounded">Off</span>
+                      <span className="text-[7px] sm:text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200/60 px-1 py-0.5 rounded">Off</span>
                     </div>
-                    <span className="text-[10px] text-zinc-400 font-medium italic leading-tight text-center py-2">
-                      Strictly No Meals (Closed)
+                    <span className="text-[8px] sm:text-[10px] text-zinc-400 font-medium italic leading-tight text-center py-1 sm:py-2">
+                      <span className="hidden sm:inline">Strictly No Meals (Closed)</span>
+                      <span className="sm:hidden">Closed</span>
                     </span>
                   </div>
                 );
@@ -621,7 +622,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                 <div
                   key={day.dateStr}
                   onClick={() => setActiveDateModal(day)}
-                  className={`p-2.5 sm:p-3.5 rounded-2xl border transition text-left cursor-pointer hover:border-black hover:shadow-xs flex flex-col justify-between min-h-[105px] sm:min-h-[120px] ${
+                  className={`p-1.5 sm:p-3.5 rounded-2xl border transition text-left cursor-pointer hover:border-black hover:shadow-xs flex flex-col justify-between min-h-[90px] sm:min-h-[120px] overflow-hidden ${
                     isDelivered
                       ? 'bg-zinc-100/70 border-zinc-200 opacity-40 grayscale-[35%]'
                       : isSelected
@@ -638,15 +639,15 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                     </span>
                     
                     {isDelivered ? (
-                      <span className="w-4 h-4 rounded-full bg-zinc-400 text-white flex items-center justify-center text-[9px] font-bold" title="Delivered">
+                      <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-zinc-400 text-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold shrink-0" title="Delivered">
                         ✓
                       </span>
                     ) : isSelected ? (
-                      <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">
+                      <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0">
                         ✓
                       </span>
                     ) : isSkipped ? (
-                      <span className="w-4 h-4 rounded-full bg-zinc-300 text-zinc-700 flex items-center justify-center text-[10px] font-bold">
+                      <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-zinc-300 text-zinc-700 flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0">
                         —
                       </span>
                     ) : (
@@ -657,9 +658,9 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                   </div>
 
                   {/* Middle: Emoji & Dish Name */}
-                  <div className="my-1">
-                    <span className="text-base sm:text-lg block">{day.emoji}</span>
-                    <span className="text-[11px] sm:text-xs font-bold text-zinc-900 line-clamp-1 block mt-0.5">
+                  <div className="my-0.5 sm:my-1 min-w-0">
+                    <span className="text-sm sm:text-lg block">{day.emoji}</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-zinc-900 line-clamp-1 block mt-0.5 truncate">
                       {day.dishTitle}
                     </span>
                   </div>
@@ -667,31 +668,36 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                   {/* Swallow Choice Selector right on card - identical to homepage */}
                   {day.isSwallow && isSelected && !isDelivered && (
                     <div
-                      className="my-1 pt-1 border-t border-zinc-200/90"
+                      className="my-0.5 sm:my-1 pt-1 border-t border-zinc-200/90"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center justify-between text-[9px] font-bold text-zinc-500 mb-1">
-                        <span>Swallow:</span>
-                        <span className="text-[#FF4C00] font-black">{day.selectedSwallow || 'Semo'}</span>
+                      <div className="sm:hidden text-[8px] font-bold text-[#FF4C00] bg-orange-50/80 px-1 py-0.5 rounded truncate text-center">
+                        {day.selectedSwallow || 'Semo'}
                       </div>
-                      <div className="grid grid-cols-3 gap-0.5 sm:gap-1">
-                        {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
-                          <button
-                            key={swallow}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectSwallow(day.dateStr, swallow);
-                            }}
-                            className={`py-0.5 px-0.5 rounded text-[8px] sm:text-[9px] font-bold transition cursor-pointer text-center ${
-                              (day.selectedSwallow || 'Semo') === swallow
-                                ? 'bg-[#FF4C00] text-white shadow-xs'
-                                : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
-                            }`}
-                          >
-                            {swallow}
-                          </button>
-                        ))}
+                      <div className="hidden sm:block">
+                        <div className="flex items-center justify-between text-[9px] font-bold text-zinc-500 mb-1">
+                          <span>Swallow:</span>
+                          <span className="text-[#FF4C00] font-black">{day.selectedSwallow || 'Semo'}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-0.5 sm:gap-1">
+                          {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
+                            <button
+                              key={swallow}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectSwallow(day.dateStr, swallow);
+                              }}
+                              className={`py-0.5 px-0.5 rounded text-[8px] sm:text-[9px] font-bold transition cursor-pointer text-center ${
+                                (day.selectedSwallow || 'Semo') === swallow
+                                  ? 'bg-[#FF4C00] text-white shadow-xs'
+                                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+                              }`}
+                            >
+                              {swallow}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1267,7 +1273,13 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
               const isModalToday = activeDateModal.dateStr === todayDateStr;
               const isModalDelivered = isModalPast || (isModalToday && isAfter12PM);
               const isModalLocked4PM = isAfter4PM && isModalToday;
-              const isSkipLimitReached = skipCount >= maxSkips;
+              const isTrial = Boolean(
+                userProfile?.isTrial ||
+                userProfile?.planName?.toLowerCase().includes('trial') ||
+                totalSubscribed === 5
+              );
+              const effectiveMaxSkips = isTrial ? totalSubscribed : maxSkips;
+              const isSkipLimitReached = !isTrial && skipCount >= effectiveMaxSkips;
 
               if (isModalDelivered) {
                 return (
@@ -1290,7 +1302,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                 <div className="space-y-2">
                   {activeDateModal.status === 'selected' ? (
                     <>
-                      {/* Active meal day: ONLY Skip is available, remove options removed as instructed */}
+                      {/* Active meal day: ONLY Skip is available */}
                       {isModalLocked4PM ? (
                         <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-2">
                           <div className="flex items-center space-x-1.5">
@@ -1311,7 +1323,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                       ) : isSkipLimitReached ? (
                         <div className="p-3 rounded-2xl bg-zinc-100 border border-zinc-200 text-zinc-600 text-xs flex items-center space-x-2">
                           <Lock className="w-4 h-4 text-zinc-500 shrink-0" />
-                          <span>Maximum 4 skips reached ({skipCount}/4 used).</span>
+                          <span>Maximum {effectiveMaxSkips} skips reached ({skipCount}/{effectiveMaxSkips} used).</span>
                         </div>
                       ) : (
                         <button
@@ -1322,8 +1334,14 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                           }}
                           className="w-full py-3 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs cursor-pointer transition flex items-center justify-center space-x-1.5"
                         >
-                          <span>Skip Lunch on this Date (+1 Credit)</span>
-                          <span className="text-[10px] text-zinc-400">({4 - skipCount} left)</span>
+                          <span>
+                            {isTrial
+                              ? 'Skip Trial Lunch on this Date (+1 Credit)'
+                              : 'Skip Lunch on this Date (+1 Credit)'}
+                          </span>
+                          {!isTrial && (
+                            <span className="text-[10px] text-zinc-400">({effectiveMaxSkips - skipCount} left)</span>
+                          )}
                         </button>
                       )}
 
@@ -1337,24 +1355,19 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                     </>
                   ) : activeDateModal.status === 'skipped' ? (
                     <>
-                      {isSkipLimitReached ? (
-                        <div className="p-3 rounded-2xl bg-zinc-100 border border-zinc-200 text-zinc-600 text-xs flex items-center space-x-2">
-                          <Lock className="w-4 h-4 text-zinc-500 shrink-0" />
-                          <span>Action locked: Maximum 4 skips reached.</span>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onToggleSkipDay(activeDateModal.dateStr);
-                            setActiveDateModal(null);
-                          }}
-                          className="w-full py-3 rounded-full bg-black hover:bg-zinc-800 text-white font-bold text-xs cursor-pointer transition flex items-center justify-center space-x-1.5"
-                        >
-                          <span>Unskip / Restore Lunch</span>
-                          <span className="text-[10px] text-zinc-400">({4 - skipCount} left)</span>
-                        </button>
-                      )}
+                      {/* Unskipping is ALWAYS allowed to restore the meal */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onToggleSkipDay(activeDateModal.dateStr);
+                          setActiveDateModal(null);
+                        }}
+                        className="w-full py-3 rounded-full bg-black hover:bg-zinc-800 text-white font-bold text-xs cursor-pointer transition flex items-center justify-center space-x-1.5"
+                      >
+                        <span>
+                          {isTrial ? '✓ Unskip / Restore Trial Lunch' : '✓ Unskip / Restore Lunch'}
+                        </span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setActiveDateModal(null)}

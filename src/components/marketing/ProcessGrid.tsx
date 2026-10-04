@@ -35,21 +35,21 @@ export const ProcessGrid: React.FC = () => {
         </div>
 
         {/* 3 Clean Modern Steps */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
           {steps.map((item, idx) => {
             const Icon = item.icon;
             return (
               <div
                 key={idx}
-                className="bg-white rounded-3xl p-8 border border-zinc-200/80 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center text-center space-y-4"
+                className="bg-white rounded-3xl p-6 sm:p-8 border border-zinc-200/80 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center text-center space-y-3 sm:space-y-4 max-w-full overflow-hidden"
               >
-                <div className="w-16 h-16 rounded-2xl bg-orange-50 text-[#FF4C00] flex items-center justify-center">
-                  <Icon className="w-8 h-8" />
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-orange-50 text-[#FF4C00] flex items-center justify-center shrink-0">
+                  <Icon className="w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
-                <h3 className="text-xl font-bold text-black">
+                <h3 className="text-lg sm:text-xl font-bold text-black break-words">
                   {item.title}
                 </h3>
-                <p className="text-zinc-500 text-sm font-normal leading-relaxed">
+                <p className="text-zinc-500 text-xs sm:text-sm font-normal leading-relaxed break-words">
                   {item.description}
                 </p>
               </div>

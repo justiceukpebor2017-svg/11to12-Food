@@ -15,7 +15,7 @@ const GoogleIcon = () => (
 // --- TYPE DEFINITIONS ---
 
 export interface Testimonial {
-  avatarSrc: string;
+  avatarSrc?: string;
   name: string;
   handle: string;
   text: string;
@@ -42,16 +42,28 @@ const GlassInputWrapper = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-const TestimonialCard = ({ testimonial, delay }: { testimonial: Testimonial; delay: string }) => (
-  <div className={`animate-testimonial ${delay} flex items-start gap-3 rounded-2xl bg-black/65 backdrop-blur-md border border-white/15 p-4 text-white w-64 shadow-xl text-left`}>
-    <img src={testimonial.avatarSrc} className="h-10 w-10 object-cover rounded-xl shrink-0" alt="avatar" />
-    <div className="text-xs leading-snug">
-      <p className="flex items-center gap-1 font-bold text-white">{testimonial.name}</p>
-      <p className="text-zinc-400 text-[10px]">{testimonial.handle}</p>
-      <p className="mt-1 text-zinc-200 line-clamp-2">{testimonial.text}</p>
+// TestimonialCard without ANY images (User rule: always remove testimonial images)
+const TestimonialCard = ({ testimonial, delay }: { testimonial: Testimonial; delay: string }) => {
+  const initials = testimonial.name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <div className={`animate-testimonial ${delay} flex items-start gap-3 rounded-2xl bg-black/65 backdrop-blur-md border border-white/15 p-4 text-white w-64 shadow-xl text-left`}>
+      <div className="h-9 w-9 rounded-xl bg-[#FF4C00] text-white font-bold text-xs flex items-center justify-center shrink-0">
+        {initials || '11'}
+      </div>
+      <div className="text-xs leading-snug">
+        <p className="font-bold text-white">{testimonial.name}</p>
+        <p className="text-zinc-400 text-[10px]">{testimonial.handle}</p>
+        <p className="mt-1 text-zinc-200 line-clamp-2">{testimonial.text}</p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // --- MAIN COMPONENT ---
 
@@ -61,21 +73,18 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   heroImageSrc = "https://i.ibb.co/rG6JFnyY/0904-ezgif-com-resize.gif",
   testimonials = [
     {
-      avatarSrc: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
       name: "Tolu Adebayo",
-      handle: "@tolu_lagos • Paystack VI",
+      handle: "Paystack, Victoria Island",
       text: "The 11:30 AM desk drop saved our product team. Piping hot Jollof without ever interrupting deep work.",
     },
     {
-      avatarSrc: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200",
       name: "Chuka Nwosu",
-      handle: "@chuka_finance • KPMG Ikoyi",
+      handle: "KPMG, Ikoyi",
       text: "Flawless Nigerian meals right at my workstation. Skipping and swallow choices make it super flexible.",
     },
   ],
   error,
   onSignIn,
-  onGoogleSignIn,
   onResetPassword,
   onCreateAccount,
   onClose,
@@ -97,30 +106,34 @@ export const SignInPage: React.FC<SignInPageProps> = ({
       )}
 
       {/* Left column: sign-in form */}
-      <section className="flex-1 flex items-center justify-center p-6 sm:p-10 lg:p-12">
+      <section className="flex-1 flex items-center justify-center p-4 sm:p-10 lg:p-12 max-w-full">
         <div className="w-full max-w-md text-left">
           
-          {/* Brand Logo Header */}
+          {/* Brand Logo Header - Clickable to reload site */}
           <div className="mb-6 flex items-center space-x-3">
-            <img
-              src="https://i.ibb.co/FLX7ttjm/11to12logg.png"
-              alt="11 to 12"
-              className="h-10 w-auto object-contain"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = 'https://i.ibb.co/mV0z77Mb/11to12logg.png';
-              }}
-            />
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#FF4C00] bg-[#FF4C00]/10 border border-[#FF4C00]/20 px-2.5 py-0.5 rounded-full">
-              Lagos Office Lunch OS
-            </span>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="cursor-pointer hover:opacity-85 transition flex items-center space-x-2"
+              title="Click to reload site"
+            >
+              <img
+                src="https://i.ibb.co/FLX7ttjm/11to12logg.png"
+                alt="11 to 12"
+                className="h-10 w-auto object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = 'https://i.ibb.co/mV0z77Mb/11to12logg.png';
+                }}
+              />
+            </button>
           </div>
 
           <div className="flex flex-col gap-4 sm:gap-5">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-black text-black leading-tight tracking-tight">
+              <h1 className="text-2xl sm:text-4xl font-black text-black leading-tight tracking-tight break-words">
                 {title}
               </h1>
-              <p className="text-xs sm:text-sm text-zinc-500 mt-1">
+              <p className="text-xs sm:text-sm text-zinc-500 mt-1 break-words">
                 {description}
               </p>
             </div>
@@ -134,7 +147,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
 
             <form className="space-y-4" onSubmit={onSignIn}>
               <div>
-                <label className="text-xs font-bold text-zinc-700 block mb-1">Registered Work Email</label>
+                <label className="text-xs font-bold text-zinc-700 block mb-1">Work Email Address</label>
                 <GlassInputWrapper>
                   <div className="flex items-center px-4">
                     <Mail className="w-4 h-4 text-zinc-400 shrink-0" />
@@ -151,7 +164,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-zinc-700 block">Password / Default Password</label>
+                  <label className="text-xs font-bold text-zinc-700 block">Password</label>
                   <a
                     href="#"
                     onClick={(e) => {
@@ -170,7 +183,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
                       name="password"
                       type={showPassword ? 'text' : 'password'}
                       required
-                      placeholder="Enter password or default password"
+                      placeholder="Enter your password"
                       className="w-full bg-transparent text-sm p-3.5 pl-2.5 pr-10 rounded-2xl focus:outline-none font-medium text-zinc-900"
                     />
                     <button
@@ -205,29 +218,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
               </button>
             </form>
 
-            <div className="relative flex items-center justify-center my-1">
-              <span className="w-full border-t border-zinc-200"></span>
-              <span className="px-3 text-[11px] font-semibold text-zinc-400 bg-[#FAF7F2] absolute uppercase tracking-wider">
-                Or Quick Access
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={onGoogleSignIn}
-              className="w-full flex items-center justify-center gap-3 border border-zinc-300 bg-white rounded-2xl py-3 text-xs font-bold text-zinc-800 hover:bg-zinc-50 transition cursor-pointer shadow-2xs"
-            >
-              <GoogleIcon />
-              <span>Continue with Corporate Google Workspace</span>
-            </button>
-
-            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed space-y-1">
-              <p>
-                <strong>New Subscriber?</strong> Use the default password sent by Chef Justice on WhatsApp. You will be prompted to set your personal permanent password on your first login.
-              </p>
-            </div>
-
-            <p className="text-center text-xs text-zinc-500">
+            <p className="text-center text-xs text-zinc-500 pt-2">
               Need to build an office plan?{' '}
               <a
                 href="#"
@@ -245,7 +236,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
         </div>
       </section>
 
-      {/* Right column: hero image + testimonials */}
+      {/* Right column: hero visual + testimonials */}
       {heroImageSrc && (
         <section className="hidden md:flex flex-1 relative p-6 items-center justify-center bg-zinc-900 overflow-hidden">
           {/* Animated Hero Background using the homepage GIF */}
@@ -259,13 +250,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
           {/* Dark gradient overlay for contrast */}
           <div className="absolute inset-4 rounded-3xl bg-gradient-to-t from-black/85 via-black/35 to-black/25 pointer-events-none" />
 
-          {/* Top Brand Tag */}
-          <div className="absolute top-8 left-8 z-10 flex items-center space-x-2 bg-white/20 backdrop-blur-md px-3.5 py-1.5 rounded-full text-white text-xs font-bold border border-white/25">
-            <Sparkles className="w-3.5 h-3.5 text-[#FF4C00]" />
-            <span>Piping-hot Nigerian corporate lunches delivered 11–12 daily</span>
-          </div>
-
-          {/* Testimonial Cards Overlay */}
+          {/* Testimonial Cards Overlay (No images) */}
           {testimonials.length > 0 && (
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col xl:flex-row gap-3 px-6 w-full justify-center z-10">
               <TestimonialCard testimonial={testimonials[0]} delay="animate-delay-100" />

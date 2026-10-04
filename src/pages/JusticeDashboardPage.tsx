@@ -10,6 +10,7 @@ import {
   CustomerRecord,
   WaitlistLead,
   CreditRedemptionOrder,
+  TestimonialItem,
 } from '../types';
 import { AdminSidebar, AdminTab } from '../components/admin/AdminSidebar';
 import { TodayOperationsView } from '../components/admin/TodayOperationsView';
@@ -21,6 +22,7 @@ import { ProductionDashboard } from '../components/admin/ProductionDashboard';
 import { PaymentsManager } from '../components/admin/PaymentsManager';
 import { CreditsSkipsManager } from '../components/admin/CreditsSkipsManager';
 import { HomepageSyncManager } from '../components/admin/HomepageSyncManager';
+import { TestimonialsManager } from '../components/admin/TestimonialsManager';
 import { Menu, X, ArrowLeft } from 'lucide-react';
 
 interface JusticeDashboardPageProps {
@@ -56,6 +58,10 @@ interface JusticeDashboardPageProps {
   creditRedemptions?: CreditRedemptionOrder[];
   onConfirmCreditRedemption?: (redemptionId: string) => void;
   onConfirmTopUpOrder?: (orderId: string) => void;
+  testimonials?: TestimonialItem[];
+  onAddTestimonial?: (item: Omit<TestimonialItem, 'id'>) => Promise<TestimonialItem | void>;
+  onUpdateTestimonial?: (id: string, patch: Partial<TestimonialItem>) => Promise<TestimonialItem | null | void>;
+  onDeleteTestimonial?: (id: string) => Promise<boolean | void>;
 }
 
 export const JusticeDashboardPage: React.FC<JusticeDashboardPageProps> = ({
@@ -78,6 +84,10 @@ export const JusticeDashboardPage: React.FC<JusticeDashboardPageProps> = ({
   creditRedemptions = [],
   onConfirmCreditRedemption,
   onConfirmTopUpOrder,
+  testimonials = [],
+  onAddTestimonial = async () => {},
+  onUpdateTestimonial = async () => null,
+  onDeleteTestimonial = async () => {},
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('operations-today');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -243,6 +253,16 @@ export const JusticeDashboardPage: React.FC<JusticeDashboardPageProps> = ({
         {/* Homepage Sync */}
         {activeTab === 'homepage-sync' && (
           <HomepageSyncManager onNavigateHome={onNavigateToHome} />
+        )}
+
+        {/* Website Testimonials (Social Proof / Reviews Control) */}
+        {activeTab === 'testimonials' && (
+          <TestimonialsManager
+            testimonials={testimonials}
+            onAddTestimonial={onAddTestimonial}
+            onUpdateTestimonial={onUpdateTestimonial}
+            onDeleteTestimonial={onDeleteTestimonial}
+          />
         )}
 
       </main>

@@ -199,36 +199,36 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
           <h3 className="text-2xl sm:text-3xl font-bold text-white">
             Deliveries Begin {LAUNCH_CONFIG.displayDate}
           </h3>
-          <div className="flex justify-center items-center space-x-3 sm:space-x-6 text-center pt-2">
+          <div className="flex justify-center items-center gap-2 sm:gap-6 text-center pt-2 max-w-full">
             <div>
-              <div className="text-2xl sm:text-4xl font-bold text-[#FF4C00]">{String(countdown.days).padStart(2, '0')}</div>
-              <div className="text-xs text-zinc-400 font-medium">Days</div>
+              <div className="text-xl sm:text-4xl font-bold text-[#FF4C00]">{String(countdown.days).padStart(2, '0')}</div>
+              <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Days</div>
             </div>
-            <span className="text-xl text-zinc-600 font-light">:</span>
+            <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
             <div>
-              <div className="text-2xl sm:text-4xl font-bold text-white">{String(countdown.hours).padStart(2, '0')}</div>
-              <div className="text-xs text-zinc-400 font-medium">Hours</div>
+              <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.hours).padStart(2, '0')}</div>
+              <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Hours</div>
             </div>
-            <span className="text-xl text-zinc-600 font-light">:</span>
+            <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
             <div>
-              <div className="text-2xl sm:text-4xl font-bold text-white">{String(countdown.minutes).padStart(2, '0')}</div>
-              <div className="text-xs text-zinc-400 font-medium">Mins</div>
+              <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.minutes).padStart(2, '0')}</div>
+              <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Mins</div>
             </div>
-            <span className="text-xl text-zinc-600 font-light">:</span>
+            <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
             <div>
-              <div className="text-2xl sm:text-4xl font-bold text-white">{String(countdown.seconds).padStart(2, '0')}</div>
-              <div className="text-xs text-zinc-400 font-medium">Secs</div>
+              <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.seconds).padStart(2, '0')}</div>
+              <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Secs</div>
             </div>
           </div>
         </div>
 
         {/* Video Teaser: Watch Before You Reserve */}
-        <div className="bg-[#1F1F1F] rounded-3xl p-6 sm:p-10 border border-zinc-800 shadow-xl space-y-6">
+        <div className="bg-[#1F1F1F] rounded-3xl p-5 sm:p-10 border border-zinc-800 shadow-xl space-y-6">
           <div className="text-center space-y-1">
-            <h2 className="text-2xl sm:text-4xl font-bold text-white">
+            <h2 className="text-2xl sm:text-4xl font-bold text-white break-words">
               Watch Before You Reserve
             </h2>
-            <p className="text-sm sm:text-base text-zinc-400 font-normal">
+            <p className="text-sm sm:text-base text-zinc-400 font-normal break-words">
               See how 11 to 12 Desk Drop works in 60 seconds.
             </p>
           </div>
@@ -275,13 +275,13 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
         </div>
 
         {/* LIVE COHORT COUNTER BANNER: EXACTLY ABOVE RESERVE YOUR DESK DROP */}
-        <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-black rounded-3xl p-5 sm:p-7 border border-zinc-800 shadow-xl">
-          <div className="text-center mb-4 flex items-center justify-center space-x-2">
-            <span className="relative flex h-2.5 w-2.5">
+        <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-black rounded-3xl p-4 sm:p-7 border border-zinc-800 shadow-xl max-w-full overflow-hidden">
+          <div className="text-center mb-4 flex flex-wrap items-center justify-center gap-1.5">
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#FF4C00] bg-[#FF4C00]/10 border border-[#FF4C00]/30 px-3 py-1 rounded-full">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4C00] bg-[#FF4C00]/10 border border-[#FF4C00]/30 px-2.5 py-1 rounded-full text-center leading-normal break-words max-w-full">
               Live Real-Time Reservation Pulse • Synced Across Devices
             </span>
           </div>
@@ -364,10 +364,10 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                     <div className="flex-1">
                       <p className="font-semibold text-white">{formError}</p>
                       {existingLeadMatch && (
-                        <div className="mt-2 p-2.5 rounded-xl bg-black/60 border border-red-900/60 flex items-center justify-between">
-                          <div>
+                        <div className="mt-2 p-2.5 rounded-xl bg-black/60 border border-red-900/60 flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
+                          <div className="min-w-0">
                             <span className="text-[11px] text-zinc-400 block">Your Existing Member Code:</span>
-                            <span className="font-mono text-base font-bold text-[#FF4C00]">{existingLeadMatch.memberCode}</span>
+                            <span className="font-mono text-base font-bold text-[#FF4C00] break-words">{existingLeadMatch.memberCode}</span>
                           </div>
                           <button
                             type="button"
@@ -376,7 +376,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                               setCopiedCode(true);
                               setTimeout(() => setCopiedCode(false), 2000);
                             }}
-                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1"
+                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg flex items-center justify-center space-x-1 shrink-0 self-start sm:self-auto"
                           >
                             {copiedCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                             <span>{copiedCode ? 'Copied' : 'Copy Code'}</span>
@@ -504,27 +504,27 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
               </div>
 
               {/* Unique Member Code Card */}
-              <div className="p-5 rounded-2xl bg-zinc-900 border border-zinc-700/80 shadow-xl text-left space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="p-4 sm:p-5 rounded-2xl bg-zinc-900 border border-zinc-700/80 shadow-xl text-left space-y-3 max-w-full overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center space-x-2">
-                    <Ticket className="w-4 h-4 text-[#FF4C00]" />
+                    <Ticket className="w-4 h-4 text-[#FF4C00] shrink-0" />
                     <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
                       Your Unique Member Code
                     </span>
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-2 py-0.5 rounded-full shrink-0">
                     Active & Dispatched
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between gap-3 p-3 bg-black/60 rounded-xl border border-zinc-800">
-                  <span className="font-mono text-xl sm:text-2xl font-black text-[#FF4C00] tracking-wider">
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-black/60 rounded-xl border border-zinc-800">
+                  <span className="font-mono text-xl sm:text-2xl font-black text-[#FF4C00] tracking-wider break-all">
                     {generatedMemberCode}
                   </span>
                   <button
                     type="button"
                     onClick={handleCopyCode}
-                    className="px-3.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-[#FF4C00] text-white text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shrink-0"
+                    className="px-3.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-[#FF4C00] text-white text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shrink-0 ml-auto sm:ml-0"
                   >
                     {copiedCode ? (
                       <>
@@ -540,8 +540,8 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                   </button>
                 </div>
 
-                <p className="text-[11px] text-zinc-400 leading-relaxed">
-                  💡 <strong className="text-zinc-200">Skip re-filling contact forms:</strong> When you pick your meals calendar and proceed to payment, insert this unique code to instantly auto-fill your contact details and desk drop location. A copy has also been sent to <strong className="text-zinc-300">{email}</strong>.
+                <p className="text-[11px] text-zinc-400 leading-relaxed break-words">
+                  💡 <strong className="text-zinc-200">Skip re-filling contact forms:</strong> When you pick your meals calendar and proceed to payment, insert this unique code to instantly auto-fill your contact details and desk drop location. A copy has also been sent to <strong className="text-zinc-300 break-all">{email}</strong>.
                 </p>
               </div>
 

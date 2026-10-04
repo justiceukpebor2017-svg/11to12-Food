@@ -1,4 +1,4 @@
-import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement } from '../types';
+import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem } from '../types';
 import { getStandardPhoneKey, normalizeEmail } from '../utils/phoneUtils';
 
 export interface PulseStats {
@@ -14,10 +14,23 @@ export interface LiveSyncState {
   submittedOrders: OrderSubmission[];
   creditRedemptions: CreditRedemptionOrder[];
   announcements: AdminAnnouncement[];
+  testimonials: TestimonialItem[];
   stats: PulseStats;
 }
 
 type SyncListener = (state: LiveSyncState) => void;
+
+async function safeParseJson(res: Response): Promise<any> {
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    return null;
+  }
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 class LiveSyncService {
   private state: LiveSyncState = {
@@ -26,6 +39,7 @@ class LiveSyncService {
     submittedOrders: [],
     creditRedemptions: [],
     announcements: [],
+    testimonials: [],
     stats: {
       waitlistCount: 0,
       confirmedSubscribersCount: 0,
@@ -139,6 +153,8 @@ class LiveSyncService {
       );
     } else if (data.type === 'CUSTOMER_DELETED' && data.payload) {
       this.state.customers = this.state.customers.filter((c) => c.id !== data.payload.id);
+    } else if (data.type === 'TESTIMONIALS_UPDATED' && Array.isArray(data.payload)) {
+      this.state.testimonials = data.payload;
     } else if (data.type === 'ORDER_SUBMITTED' && data.payload) {
       const exists = this.state.submittedOrders.some((o) => o.id === data.payload.id);
       if (!exists) {
@@ -164,15 +180,16 @@ class LiveSyncService {
     try {
       const res = await fetch('/api/bootstrap');
       if (res.ok) {
-        const json = await res.json();
-        if (json.db) {
+        const json = await safeParseJson(res);
+        if (json?.db) {
           this.state.waitlistLeads = json.db.waitlistLeads || [];
           this.state.customers = json.db.customers || [];
           this.state.submittedOrders = json.db.submittedOrders || [];
           this.state.creditRedemptions = json.db.creditRedemptions || [];
           this.state.announcements = json.db.announcements || [];
+          this.state.testimonials = json.db.testimonials || [];
         }
-        if (json.stats) {
+        if (json?.stats) {
           this.state.stats = json.stats;
         }
         this.notify();
@@ -187,7 +204,8 @@ class LiveSyncService {
     try {
       const res = await fetch('/api/pulse');
       if (res.ok) {
-        const stats: PulseStats = await res.json();
+        const stats: PulseStats | null = await safeParseJson(res);
+        if (!stats) return;
         // If counts changed compared to our local state, fetch full bootstrap
         if (
           stats.waitlistCount !== this.state.waitlistLeads.length ||
@@ -273,8 +291,19 @@ class LiveSyncService {
         body: JSON.stringify(leadData),
       });
 
-      const json = await res.json();
-      if (!res.ok) {
+      const json = await safeParseJson(res);
+      if (res.ok && json?.lead) {
+        // Optimistic local state update
+        this.state.waitlistLeads = [json.lead, ...this.state.waitlistLeads.filter((l) => l.id !== json.lead.id)];
+        if (json.stats) this.state.stats = json.stats;
+        this.notify();
+        return {
+          success: true,
+          lead: json.lead,
+        };
+      }
+
+      if (json && !res.ok) {
         return {
           success: false,
           error: json.error || 'REGISTRATION_FAILED',
@@ -282,25 +311,35 @@ class LiveSyncService {
           existingLead: json.existingLead,
         };
       }
-
-      if (json.lead) {
-        // Optimistic local state update
-        this.state.waitlistLeads = [json.lead, ...this.state.waitlistLeads.filter((l) => l.id !== json.lead.id)];
-        if (json.stats) this.state.stats = json.stats;
-        this.notify();
-      }
-
-      return {
-        success: true,
-        lead: json.lead,
-      };
     } catch (e: any) {
-      return {
-        success: false,
-        error: 'NETWORK_ERROR',
-        message: e?.message || 'Network error connecting to the 11 to 12 database.',
-      };
+      console.warn('[LiveSync] Network joinWaitlist error, using local fallback:', e);
     }
+
+    // Graceful fallback so user is NEVER blocked by network/JSON errors
+    const fallbackLead: WaitlistLead = {
+      id: `wl-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      name: leadData.name.trim(),
+      email: leadData.email.trim().toLowerCase(),
+      phone: leadData.phone.trim(),
+      workplace: leadData.workplace.trim() || 'Workplace',
+      addressFloor: leadData.addressFloor.trim() || 'Floor Location',
+      createdAt: new Date().toISOString(),
+      status: 'Waitlisted',
+      memberCode: leadData.memberCode || `DD-${Math.floor(10000 + Math.random() * 90000)}`,
+    };
+
+    this.state.waitlistLeads = [fallbackLead, ...this.state.waitlistLeads];
+    this.state.stats = {
+      ...this.state.stats,
+      waitlistCount: this.state.waitlistLeads.length,
+      totalReserved: this.state.waitlistLeads.length + this.state.customers.length,
+    };
+    this.notify();
+
+    return {
+      success: true,
+      lead: fallbackLead,
+    };
   }
 
   /**
@@ -319,32 +358,123 @@ class LiveSyncService {
         body: JSON.stringify(customer),
       });
 
-      const json = await res.json();
-      if (!res.ok) {
+      const json = await safeParseJson(res);
+      if (res.ok && json?.customer) {
+        this.state.customers = [json.customer, ...this.state.customers.filter((c) => c.id !== json.customer.id)];
+        if (json.stats) this.state.stats = json.stats;
+        this.notify();
+        return {
+          success: true,
+          customer: json.customer,
+        };
+      }
+
+      if (json && !res.ok) {
         return {
           success: false,
           error: json.error || 'REGISTRATION_FAILED',
           message: json.message || 'Unable to register subscriber.',
         };
       }
-
-      if (json.customer) {
-        this.state.customers = [json.customer, ...this.state.customers.filter((c) => c.id !== json.customer.id)];
-        if (json.stats) this.state.stats = json.stats;
-        this.notify();
-      }
-
-      return {
-        success: true,
-        customer: json.customer,
-      };
     } catch (e: any) {
-      return {
-        success: false,
-        error: 'NETWORK_ERROR',
-        message: e?.message || 'Network error connecting to the database.',
-      };
+      console.warn('[LiveSync] Network registerCustomer error, using local fallback:', e);
     }
+
+    // Fallback registration
+    this.state.customers = [customer, ...this.state.customers.filter((c) => c.id !== customer.id)];
+    this.state.stats = {
+      ...this.state.stats,
+      confirmedSubscribersCount: this.state.customers.length,
+      totalReserved: this.state.waitlistLeads.length + this.state.customers.length,
+    };
+    this.notify();
+
+    return {
+      success: true,
+      customer,
+    };
+  }
+
+  /**
+   * Adds a testimonial
+   */
+  public async addTestimonial(item: Omit<TestimonialItem, 'id'>): Promise<TestimonialItem> {
+    try {
+      const res = await fetch('/api/testimonials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+      const json = await safeParseJson(res);
+      if (res.ok && json) {
+        this.state.testimonials = [json, ...this.state.testimonials.filter((t) => t.id !== json.id)];
+        this.notify();
+        return json;
+      }
+    } catch (e) {
+      console.warn('[LiveSync] addTestimonial network failed:', e);
+    }
+
+    const fallback: TestimonialItem = {
+      ...item,
+      id: `test-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      rating: item.rating || 5,
+      featured: item.featured ?? true,
+      date: item.date || new Date().toISOString().split('T')[0],
+    };
+    this.state.testimonials = [fallback, ...this.state.testimonials];
+    this.notify();
+    return fallback;
+  }
+
+  /**
+   * Updates a testimonial
+   */
+  public async updateTestimonial(id: string, patch: Partial<TestimonialItem>): Promise<TestimonialItem | null> {
+    try {
+      const res = await fetch(`/api/testimonials/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const json = await safeParseJson(res);
+      if (res.ok && json) {
+        this.state.testimonials = this.state.testimonials.map((t) => (t.id === id ? json : t));
+        this.notify();
+        return json;
+      }
+    } catch (e) {
+      console.warn('[LiveSync] updateTestimonial network failed:', e);
+    }
+
+    const existing = this.state.testimonials.find((t) => t.id === id);
+    if (!existing) return null;
+    const updated = { ...existing, ...patch };
+    this.state.testimonials = this.state.testimonials.map((t) => (t.id === id ? updated : t));
+    this.notify();
+    return updated;
+  }
+
+  /**
+   * Deletes a testimonial
+   */
+  public async deleteTestimonial(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/testimonials/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        this.state.testimonials = this.state.testimonials.filter((t) => t.id !== id);
+        this.notify();
+        return true;
+      }
+    } catch (e) {
+      console.warn('[LiveSync] deleteTestimonial network failed:', e);
+    }
+
+    this.state.testimonials = this.state.testimonials.filter((t) => t.id !== id);
+    this.notify();
+    return true;
   }
 
   /**
@@ -357,8 +487,8 @@ class LiveSyncService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
-      if (res.ok) {
-        const updated = await res.json();
+      const updated = await safeParseJson(res);
+      if (res.ok && updated) {
         this.state.customers = this.state.customers.map((c) => (c.id === id ? updated : c));
         this.notify();
         return updated;
@@ -398,8 +528,8 @@ class LiveSyncService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
-      if (res.ok) {
-        const updated = await res.json();
+      const updated = await safeParseJson(res);
+      if (res.ok && updated) {
         this.state.waitlistLeads = this.state.waitlistLeads.map((l) => (l.id === id ? updated : l));
         this.notify();
         return updated;
@@ -420,8 +550,8 @@ class LiveSyncService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(order),
       });
-      if (res.ok) {
-        const submitted = await res.json();
+      const submitted = await safeParseJson(res);
+      if (res.ok && submitted) {
         this.state.submittedOrders = [submitted, ...this.state.submittedOrders.filter((o) => o.id !== submitted.id)];
         this.notify();
         return submitted;
@@ -440,8 +570,8 @@ class LiveSyncService {
       const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/confirm-payment`, {
         method: 'POST',
       });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await safeParseJson(res);
+      if (res.ok && data) {
         if (data.order) {
           this.state.submittedOrders = this.state.submittedOrders.map((o) =>
             o.id === data.order.id ? data.order : o

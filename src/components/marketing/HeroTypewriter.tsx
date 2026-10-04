@@ -19,10 +19,10 @@ export const HeroTypewriter: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
           
           {/* Left Column */}
-          <div className="lg:col-span-7 space-y-6">
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] text-white">
-              Lunch that’s <br />
-              <span className="relative inline-block text-black bg-white px-4 py-1 rounded-2xl font-serif-custom shadow-md transform -rotate-1 mt-2">
+          <div className="lg:col-span-7 space-y-5 sm:space-y-6 max-w-full">
+            <h1 className="text-3xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.15] text-white break-words">
+              Lunch that’s <br className="hidden sm:inline" />
+              <span className="relative inline-block text-black bg-white px-3 sm:px-4 py-1 rounded-2xl font-serif-custom shadow-md transform -rotate-1 mt-1 sm:mt-2 max-w-full">
                 <AnimatePresence mode="wait">
                   <motion.span
                     key={currentIndex}
@@ -30,7 +30,7 @@ export const HeroTypewriter: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -12 }}
                     transition={{ duration: 0.25 }}
-                    className="inline-block"
+                    className="inline-block break-words"
                   >
                     {words[currentIndex]}
                   </motion.span>
@@ -38,21 +38,21 @@ export const HeroTypewriter: React.FC = () => {
               </span>
             </h1>
 
-            <p className="text-lg sm:text-xl text-white/95 max-w-xl font-normal leading-relaxed">
+            <p className="text-base sm:text-xl text-white/95 max-w-xl font-normal leading-relaxed break-words">
               Between back-to-back meetings, Lagos traffic, and late office hours, finding time for a proper meal feels impossible. That’s why 11 to 12 was created for 9 to 5ers.
             </p>
 
-            <div className="pt-2 flex items-center space-x-4">
+            <div className="pt-2 flex flex-wrap gap-3 items-center">
               <a
                 href="#watch-and-reserve"
-                className="bg-white text-black hover:bg-black hover:text-white px-8 py-4 rounded-full font-bold text-base transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center space-x-2"
+                className="bg-white text-black hover:bg-black hover:text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-full font-bold text-sm sm:text-base transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center space-x-2 shrink-0"
               >
                 <span>Feed Me</span>
               </a>
 
               <a
                 href="#watch-and-reserve"
-                className="text-sm font-semibold text-white/90 hover:text-white flex items-center space-x-1.5 px-4 py-3 rounded-full hover:bg-white/10 transition-colors"
+                className="text-xs sm:text-sm font-semibold text-white/90 hover:text-white flex items-center space-x-1.5 px-4 py-3 rounded-full hover:bg-white/10 transition-colors shrink-0"
               >
                 <span>Watch & Reserve</span>
                 <ArrowDown className="w-4 h-4" />
