@@ -795,16 +795,6 @@ export default function App() {
             onWatched={() => {
               setHasWatchedTeaser(true);
             }}
-            onSkipToWaitlist={() => {
-              setHasWatchedTeaser(true);
-              setTimeout(() => {
-                const target =
-                  document.getElementById('reserve-form') ||
-                  document.getElementById('watch-and-reserve') ||
-                  document.getElementById('reserve-desk-drop-section');
-                if (target) target.scrollIntoView({ behavior: 'smooth' });
-              }, 120);
-            }}
           />
 
           <main className={!hasWatchedTeaser ? "filter blur-md pointer-events-none select-none transition-all duration-700" : "transition-all duration-500"}>
