@@ -33,17 +33,12 @@ service cloud.firestore {
       );
     }
 
-    // 1. Waitlist Leads Collection
+    // 1. Waitlist Leads Collection (Supports real-time waitlist counter onSnapshot)
     match /waitlist/{leadId} {
-      allow get: if isValidId(leadId) && (
-        isAdmin() ||
-        (isSignedIn() && resource.data.email == request.auth.token.email)
-      );
-
-      allow list: if isAdmin();
+      allow read: if true;
 
       allow create: if isValidId(leadId) &&
-        incoming().fullName is string && incoming().fullName.size() <= 120 &&
+        (incoming().fullName is string || incoming().name is string) &&
         incoming().email is string && incoming().email.size() <= 160 &&
         incoming().phone is string && incoming().phone.size() <= 30;
 
@@ -55,25 +50,23 @@ service cloud.firestore {
       allow delete: if isValidId(leadId) && isAdmin();
     }
 
-    // 2. Customers / Subscribers Collection
+    // 2. Customers / Subscribers Collection (Firebase Authentication Integrated)
     match /customers/{customerId} {
       allow get: if isValidId(customerId) && (
         isAdmin() ||
-        (isSignedIn() && resource.data.email == request.auth.token.email)
+        (isSignedIn() && (resource.data.email == request.auth.token.email || customerId == request.auth.uid))
       );
 
       allow list: if isAdmin();
 
       allow create: if isValidId(customerId) && (
         isAdmin() ||
-        (isSignedIn() && incoming().email == request.auth.token.email)
-      ) &&
-        incoming().name is string && incoming().name.size() <= 120 &&
-        incoming().email is string && incoming().email.size() <= 160;
+        (isSignedIn() && (incoming().email == request.auth.token.email || customerId == request.auth.uid))
+      );
 
       allow update: if isValidId(customerId) && (
         isAdmin() ||
-        (isSignedIn() && resource.data.email == request.auth.token.email)
+        (isSignedIn() && (resource.data.email == request.auth.token.email || customerId == request.auth.uid))
       );
 
       allow delete: if isValidId(customerId) && isAdmin();

@@ -43,6 +43,15 @@ import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
 import { JusticeDashboardPage } from './pages/JusticeDashboardPage';
 import { generateDefaultPassword } from './utils/credentialUtils';
 import { liveSync } from './services/liveSyncService';
+import {
+  db,
+  auth,
+  collection,
+  onSnapshot,
+  onAuthStateChanged,
+  saveWaitlistLeadToFirestore,
+  logoutSubscriberAccount,
+} from './services/firebase';
 
 // Storage Keys to safeguard existing real dashboard users across updates and refreshes
 const APP_STORAGE_KEYS = {
@@ -104,6 +113,9 @@ export default function App() {
     }
     return INITIAL_WAITLIST_LEADS;
   });
+
+  // Real-time Firestore waitlist counter
+  const [waitlistCount, setWaitlistCount] = useState<number>(() => waitlistLeads.length);
 
   // Selected Lunch Days and Calculated Summary for the 6-Month Plan
   const [selectedLunchDays, setSelectedLunchDays] = useState<SelectedLunchDay[]>([]);
@@ -228,6 +240,115 @@ export default function App() {
       unsubscribe();
     };
   }, []);
+
+  // Listen to the entire waitlist collection in real-time
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'waitlist'), (snapshot) => {
+      // This callback fires immediately with the current count,
+      // and again every time a document is added or removed.
+      setWaitlistCount(snapshot.size);
+
+      if (!snapshot.empty) {
+        const leads: WaitlistLead[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data();
+          leads.push({
+            id: d.id,
+            name: data.name || data.fullName || 'Office Member',
+            email: data.email || '',
+            phone: data.phone || '',
+            workplace: data.workplace || data.company || 'Corporate Office',
+            addressFloor: data.addressFloor || data.officeAddress || 'Desk Drop',
+            createdAt: data.createdAt || data.joinedAt || new Date().toISOString(),
+            status: data.status || 'Waitlisted',
+            memberCode: data.memberCode || d.id,
+            notes: data.notes || data.dietaryNotes || '',
+          });
+        });
+        if (leads.length > 0) {
+          setWaitlistLeads(leads);
+        }
+      }
+    }, (error) => {
+      console.warn('[Firestore onSnapshot waitlist error]:', error);
+    });
+
+    // Don't forget to call unsubscribe() when the component unmounts
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // Listen to customers collection from Firestore in real-time
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'customers'), (snapshot) => {
+      if (!snapshot.empty) {
+        const firestoreCustomers: CustomerRecord[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data() as CustomerRecord;
+          firestoreCustomers.push({ ...data, id: d.id });
+        });
+        if (firestoreCustomers.length > 0) {
+          setCustomers((prev) => {
+            const map = new Map<string, CustomerRecord>();
+            firestoreCustomers.forEach((c) => map.set(c.id, c));
+            prev.forEach((c) => {
+              if (!map.has(c.id)) map.set(c.id, c);
+            });
+            return Array.from(map.values());
+          });
+        }
+      }
+    }, (error) => {
+      console.warn('[Firestore onSnapshot customers error]:', error);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // Listen to real Firebase Authentication state
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser && fbUser.email) {
+        const cleanEmail = fbUser.email.toLowerCase().trim();
+        const matched = customers.find((c) => c.email && c.email.toLowerCase().trim() === cleanEmail);
+        if (matched) {
+          setUserProfile({
+            id: matched.id,
+            name: matched.fullName || fbUser.displayName || 'Subscriber',
+            email: matched.email,
+            phone: matched.phone || '0802 618 0680',
+            occupation: 'Corporate Professional',
+            company: matched.company || 'Corporate Office',
+            address: matched.officeAddress || 'Victoria Island, Lagos',
+            floorSuite: matched.floorSuite || 'Desk Drop',
+            deliveryArea: matched.deliveryArea || 'Victoria Island',
+            creditsBalance: matched.creditsBalance || 0,
+            spicePreference: 'Medium',
+            proteinsPreferred: ['Spiced Grilled Chicken', 'Assorted Goat Meat'],
+            dislikes: matched.notes ? [matched.notes] : [],
+            standardLunchTime: '11:45 AM',
+            eatLocation: 'Work',
+            subscriptionStatus: 'Active',
+            planName: matched.planName || 'Standard Lunch Plan',
+            nextBillingDate: 'Nov 1, 2026',
+            totalMealsReceived: 0,
+            totalSubscribedDays: matched.totalDays || 20,
+            skipCount: 0,
+            isPasswordSet: true,
+            selectedDays: matched.selectedDays || [],
+            pendingAddressChange: null,
+          });
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+    };
+  }, [customers]);
 
   // Testimonials Handlers (Admin CRUD synced with central database and homepage)
   const handleAddTestimonial = async (item: Omit<TestimonialItem, 'id'>) => {
@@ -356,6 +477,15 @@ export default function App() {
     });
 
     setViewMode('subscriber');
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutSubscriberAccount();
+    } catch (e) {
+      console.warn('Logout notice:', e);
+    }
+    setViewMode('marketing');
   };
 
   // Derive dynamic meals from canonical 26-week rotation based on current date
@@ -644,13 +774,15 @@ export default function App() {
 
           {/* 2. Watch Before You Reserve & Reserve Your Desk Drop */}
           <DeskDropWaitlistAndTeaser
-            waitlistCount={waitlistLeads.length}
+            waitlistCount={waitlistCount}
             confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
             existingWaitlist={waitlistLeads}
             existingCustomers={customers}
             onJoinWaitlist={async (leadData) => {
               const res = await liveSync.joinWaitlist(leadData);
               if (res.success && res.lead) {
+                // Save lead directly to Firestore collection
+                await saveWaitlistLeadToFirestore(res.lead);
                 setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
               }
               return res;
@@ -702,7 +834,7 @@ export default function App() {
           onUpdateProfile={handleUpdateProfile}
           onAddRating={handleAddRating}
           onNavigateToAdmin={() => setViewMode('admin')}
-          onNavigateToLanding={() => setViewMode('marketing')}
+          onNavigateToLanding={handleLogout}
           creditRedemptions={creditRedemptions}
           onAddCreditRedemption={handleAddCreditRedemption}
           onMoveCreditDate={handleMoveCreditDate}

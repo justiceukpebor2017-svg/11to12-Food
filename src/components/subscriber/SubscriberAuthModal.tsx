@@ -16,8 +16,12 @@ import {
 } from 'lucide-react';
 import { CONTACT_CONFIG } from '../../config/contactConfig';
 import { SignInPage } from '../ui/sign-in';
-import { auth, googleProvider } from '../../services/firebase';
-import { signInWithPopup } from 'firebase/auth';
+import {
+  registerSubscriberAccount,
+  loginSubscriberAccount,
+  loginWithGoogleAccount,
+  sendSubscriberPasswordReset,
+} from '../../services/firebase';
 
 interface SubscriberAuthModalProps {
   isOpen: boolean;
@@ -45,6 +49,8 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Forgot Password / OTP Verification States
   const [verificationCodeInput, setVerificationCodeInput] = useState('');
@@ -63,12 +69,15 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Execute login verification
-  const executeLogin = (cleanEmail: string, cleanPass: string) => {
+  // Execute login verification with real Firebase Authentication
+  const executeLogin = async (cleanEmail: string, cleanPass: string) => {
     setError(null);
+    setSuccessMessage(null);
+    setIsLoading(true);
 
     // Check if this is an admin logging in via the main modal
     if (cleanEmail === 'admin@11to12.food' && cleanPass === 'XGa4Z#j0;F') {
+      setIsLoading(false);
       if (onOpenAdminLogin) {
         onOpenAdminLogin();
       }
@@ -76,36 +85,175 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       return;
     }
 
-    const customer = customers.find((c) => c.email && c.email.toLowerCase() === cleanEmail);
+    try {
+      // 1. Authenticate with real Firebase Authentication backend
+      const { user, customer } = await loginSubscriberAccount(cleanEmail, cleanPass);
 
-    if (!customer) {
-      setError('No subscriber account found with this email address. Please make sure you are using your registered office email, or contact Chef Justice.');
+      if (customer) {
+        if (customer.mustChangePassword) {
+          setMatchedCustomer(customer);
+          setNewPassword('');
+          setConfirmNewPassword('');
+          setMode('first_login_change_password');
+          setIsLoading(false);
+          return;
+        }
+
+        onLoginSuccess(customer);
+        setIsLoading(false);
+        onClose();
+        return;
+      }
+
+      // If authenticated in Firebase but doc is pending, create canonical subscriber record
+      const fallbackCustomer: CustomerRecord = {
+        id: user.uid,
+        fullName: user.displayName || 'Office Subscriber',
+        email: cleanEmail,
+        phone: user.phoneNumber || '0802 618 0680',
+        company: 'Corporate Office',
+        officeAddress: 'Victoria Island / Ikoyi, Lagos',
+        floorSuite: 'Desk Drop Station',
+        status: 'Active',
+        paymentStatus: 'Paid',
+        planName: 'Standard Workday Lunch Plan',
+        totalDays: 20,
+        creditsBalance: 0,
+        createdAt: new Date().toISOString(),
+        isPasswordSet: true,
+        selectedDays: [],
+        subtotalNGN: 0,
+        discountNGN: 0,
+        finalTotalNGN: 0,
+      };
+
+      onLoginSuccess(fallbackCustomer);
+      setIsLoading(false);
+      onClose();
+    } catch (err: any) {
+      console.warn('[Firebase Auth] Sign in error:', err);
+
+      // Check if user is a pre-seeded / legacy customer
+      const legacyCustomer = customers.find(
+        (c) => c.email && c.email.toLowerCase() === cleanEmail
+      );
+      if (
+        legacyCustomer &&
+        ((legacyCustomer.password && cleanPass === legacyCustomer.password.trim()) ||
+         (legacyCustomer.defaultPassword && cleanPass === legacyCustomer.defaultPassword.trim()))
+      ) {
+        // Automatically sync into Firebase Auth for seamless transition
+        try {
+          await registerSubscriberAccount({
+            fullName: legacyCustomer.fullName,
+            email: cleanEmail,
+            password: cleanPass,
+            phone: legacyCustomer.phone,
+            company: legacyCustomer.company,
+            officeAddress: legacyCustomer.officeAddress,
+            floorSuite: legacyCustomer.floorSuite,
+          });
+        } catch {
+          // Continue with legacy session
+        }
+        onLoginSuccess(legacyCustomer);
+        setIsLoading(false);
+        onClose();
+        return;
+      }
+
+      setIsLoading(false);
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+        setError('Incorrect password or email. Please verify your credentials or click "Forgot Password".');
+      } else if (err.code === 'auth/user-not-found') {
+        setError('No subscriber account found with this email. Switch to "Create Account" above to register.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Please enter a valid work email address.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('Too many failed sign-in attempts. Please wait a moment or reset your password.');
+      } else {
+        setError(err.message || 'Unable to authenticate. Please check your credentials.');
+      }
+    }
+  };
+
+  // Register a new subscriber with real Firebase Authentication
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const fullName = ((formData.get('fullName') as string) || '').trim();
+    const cleanEmail = ((formData.get('email') as string) || '').trim().toLowerCase();
+    const phone = ((formData.get('phone') as string) || '').trim();
+    const officeAddress = ((formData.get('officeAddress') as string) || '').trim();
+    const pass = ((formData.get('password') as string) || '').trim();
+    const confirmPass = ((formData.get('confirmPassword') as string) || '').trim();
+
+    if (!fullName || !cleanEmail || !phone || !pass) {
+      setError('Please fill in all required registration fields.');
       return;
     }
 
-    const matchesPassword =
-      (customer.password && cleanPass === customer.password.trim()) ||
-      (customer.defaultPassword && cleanPass === customer.defaultPassword.trim());
-
-    if (!matchesPassword) {
-      setError('Incorrect password. Please verify the default password provided to you or use "Forgot Password".');
+    if (pass.length < 6) {
+      setError('Password must be at least 6 characters.');
       return;
     }
 
-    // Check if the user is logging in with a default password and must set their permanent password one-time
-    const requiresPasswordChange = customer.isDefaultPassword !== false || customer.mustChangePassword;
-
-    if (requiresPasswordChange) {
-      setMatchedCustomer(customer);
-      setNewPassword('');
-      setConfirmNewPassword('');
-      setMode('first_login_change_password');
+    if (pass !== confirmPass) {
+      setError('Passwords do not match. Please re-enter your password.');
       return;
     }
 
-    // Direct Login Success!
-    onLoginSuccess(customer);
-    onClose();
+    setIsLoading(true);
+
+    try {
+      const newCustomer = await registerSubscriberAccount({
+        fullName,
+        email: cleanEmail,
+        password: pass,
+        phone,
+        officeAddress,
+      });
+
+      setSuccessMessage('Account registered in Firebase! Accessing your dashboard...');
+      setTimeout(() => {
+        setIsLoading(false);
+        onLoginSuccess(newCustomer);
+        onClose();
+      }, 700);
+    } catch (err: any) {
+      setIsLoading(false);
+      console.warn('[Firebase Auth] Registration error:', err);
+      if (err.code === 'auth/email-already-in-use') {
+        setError('This email address is already registered. Please switch to "Sign In" above to access your dashboard.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters long.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Please enter a valid work email address.');
+      } else {
+        setError(err.message || 'Unable to create account. Please try again.');
+      }
+    }
+  };
+
+  // Google Sign-In with real Firebase Authentication
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      const { customer } = await loginWithGoogleAccount();
+      setIsLoading(false);
+      onLoginSuccess(customer);
+      onClose();
+    } catch (err: any) {
+      setIsLoading(false);
+      if (err?.code === 'auth/popup-closed-by-user') return;
+      console.warn('[Firebase Auth] Google error:', err);
+      setError('Google Sign-In canceled or encountered an issue. You can sign in using your corporate email.');
+    }
   };
 
   // 1. Regular Login with password or default password
@@ -132,6 +280,8 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
               : undefined
           }
           error={error}
+          successMessage={successMessage}
+          isLoading={isLoading}
           onClose={onClose}
           onSignIn={(e) => {
             e.preventDefault();
@@ -143,60 +293,13 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
             setPassword(cleanPass);
             executeLogin(cleanEmail, cleanPass);
           }}
+          onRegister={handleRegister}
           onResetPassword={() => {
             setError(null);
+            setSuccessMessage(null);
             setMode('forgot_email');
           }}
-          onGoogleSignIn={async () => {
-            setError(null);
-            try {
-              const cred = await signInWithPopup(auth, googleProvider);
-              const googleUser = cred.user;
-              if (googleUser && googleUser.email) {
-                const googleEmail = googleUser.email.toLowerCase().trim();
-                const existing = customers.find((c) => c.email.toLowerCase().trim() === googleEmail);
-                if (existing) {
-                  onLoginSuccess(existing);
-                  onClose();
-                  return;
-                } else {
-                  const newCust: CustomerRecord = {
-                    id: `cust-g-${googleUser.uid.slice(0, 10)}`,
-                    fullName: googleUser.displayName || 'Subscriber',
-                    email: googleEmail,
-                    phone: googleUser.phoneNumber || '0802 618 0680',
-                    company: 'Corporate Office',
-                    officeAddress: 'Victoria Island / Ikoyi',
-                    floorSuite: 'Desk Drop',
-                    status: 'Active',
-                    planName: 'Google Workspace Subscriber',
-                    totalDays: 20,
-                    creditsBalance: 0,
-                    createdAt: new Date().toISOString(),
-                    selectedDays: [],
-                    subtotalNGN: 0,
-                    discountNGN: 0,
-                    finalTotalNGN: 0,
-                    paymentStatus: 'Paid',
-                    isPasswordSet: true,
-                  };
-                  onLoginSuccess(newCust);
-                  onClose();
-                  return;
-                }
-              }
-            } catch (err: any) {
-              if (err?.code === 'auth/popup-closed-by-user') return;
-              console.warn('[Firebase Auth] Notice:', err);
-              const activeCust = customers.find((c) => c.status === 'Active' && c.email) || customers[0];
-              if (activeCust) {
-                onLoginSuccess(activeCust);
-                onClose();
-                return;
-              }
-              setError('Google Sign-In canceled. You can sign in using your corporate email and password.');
-            }
-          }}
+          onGoogleSignIn={handleGoogleSignIn}
           onCreateAccount={() => {
             onClose();
             const reserveSection = document.getElementById('reserve-section') || document.getElementById('plans-section');
