@@ -36,10 +36,19 @@
     width: 100%;
   }
 
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
   /* Universal text wrapping protection: no text ever pops out of its container on mobile */
-  p, span, h1, h2, h3, h4, h5, h6, a, blockquote, label, button, li, input, textarea {
+  p, span, h1, h2, h3, h4, h5, h6, a, blockquote, label, button, li, input, textarea, td, th, div {
     overflow-wrap: break-word;
     word-wrap: break-word;
+  }
+
+  .break-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   h1, h2, h3, h4, h5, h6, .font-heading {

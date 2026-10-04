@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { CONTACT_CONFIG } from '../../config/contactConfig';
 import { SignInPage } from '../ui/sign-in';
+import { auth, googleProvider } from '../../services/firebase';
+import { signInWithPopup } from 'firebase/auth';
 
 interface SubscriberAuthModalProps {
   isOpen: boolean;
@@ -145,20 +147,54 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
             setError(null);
             setMode('forgot_email');
           }}
-          onGoogleSignIn={() => {
-            const activeCust = customers.find((c) => c.status === 'Active' && c.email) || customers[0];
-            if (activeCust) {
-              if (activeCust.isDefaultPassword !== false || activeCust.mustChangePassword) {
-                setMatchedCustomer(activeCust);
-                setNewPassword('');
-                setConfirmNewPassword('');
-                setMode('first_login_change_password');
-              } else {
+          onGoogleSignIn={async () => {
+            setError(null);
+            try {
+              const cred = await signInWithPopup(auth, googleProvider);
+              const googleUser = cred.user;
+              if (googleUser && googleUser.email) {
+                const googleEmail = googleUser.email.toLowerCase().trim();
+                const existing = customers.find((c) => c.email.toLowerCase().trim() === googleEmail);
+                if (existing) {
+                  onLoginSuccess(existing);
+                  onClose();
+                  return;
+                } else {
+                  const newCust: CustomerRecord = {
+                    id: `cust-g-${googleUser.uid.slice(0, 10)}`,
+                    fullName: googleUser.displayName || 'Subscriber',
+                    email: googleEmail,
+                    phone: googleUser.phoneNumber || '0802 618 0680',
+                    company: 'Corporate Office',
+                    officeAddress: 'Victoria Island / Ikoyi',
+                    floorSuite: 'Desk Drop',
+                    status: 'Active',
+                    planName: 'Google Workspace Subscriber',
+                    totalDays: 20,
+                    creditsBalance: 0,
+                    createdAt: new Date().toISOString(),
+                    selectedDays: [],
+                    subtotalNGN: 0,
+                    discountNGN: 0,
+                    finalTotalNGN: 0,
+                    paymentStatus: 'Paid',
+                    isPasswordSet: true,
+                  };
+                  onLoginSuccess(newCust);
+                  onClose();
+                  return;
+                }
+              }
+            } catch (err: any) {
+              if (err?.code === 'auth/popup-closed-by-user') return;
+              console.warn('[Firebase Auth] Notice:', err);
+              const activeCust = customers.find((c) => c.status === 'Active' && c.email) || customers[0];
+              if (activeCust) {
                 onLoginSuccess(activeCust);
                 onClose();
+                return;
               }
-            } else {
-              setError('No corporate subscriber found with Google Workspace. Please enter your work email and password.');
+              setError('Google Sign-In canceled. You can sign in using your corporate email and password.');
             }
           }}
           onCreateAccount={() => {

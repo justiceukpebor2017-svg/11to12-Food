@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default Deny All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Security Helper Primitives
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Bootstrapped Admin checking trusted email or database record
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'justiceukpebor2017@gmail.com' ||
+        request.auth.token.email == 'admin@11to12.food' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // 1. Waitlist Leads Collection
+    match /waitlist/{leadId} {
+      allow get: if isValidId(leadId) && (
+        isAdmin() ||
+        (isSignedIn() && resource.data.email == request.auth.token.email)
+      );
+
+      allow list: if isAdmin();
+
+      allow create: if isValidId(leadId) &&
+        incoming().fullName is string && incoming().fullName.size() <= 120 &&
+        incoming().email is string && incoming().email.size() <= 160 &&
+        incoming().phone is string && incoming().phone.size() <= 30;
+
+      allow update: if isValidId(leadId) && (
+        isAdmin() ||
+        (isSignedIn() && resource.data.email == request.auth.token.email)
+      );
+
+      allow delete: if isValidId(leadId) && isAdmin();
+    }
+
+    // 2. Customers / Subscribers Collection
+    match /customers/{customerId} {
+      allow get: if isValidId(customerId) && (
+        isAdmin() ||
+        (isSignedIn() && resource.data.email == request.auth.token.email)
+      );
+
+      allow list: if isAdmin();
+
+      allow create: if isValidId(customerId) && (
+        isAdmin() ||
+        (isSignedIn() && incoming().email == request.auth.token.email)
+      ) &&
+        incoming().name is string && incoming().name.size() <= 120 &&
+        incoming().email is string && incoming().email.size() <= 160;
+
+      allow update: if isValidId(customerId) && (
+        isAdmin() ||
+        (isSignedIn() && resource.data.email == request.auth.token.email)
+      );
+
+      allow delete: if isValidId(customerId) && isAdmin();
+    }
+
+    // 3. Orders Collection
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId) && (
+        isAdmin() ||
+        (isSignedIn() && resource.data.customerEmail == request.auth.token.email)
+      );
+
+      allow list: if isAdmin();
+
+      allow create: if isValidId(orderId) &&
+        incoming().customerName is string && incoming().customerName.size() <= 120 &&
+        incoming().customerEmail is string && incoming().customerEmail.size() <= 160 &&
+        incoming().totalDays is number && incoming().totalDays > 0;
+
+      allow update, delete: if isValidId(orderId) && isAdmin();
+    }
+
+    // 4. Testimonials (Public Read, Admin Write)
+    match /testimonials/{testimonialId} {
+      allow get, list: if true;
+
+      allow create, update, delete: if isValidId(testimonialId) && isAdmin();
+    }
+  }
+}

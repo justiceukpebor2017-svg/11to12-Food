@@ -1,5 +1,7 @@
 import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem } from '../types';
 import { getStandardPhoneKey, normalizeEmail } from '../utils/phoneUtils';
+import { db, handleFirestoreError, OperationType, testFirestoreConnection } from './firebase';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 export interface PulseStats {
   waitlistCount: number;
@@ -60,6 +62,7 @@ class LiveSyncService {
   }
 
   private init() {
+    testFirestoreConnection().catch(() => {});
     this.fetchBootstrap();
     this.connectSSE();
 

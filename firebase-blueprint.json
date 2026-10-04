@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "WaitlistLead": {
+      "title": "WaitlistLead",
+      "description": "Office professional lead registered on the Desk Drop waitlist",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "company": { "type": "string", "maxLength": 120 },
+        "officeAddress": { "type": "string", "maxLength": 200 },
+        "floorSuite": { "type": "string", "maxLength": 60 },
+        "joinedAt": { "type": "string", "maxLength": 60 },
+        "memberCode": { "type": "string", "maxLength": 40 },
+        "dietaryNotes": { "type": "string", "maxLength": 200 }
+      },
+      "required": ["id", "fullName", "email", "phone"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Subscriber account with delivery address and lunch plan configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "company": { "type": "string", "maxLength": 120 },
+        "officeAddress": { "type": "string", "maxLength": 200 },
+        "floorSuite": { "type": "string", "maxLength": 60 },
+        "notes": { "type": "string", "maxLength": 250 },
+        "status": { "type": "string", "maxLength": 40 },
+        "planName": { "type": "string", "maxLength": 100 },
+        "totalSubscribedDays": { "type": "number" },
+        "creditsBalance": { "type": "number" },
+        "joinedDate": { "type": "string", "maxLength": 60 },
+        "password": { "type": "string", "maxLength": 120 },
+        "defaultPassword": { "type": "string", "maxLength": 120 },
+        "isDefaultPassword": { "type": "boolean" },
+        "mustChangePassword": { "type": "boolean" },
+        "paymentStatus": { "type": "string", "maxLength": 50 },
+        "isTrial": { "type": "boolean" },
+        "isPasswordSet": { "type": "boolean" }
+      },
+      "required": ["id", "name", "email", "phone"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Corporate lunch subscription order and payment remittance record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "customerEmail": { "type": "string", "maxLength": 160 },
+        "customerPhone": { "type": "string", "maxLength": 30 },
+        "company": { "type": "string", "maxLength": 120 },
+        "deliveryAddress": { "type": "string", "maxLength": 200 },
+        "floorSuite": { "type": "string", "maxLength": 60 },
+        "totalDays": { "type": "number" },
+        "amountPaid": { "type": "number" },
+        "paymentStatus": { "type": "string", "maxLength": 50 },
+        "proofUploaded": { "type": "boolean" },
+        "submittedAt": { "type": "string", "maxLength": 60 }
+      },
+      "required": ["id", "customerName", "customerEmail", "totalDays", "amountPaid"]
+    },
+    "Testimonial": {
+      "title": "Testimonial",
+      "description": "Verified client reviews and feedback managed by the admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 120 },
+        "role": { "type": "string", "maxLength": 100 },
+        "company": { "type": "string", "maxLength": 120 },
+        "officeLocation": { "type": "string", "maxLength": 120 },
+        "text": { "type": "string", "maxLength": 600 },
+        "rating": { "type": "number" },
+        "date": { "type": "string", "maxLength": 60 },
+        "featured": { "type": "boolean" }
+      },
+      "required": ["id", "name", "text"]
+    }
+  },
+  "firestore": {
+    "/waitlist/{leadId}": {
+      "schema": { "$ref": "#/entities/WaitlistLead" },
+      "description": "Collection of office leads on the waitlist"
+    },
+    "/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/Customer" },
+      "description": "Collection of subscriber profiles and account records"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Collection of submitted meal subscription orders"
+    },
+    "/testimonials/{testimonialId}": {
+      "schema": { "$ref": "#/entities/Testimonial" },
+      "description": "Collection of website testimonials and corporate reviews"
+    }
+  }
+}
