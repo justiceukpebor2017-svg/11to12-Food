@@ -23,7 +23,7 @@ interface UserDashboardHeaderProps {
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
   onOpenDeliveryDetails: () => void;
-  onSwitchToAdmin: () => void;
+  onSwitchToAdmin?: () => void;
   onSwitchToLanding: () => void;
   onLogOut: () => void;
 }
@@ -36,7 +36,7 @@ export const UserDashboardHeader: React.FC<UserDashboardHeaderProps> = ({
   onOpenNotifications,
   onOpenProfile,
   onOpenDeliveryDetails,
-  onSwitchToAdmin,
+  onSwitchToAdmin: _onSwitchToAdmin,
   onSwitchToLanding,
   onLogOut,
 }) => {
@@ -190,14 +190,6 @@ export const UserDashboardHeader: React.FC<UserDashboardHeaderProps> = ({
                       >
                         <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
                         <span>Public Landing Page</span>
-                      </button>
-
-                      <button
-                        onClick={onSwitchToAdmin}
-                        className="w-full px-4 py-2 text-left text-xs font-semibold text-[#FF4C00] hover:bg-orange-50 flex items-center space-x-2 cursor-pointer"
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-[#FF4C00]" />
-                        <span>Kitchen Admin OS</span>
                       </button>
                     </div>
 

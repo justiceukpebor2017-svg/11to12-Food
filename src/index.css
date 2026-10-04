@@ -122,3 +122,31 @@
 .animate-slide-right {
   animation: slideRightIn 0.7s ease-out forwards;
 }
+
+@keyframes marqueeScroll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+.animate-marquee-vertical {
+  animation: marqueeScroll var(--marquee-duration, 18s) linear infinite;
+  will-change: transform;
+}
+
+@keyframes shrinkWidth {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.animate-shrink-width {
+  animation: shrinkWidth 2s linear forwards;
+}
+

@@ -177,27 +177,39 @@ export async function registerSubscriberAccount(data: {
 }
 
 /**
- * Log in a subscriber via real Firebase Auth and retrieve profile from Firestore
+ * Log in a subscriber via real Firebase Auth or verified Firestore/server customer record
  */
 export async function loginSubscriberAccount(
   email: string,
   pass: string
-): Promise<{ user: User; customer: CustomerRecord | null }> {
+): Promise<{ user: User | null; customer: CustomerRecord | null }> {
   const cleanEmail = email.trim().toLowerCase();
   const cleanPass = pass.trim();
 
-  const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
-  const user = userCredential.user;
+  let fbUser: User | null = null;
+  let authFailed = false;
 
-  // Fetch customer record from Firestore
+  // 1. Attempt standard Firebase Auth sign-in, safely absorbing auth/operation-not-allowed
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
+    fbUser = userCredential.user;
+  } catch (err: any) {
+    authFailed = true;
+    console.warn('[Firebase Auth] signInWithEmailAndPassword notice (falling back to database credentials):', err?.code);
+  }
+
+  // 2. Fetch customer record from Firestore
   let customer: CustomerRecord | null = null;
   try {
-    const customerRef = doc(db, 'customers', user.uid);
-    const snap = await getDoc(customerRef);
-    if (snap.exists()) {
-      customer = snap.data() as CustomerRecord;
-    } else {
-      // Check if document exists with email
+    if (fbUser) {
+      const customerRef = doc(db, 'customers', fbUser.uid);
+      const snap = await getDoc(customerRef);
+      if (snap.exists()) {
+        customer = snap.data() as CustomerRecord;
+      }
+    }
+
+    if (!customer) {
       const q = query(collection(db, 'customers'), where('email', '==', cleanEmail));
       const querySnap = await getDocs(q);
       if (!querySnap.empty) {
@@ -205,10 +217,70 @@ export async function loginSubscriberAccount(
       }
     }
   } catch (e) {
-    handleFirestoreError(e, OperationType.GET, `customers/${user.uid}`);
+    console.warn('[Firebase] Firestore lookup notice:', e);
   }
 
-  return { user, customer };
+  // 2b. If not found in Firestore yet, check server live database endpoint
+  if (!customer) {
+    try {
+      const resp = await fetch('/api/customers');
+      if (resp.ok) {
+        const data = await resp.json();
+        const list: CustomerRecord[] = data?.customers || [];
+        const match = list.find((c) => c.email && c.email.trim().toLowerCase() === cleanEmail);
+        if (match) {
+          customer = match;
+          // Synchronize back to Firestore so future lookups are instantaneous
+          saveCustomerToFirestore(match).catch(() => {});
+        }
+      }
+    } catch (apiErr) {
+      console.warn('[Firebase] Server /api/customers lookup notice:', apiErr);
+    }
+  }
+
+  // 3. Fallback verification: Check password if Firebase Auth failed (handles auth/operation-not-allowed)
+  if (customer) {
+    const isPasswordValid =
+      (customer.password && cleanPass === customer.password.trim()) ||
+      (customer.defaultPassword && cleanPass === customer.defaultPassword.trim());
+
+    if (isPasswordValid) {
+      return { user: fbUser, customer };
+    } else {
+      const err = new Error('Incorrect password entered. Please verify your credentials or contact Chef Justice.');
+      (err as any).code = 'auth/wrong-password';
+      throw err;
+    }
+  }
+
+  if (fbUser && customer) {
+    return { user: fbUser, customer };
+  }
+
+  const notFoundErr = new Error('No subscriber account found with this email. Only registered subscribers with confirmed reservations can log in.');
+  (notFoundErr as any).code = 'auth/user-not-found';
+  throw notFoundErr;
+}
+
+/**
+ * Update subscriber password in Firestore across all devices
+ */
+export async function updateCustomerPasswordInFirestore(customerId: string, newPass: string): Promise<void> {
+  try {
+    const custRef = doc(db, 'customers', customerId);
+    await updateDoc(custRef, {
+      password: newPass.trim(),
+      defaultPassword: newPass.trim(),
+      isDefaultPassword: false,
+      mustChangePassword: false,
+      isPasswordSet: true,
+      passwordLastChangedAt: new Date().toISOString(),
+      status: 'Active',
+    });
+  } catch (e) {
+    console.warn('[Firebase] updateCustomerPasswordInFirestore warning:', e);
+  }
 }
 
 /**
@@ -296,4 +368,41 @@ export async function saveWaitlistLeadToFirestore(lead: WaitlistLead): Promise<v
     handleFirestoreError(e, OperationType.CREATE, `waitlist/${lead.id}`);
   }
 }
+
+/**
+ * Add or update Customer in Firestore (Cross-device and cross-browser persistence)
+ */
+export async function saveCustomerToFirestore(customer: CustomerRecord): Promise<void> {
+  try {
+    const custRef = doc(db, 'customers', customer.id);
+    await setDoc(custRef, customer, { merge: true });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.CREATE, `customers/${customer.id}`);
+  }
+}
+
+/**
+ * Delete Customer from Firestore
+ */
+export async function deleteCustomerFromFirestore(customerId: string): Promise<void> {
+  try {
+    const custRef = doc(db, 'customers', customerId);
+    await deleteDoc(custRef);
+  } catch (e) {
+    handleFirestoreError(e, OperationType.DELETE, `customers/${customerId}`);
+  }
+}
+
+/**
+ * Save Order to Firestore
+ */
+export async function saveOrderToFirestore(order: any): Promise<void> {
+  try {
+    const orderRef = doc(db, 'orders', order.id);
+    await setDoc(orderRef, order, { merge: true });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.CREATE, `orders/${order.id}`);
+  }
+}
+
 

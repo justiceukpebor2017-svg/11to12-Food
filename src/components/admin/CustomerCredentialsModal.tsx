@@ -34,10 +34,8 @@ export const CustomerCredentialsModal: React.FC<CustomerCredentialsModalProps> =
   customer,
   onUpdatePassword,
 }) => {
-  if (!isOpen || !customer) return null;
-
   const [currentPassword, setCurrentPassword] = useState(
-    customer.password || customer.defaultPassword || generateDefaultPassword()
+    customer?.password || customer?.defaultPassword || generateDefaultPassword()
   );
   const [showPassword, setShowPassword] = useState(true);
   const [copiedType, setCopiedType] = useState<'password' | 'email' | 'all' | 'wa' | null>(null);
@@ -49,6 +47,8 @@ export const CustomerCredentialsModal: React.FC<CustomerCredentialsModalProps> =
       setCurrentPassword(customer.password || customer.defaultPassword || '');
     }
   }, [customer?.id, customer?.password, customer?.defaultPassword]);
+
+  if (!isOpen || !customer) return null;
 
   const handleGenerateNew = () => {
     const newPass = generateDefaultPassword();

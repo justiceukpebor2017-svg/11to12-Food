@@ -114,6 +114,11 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
     userProfile.totalSubscribedDays === 5
   );
 
+  const isPaymentPending = !isAdminAsUser && (userProfile.paymentStatus === 'Pending Verification' || userProfile.subscriptionStatus === 'Pending Activation' || userProfile.paymentStatus !== 'Paid');
+  const [showPasswordChangeBox, setShowPasswordChangeBox] = useState(false);
+  const [tempPass, setTempPass] = useState('');
+  const [tempPassConfirm, setTempPassConfirm] = useState('');
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
@@ -457,6 +462,186 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
         </div>
       )}
 
+      {/* PENDING PAYMENT CONFIRMATION SCREEN */}
+      {isPaymentPending ? (
+        <div className="min-h-screen bg-[#FAF7F2] font-['Poppins'] flex flex-col justify-between">
+          {/* Minimal Header */}
+          <header className="bg-white border-b border-zinc-200 px-4 sm:px-8 py-4 shadow-2xs">
+            <div className="max-w-5xl mx-auto flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <img
+                  src="https://i.ibb.co/FLX7ttjm/11to12logg.png"
+                  alt="11 to 12"
+                  className="h-9 w-auto object-contain"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = 'https://i.ibb.co/mV0z77Mb/11to12logg.png';
+                  }}
+                />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100/70 border border-amber-300 px-2.5 py-0.5 rounded-full">
+                  Verification Pending
+                </span>
+              </div>
+
+              {/* The Only Action Button: Log Out */}
+              <button
+                type="button"
+                onClick={onNavigateToLanding}
+                className="px-5 py-2.5 rounded-2xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition flex items-center space-x-2 cursor-pointer shadow-xs active:scale-95"
+              >
+                <span>Log Out</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </header>
+
+          {/* Centered Notification Card */}
+          <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
+            <div className="w-full max-w-lg bg-white rounded-3xl border border-zinc-200 shadow-xl p-6 sm:p-10 text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              
+              <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-[#FF4C00] shadow-xs">
+                <Clock className="w-8 h-8 animate-pulse" />
+              </div>
+
+              <div className="space-y-2">
+                <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-100/80 text-amber-900 text-xs font-black uppercase tracking-wider border border-amber-300">
+                  <Sparkles className="w-3.5 h-3.5 text-[#FF4C00]" />
+                  <span>Account Reserved</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+                  Wait, Admin is Confirming Payment
+                </h2>
+                <p className="text-xs sm:text-sm text-zinc-600 leading-relaxed max-w-md mx-auto">
+                  Your lunch plan reservation has been received. Chef Justice and the admin team are currently verifying your payment receipt in the kitchen system.
+                </p>
+              </div>
+
+              {/* Summary Details Box */}
+              <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-zinc-200/80 text-left space-y-2.5 text-xs">
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-200">
+                  <span className="text-zinc-500 font-medium">Subscriber Name:</span>
+                  <span className="font-bold text-zinc-900">{userProfile.name}</span>
+                </div>
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-200">
+                  <span className="text-zinc-500 font-medium">Workplace / Desk:</span>
+                  <span className="font-bold text-zinc-900 truncate max-w-[200px]">
+                    {userProfile.address || userProfile.company || 'Corporate Office'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-200">
+                  <span className="text-zinc-500 font-medium">Lunch Plan:</span>
+                  <span className="font-bold text-[#FF4C00]">{userProfile.planName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500 font-medium">Payment Status:</span>
+                  <span className="font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full text-[10px]">
+                    ● Awaiting Admin Confirmation
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-orange-50 border border-orange-200 text-orange-950 text-xs text-left leading-relaxed">
+                <span className="font-bold">Next Steps:</span> Once admin confirms your payment and adds you to the customer section, you can refresh this page or log back in with your credentials to access your dashboard and active meals.
+              </div>
+
+              {/* Optional Change Password toggle for convenience */}
+              <div className="pt-1 text-left">
+                {!showPasswordChangeBox ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordChangeBox(true)}
+                    className="text-xs font-bold text-[#FF4C00] hover:underline cursor-pointer"
+                  >
+                    Want to set or update your password now? →
+                  </button>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (tempPass.length < 6) {
+                        showToast('Password must be at least 6 characters.');
+                        return;
+                      }
+                      if (tempPass !== tempPassConfirm) {
+                        showToast('Passwords do not match.');
+                        return;
+                      }
+                      if (onChangePassword) {
+                        onChangePassword(tempPass);
+                        showToast('✓ Permanent password updated successfully!');
+                        setShowPasswordChangeBox(false);
+                      }
+                    }}
+                    className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-3"
+                  >
+                    <div className="font-bold text-xs text-zinc-800">Set Permanent Dashboard Password</div>
+                    <div>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        placeholder="New password (6+ chars)"
+                        value={tempPass}
+                        onChange={(e) => setTempPass(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-xl text-xs font-medium focus:outline-hidden"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        placeholder="Confirm new password"
+                        value={tempPassConfirm}
+                        onChange={(e) => setTempPassConfirm(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-xl text-xs font-medium focus:outline-hidden"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="submit"
+                        className="px-3.5 py-1.5 bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs rounded-xl cursor-pointer"
+                      >
+                        Save Password
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordChangeBox(false)}
+                        className="px-3 py-1.5 bg-zinc-200 text-zinc-700 font-bold text-xs rounded-xl cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {/* Action Buttons: Log Out & Refresh */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onNavigateToLanding}
+                  className="w-full py-3.5 px-6 rounded-2xl bg-zinc-900 hover:bg-black text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer shadow-md active:scale-98"
+                >
+                  Log Out
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="w-full py-3.5 px-6 rounded-2xl bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-800 font-bold text-xs uppercase tracking-wider transition cursor-pointer shadow-2xs active:scale-98"
+                >
+                  Refresh Payment Status
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <footer className="text-center py-4 text-xs text-zinc-400">
+            11 to 12 Corporate Office Meals • Victoria Island & Ikoyi Lagos
+          </footer>
+        </div>
+      ) : (
+        <>
       {/* Top Header Navigation */}
       <UserDashboardHeader
         activeTab={activeTab}
@@ -1088,6 +1273,8 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
 
           </div>
         </div>
+      )}
+      </>
       )}
 
     </div>

@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { ArrowDown } from 'lucide-react';
 
 export const HeroTypewriter: React.FC = () => {
   const words = ['Actually good', 'Edible', 'On time', 'Firewood-smoky'];
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFading, setIsFading] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % words.length);
+      setIsFading(true);
+      setTimeout(() => {
+        setCurrentIndex((prev) => (prev + 1) % words.length);
+        setIsFading(false);
+      }, 200);
     }, 2600);
     return () => clearInterval(interval);
-  }, []);
+  }, [words.length]);
 
   return (
     <section className="relative bg-[#FF4C00] text-white pt-10 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden font-['Poppins']">
@@ -23,18 +27,13 @@ export const HeroTypewriter: React.FC = () => {
             <h1 className="text-3xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.15] text-white break-words">
               Lunch that’s <br className="hidden sm:inline" />
               <span className="relative inline-block text-black bg-white px-3 sm:px-4 py-1 rounded-2xl font-serif-custom shadow-md transform -rotate-1 mt-1 sm:mt-2 max-w-full">
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={currentIndex}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.25 }}
-                    className="inline-block break-words"
-                  >
-                    {words[currentIndex]}
-                  </motion.span>
-                </AnimatePresence>
+                <span
+                  className={`inline-block break-words transition-all duration-200 transform ${
+                    isFading ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0'
+                  }`}
+                >
+                  {words[currentIndex]}
+                </span>
               </span>
             </h1>
 

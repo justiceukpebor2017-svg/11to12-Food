@@ -238,12 +238,13 @@ export interface UserProfile {
   creditsBalance: number;
   remainingMeals?: number;
   skippedDates?: string[];
-  spicePreference: 'Mild' | 'Medium' | 'Hot' | 'Pepper Dem';
+  spicePreference?: 'Mild' | 'Medium' | 'Hot' | 'Pepper Dem';
   proteinsPreferred: string[];
   dislikes: string[];
   standardLunchTime: string; // e.g. "11:30 AM"
   eatLocation: 'Work' | 'Home' | 'Both';
-  subscriptionStatus: 'Active' | 'Paused' | 'Cancelled' | 'Expired';
+  subscriptionStatus: 'Active' | 'Paused' | 'Pending Activation' | 'Cancelled' | 'Expired';
+  paymentStatus?: 'Paid' | 'Pending Verification';
   planName: string;
   nextBillingDate: string;
   totalMealsReceived: number;

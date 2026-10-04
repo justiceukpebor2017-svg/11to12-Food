@@ -37,8 +37,6 @@ export const CreditUsageModal: React.FC<CreditUsageModalProps> = ({
   isAfter5PM = false,
   onConfirmCreditUsage,
 }) => {
-  if (!isOpen) return null;
-
   // Step state: 1 = choose credit count, 2 = allocate to calendar days, 3 = review
   const [step, setStep] = useState<1 | 2>(1);
   const [creditsToUse, setCreditsToUse] = useState<number>(Math.min(1, availableCredits));
@@ -59,6 +57,8 @@ export const CreditUsageModal: React.FC<CreditUsageModalProps> = ({
     fullDateFormatted: string;
   } | null>(null);
   const [selectedFridaySwallow, setSelectedFridaySwallow] = useState<SwallowType>('Semo');
+
+  if (!isOpen) return null;
 
   // Compute total allocated credits
   const totalAllocated = (Object.values(allocations) as CreditRedemptionDayItem[]).reduce((acc, item) => acc + item.portions, 0);

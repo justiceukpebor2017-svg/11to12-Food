@@ -38,6 +38,7 @@ import { Testimonials } from './components/ui/testimonials-columns-1';
 import { FaqSection } from './components/marketing/FaqSection';
 import { Footer } from './components/Footer';
 import { CheckoutModal } from './components/marketing/CheckoutModal';
+import { WatchBeforeYouReserveModal } from './components/marketing/WatchBeforeYouReserveModal';
 import { SubscriberAuthModal } from './components/subscriber/SubscriberAuthModal';
 import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
 import { JusticeDashboardPage } from './pages/JusticeDashboardPage';
@@ -50,6 +51,9 @@ import {
   onSnapshot,
   onAuthStateChanged,
   saveWaitlistLeadToFirestore,
+  saveCustomerToFirestore,
+  deleteCustomerFromFirestore,
+  saveOrderToFirestore,
   logoutSubscriberAccount,
 } from './services/firebase';
 
@@ -66,9 +70,14 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('marketing');
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('morning');
   const [showSubscriberAuthModal, setShowSubscriberAuthModal] = useState(false);
+  const [hasWatchedTeaser, setHasWatchedTeaser] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return sessionStorage.getItem('11to12_has_watched_teaser') === 'true';
+  });
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    if (typeof window === 'undefined') return INITIAL_USER_PROFILE;
     try {
       const saved = localStorage.getItem(APP_STORAGE_KEYS.USER_PROFILE);
       if (saved) {
@@ -88,6 +97,7 @@ export default function App() {
 
   // Customer records list with persistent storage (preserves existing users in the dashboard)
   const [customers, setCustomers] = useState<CustomerRecord[]>(() => {
+    if (typeof window === 'undefined') return INITIAL_CUSTOMERS;
     try {
       const saved = localStorage.getItem(APP_STORAGE_KEYS.CUSTOMERS);
       if (saved) {
@@ -102,6 +112,7 @@ export default function App() {
 
   // Website Waitlist Leads (persisted so signups are never lost)
   const [waitlistLeads, setWaitlistLeads] = useState<WaitlistLead[]>(() => {
+    if (typeof window === 'undefined') return INITIAL_WAITLIST_LEADS;
     try {
       const saved = localStorage.getItem(APP_STORAGE_KEYS.WAITLIST);
       if (saved) {
@@ -124,6 +135,7 @@ export default function App() {
 
   // Submitted Orders (persisted so invoices and remittances are retained)
   const [submittedOrders, setSubmittedOrders] = useState<OrderSubmission[]>(() => {
+    if (typeof window === 'undefined') return [];
     try {
       const saved = localStorage.getItem(APP_STORAGE_KEYS.ORDERS);
       if (saved) {
@@ -137,6 +149,7 @@ export default function App() {
   });
 
   const [creditRedemptions, setCreditRedemptions] = useState<CreditRedemptionOrder[]>(() => {
+    if (typeof window === 'undefined') return [];
     try {
       const saved = localStorage.getItem(APP_STORAGE_KEYS.CREDIT_REDEMPTIONS);
       if (saved) {
@@ -151,6 +164,7 @@ export default function App() {
 
   // Dynamic Testimonials (Admin manageable and synced in real-time)
   const [liveTestimonials, setLiveTestimonials] = useState<TestimonialItem[]>(() => {
+    if (typeof window === 'undefined') return liveSync.getState().testimonials || [];
     try {
       const saved = localStorage.getItem('11to12_testimonials_v1');
       if (saved) {
@@ -411,11 +425,13 @@ export default function App() {
   const handleAddCustomer = (newCustomer: CustomerRecord) => {
     setCustomers((prev) => [newCustomer, ...prev]);
     liveSync.registerCustomer(newCustomer);
+    saveCustomerToFirestore(newCustomer).catch(() => {});
   };
 
   const handleUpdateCustomer = (updated: CustomerRecord) => {
     setCustomers((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
     liveSync.updateCustomer(updated.id, updated);
+    saveCustomerToFirestore(updated).catch(() => {});
   };
 
   const handleSimulateUserLogin = (customer: CustomerRecord) => {
@@ -434,6 +450,7 @@ export default function App() {
       status: 'Active',
     };
     liveSync.updateCustomer(updatedCust.id, updatedCust);
+    saveCustomerToFirestore(updatedCust).catch(() => {});
     setCustomers((prev) => {
       const exists = prev.some(
         (c) => c.id === customer.id || (c.email && c.email.toLowerCase() === customer.email.toLowerCase())
@@ -519,8 +536,8 @@ export default function App() {
       floorSuite: order.floorSuite || '',
       deliveryArea: order.deliveryArea || 'Victoria Island',
       notes: '',
-      status: 'Active',
-      paymentStatus: 'Paid',
+      status: 'Pending Activation',
+      paymentStatus: 'Pending Verification',
       planName: `${order.totalDays} Workday Lunch Plan`,
       totalDays: order.totalDays,
       creditsBalance: 0,
@@ -539,9 +556,11 @@ export default function App() {
     };
     setCustomers((prev) => [newCustomer, ...prev]);
 
-    // Save to central live database and broadcast across all devices
+    // Save to central live database and Firestore, and broadcast across all devices
     liveSync.registerCustomer(newCustomer);
     liveSync.submitOrder(order);
+    saveCustomerToFirestore(newCustomer).catch(() => {});
+    saveOrderToFirestore(order).catch(() => {});
 
     // Deduplicate: If this person was in the waitlist (by unique code or email), remove from waitlist so admin has 0 duplicates
     setWaitlistLeads((prev) =>
@@ -552,7 +571,7 @@ export default function App() {
       })
     );
 
-    // Save customer details to prepare their account
+    // Save customer details to prepare their account with pending verification
     setUserProfile((prev) => ({
       ...prev,
       id: newCustomer.id,
@@ -562,7 +581,8 @@ export default function App() {
       company: order.company,
       address: order.officeAddress,
       planName: `${order.totalDays} Workday Lunch Plan`,
-      subscriptionStatus: 'Active',
+      subscriptionStatus: 'Pending Activation',
+      paymentStatus: 'Pending Verification',
       selectedDays: order.selectedDays,
       totalSubscribedDays: order.totalDays,
     }));
@@ -748,6 +768,7 @@ export default function App() {
   const handleDeleteCustomer = async (customerId: string) => {
     setCustomers((prev) => prev.filter((c) => c.id !== customerId));
     await liveSync.deleteCustomer(customerId);
+    await deleteCustomerFromFirestore(customerId).catch(() => {});
   };
 
   return (
@@ -755,71 +776,92 @@ export default function App() {
       
       {/* Universal Clean Header with Brand Logo & Log In (Shown on Marketing View) */}
       {viewMode === 'marketing' && (
-        <Header
-          currentTab={viewMode}
-          setCurrentTab={setViewMode}
-          onOpenSubscriberLogin={() => setShowSubscriberAuthModal(true)}
-          timeWindow={timeWindow}
-          setTimeWindow={setTimeWindow}
-          creditsBalance={userProfile.creditsBalance}
-        />
+        <div className={!hasWatchedTeaser ? "filter blur-md pointer-events-none select-none transition-all duration-700" : "transition-all duration-500"}>
+          <Header
+            currentTab={viewMode}
+            setCurrentTab={setViewMode}
+            onOpenSubscriberLogin={() => setShowSubscriberAuthModal(true)}
+            timeWindow={timeWindow}
+            setTimeWindow={setTimeWindow}
+            creditsBalance={userProfile.creditsBalance}
+          />
+        </div>
       )}
 
       {/* VIEW MODE 1: MARKETING PAGE */}
       {viewMode === 'marketing' && (
-        <main>
-          
-          {/* 1. Hero Section */}
-          <HeroTypewriter />
-
-          {/* 2. Watch Before You Reserve & Reserve Your Desk Drop */}
-          <DeskDropWaitlistAndTeaser
-            waitlistCount={waitlistCount}
-            confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
-            existingWaitlist={waitlistLeads}
-            existingCustomers={customers}
-            onJoinWaitlist={async (leadData) => {
-              const res = await liveSync.joinWaitlist(leadData);
-              if (res.success && res.lead) {
-                // Save lead directly to Firestore collection
-                await saveWaitlistLeadToFirestore(res.lead);
-                setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
-              }
-              return res;
+        <>
+          {/* Watch Before You Reserve Focused Spotlight on Website Load */}
+          <WatchBeforeYouReserveModal
+            isOpen={!hasWatchedTeaser}
+            onWatched={() => {
+              setHasWatchedTeaser(true);
+              sessionStorage.setItem('11to12_has_watched_teaser', 'true');
+            }}
+            onSkipToWaitlist={() => {
+              setHasWatchedTeaser(true);
+              sessionStorage.setItem('11to12_has_watched_teaser', 'true');
+              setTimeout(() => {
+                const target = document.getElementById('reserve-desk-drop-section') || document.querySelector('#reserve-desk-drop-section');
+                if (target) target.scrollIntoView({ behavior: 'smooth' });
+              }, 100);
             }}
           />
 
-          {/* 3. Escape Your Lunch Rut (Process Grid) */}
-          <ProcessGrid />
+          <main className={!hasWatchedTeaser ? "filter blur-md pointer-events-none select-none transition-all duration-700" : "transition-all duration-500"}>
+            
+            {/* 1. Hero Section */}
+            <HeroTypewriter />
 
-          {/* 4. What is the kitchen cooking this week? (6-Month Menu Calendar - No prices shown) */}
-          <InteractiveCalendar menuItems={menuItems} />
+            {/* 2. Watch Before You Reserve & Reserve Your Desk Drop */}
+            <DeskDropWaitlistAndTeaser
+              waitlistCount={waitlistCount}
+              confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
+              existingWaitlist={waitlistLeads}
+              existingCustomers={customers}
+              onJoinWaitlist={async (leadData) => {
+                const res = await liveSync.joinWaitlist(leadData);
+                if (res.success && res.lead) {
+                  // Save lead directly to Firestore collection
+                  await saveWaitlistLeadToFirestore(res.lead);
+                  setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
+                }
+                return res;
+              }}
+            />
 
-          {/* 5. Build Your Lunch Plan (Calendar Style, >8 days rule, 20th day free, Calculate Order trigger) */}
-          <PlanBuilder onProceedToCheckout={handleProceedToCheckout} />
+            {/* 3. Escape Your Lunch Rut (Process Grid) */}
+            <ProcessGrid />
 
-          {/* 6. People Tolerate Us (Testimonials - Animated 3-Column Display with Initials, No Images) */}
-          <Testimonials
-            testimonials={liveTestimonials}
-            title="What Lagos Office Teams Say"
-            subtitle="Piping-hot Nigerian corporate lunches delivered directly to workstations between 11:00 AM and 12:00 PM."
-          />
+            {/* 4. What is the kitchen cooking this week? (6-Month Menu Calendar - No prices shown) */}
+            <InteractiveCalendar menuItems={menuItems} />
 
-          {/* 7. Your Burning Questions, Answered (FAQ) */}
-          <FaqSection />
+            {/* 5. Build Your Lunch Plan (Calendar Style, >8 days rule, 20th day free, Calculate Order trigger) */}
+            <PlanBuilder onProceedToCheckout={handleProceedToCheckout} />
 
-          {/* Payout & Registration Modal (Official Flutterwave MFB Account, Copy Account, Proof Instructions) */}
-          <CheckoutModal
-            isOpen={isCheckoutOpen}
-            onClose={() => setIsCheckoutOpen(false)}
-            selectedDays={selectedLunchDays}
-            summary={calculatedOrderSummary}
-            onOrderSubmitted={handleOrderSubmitted}
-            waitlistLeads={waitlistLeads}
-            customers={customers}
-          />
+            {/* 6. People Tolerate Us (Testimonials - Animated 3-Column Display with Initials, No Images) */}
+            <Testimonials
+              testimonials={liveTestimonials}
+              title="What Lagos Office Teams Say"
+              subtitle="Piping-hot Nigerian corporate lunches delivered directly to workstations between 11:00 AM and 12:00 PM."
+            />
 
-        </main>
+            {/* 7. Your Burning Questions, Answered (FAQ) */}
+            <FaqSection />
+
+            {/* Payout & Registration Modal (Official Flutterwave MFB Account, Copy Account, Proof Instructions) */}
+            <CheckoutModal
+              isOpen={isCheckoutOpen}
+              onClose={() => setIsCheckoutOpen(false)}
+              selectedDays={selectedLunchDays}
+              summary={calculatedOrderSummary}
+              onOrderSubmitted={handleOrderSubmitted}
+              waitlistLeads={waitlistLeads}
+              customers={customers}
+            />
+
+          </main>
+        </>
       )}
 
       {/* VIEW MODE 2: SUBSCRIBER EXPERIENCE (LUNCH CONTROL CENTER) */}
@@ -833,7 +875,6 @@ export default function App() {
           ratingsHistory={ratingsHistory}
           onUpdateProfile={handleUpdateProfile}
           onAddRating={handleAddRating}
-          onNavigateToAdmin={() => setViewMode('admin')}
           onNavigateToLanding={handleLogout}
           creditRedemptions={creditRedemptions}
           onAddCreditRedemption={handleAddCreditRedemption}

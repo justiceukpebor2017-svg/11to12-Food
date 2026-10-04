@@ -1,5 +1,4 @@
 import React from "react";
-import { motion } from "motion/react";
 import { Star, Quote } from "lucide-react";
 import { TestimonialItem } from "../../types";
 
@@ -9,18 +8,12 @@ export const TestimonialsColumn = (props: {
   duration?: number;
 }) => {
   return (
-    <div className={`w-full max-w-sm ${props.className || ''}`}>
-      <motion.div
-        animate={{
-          translateY: "-50%",
-        }}
-        transition={{
-          duration: props.duration || 12,
-          repeat: Infinity,
-          ease: "linear",
-          repeatType: "loop",
-        }}
-        className="flex flex-col gap-5 pb-5"
+    <div className={`w-full max-w-sm overflow-hidden ${props.className || ''}`}>
+      <div
+        style={{
+          '--marquee-duration': `${props.duration || 18}s`,
+        } as React.CSSProperties}
+        className="animate-marquee-vertical flex flex-col gap-5 pb-5"
       >
         {[
           ...new Array(2).fill(0).map((_, index) => (
@@ -76,7 +69,7 @@ export const TestimonialsColumn = (props: {
             </React.Fragment>
           )),
         ]}
-      </motion.div>
+      </div>
     </div>
   );
 };
@@ -177,13 +170,7 @@ export const Testimonials = ({
   return (
     <section id="testimonials-section" className="bg-[#FAF7F2] py-20 relative overflow-hidden font-['Poppins']">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10 relative">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          viewport={{ once: true }}
-          className="flex flex-col items-center justify-center max-w-2xl mx-auto text-center mb-12"
-        >
+        <div className="flex flex-col items-center justify-center max-w-2xl mx-auto text-center mb-12">
           <div className="flex justify-center">
             <span className="text-xs font-black uppercase tracking-widest text-[#FF4C00] bg-[#FF4C00]/10 border border-[#FF4C00]/20 py-1.5 px-4 rounded-full">
               Verified Subscriber Feedback
@@ -196,7 +183,7 @@ export const Testimonials = ({
           <p className="mt-3 text-sm sm:text-base text-zinc-600 font-medium">
             {subtitle}
           </p>
-        </motion.div>
+        </div>
 
         {/* Animated 3-Column Testimonials Display with Top & Bottom Fade Mask */}
         <div className="flex justify-center gap-4 sm:gap-5 [mask-image:linear-gradient(to_bottom,transparent,black_15%,black_85%,transparent)] max-h-[700px] overflow-hidden max-w-full">

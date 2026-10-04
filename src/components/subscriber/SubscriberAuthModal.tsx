@@ -17,10 +17,10 @@ import {
 import { CONTACT_CONFIG } from '../../config/contactConfig';
 import { SignInPage } from '../ui/sign-in';
 import {
-  registerSubscriberAccount,
   loginSubscriberAccount,
   loginWithGoogleAccount,
   sendSubscriberPasswordReset,
+  updateCustomerPasswordInFirestore,
 } from '../../services/firebase';
 
 interface SubscriberAuthModalProps {
@@ -142,20 +142,6 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
         ((legacyCustomer.password && cleanPass === legacyCustomer.password.trim()) ||
          (legacyCustomer.defaultPassword && cleanPass === legacyCustomer.defaultPassword.trim()))
       ) {
-        // Automatically sync into Firebase Auth for seamless transition
-        try {
-          await registerSubscriberAccount({
-            fullName: legacyCustomer.fullName,
-            email: cleanEmail,
-            password: cleanPass,
-            phone: legacyCustomer.phone,
-            company: legacyCustomer.company,
-            officeAddress: legacyCustomer.officeAddress,
-            floorSuite: legacyCustomer.floorSuite,
-          });
-        } catch {
-          // Continue with legacy session
-        }
         onLoginSuccess(legacyCustomer);
         setIsLoading(false);
         onClose();
@@ -166,75 +152,13 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
         setError('Incorrect password or email. Please verify your credentials or click "Forgot Password".');
       } else if (err.code === 'auth/user-not-found') {
-        setError('No subscriber account found with this email. Switch to "Create Account" above to register.');
+        setError('No subscriber account found with this email. Only registered office members can access.');
       } else if (err.code === 'auth/invalid-email') {
         setError('Please enter a valid work email address.');
       } else if (err.code === 'auth/too-many-requests') {
         setError('Too many failed sign-in attempts. Please wait a moment or reset your password.');
       } else {
         setError(err.message || 'Unable to authenticate. Please check your credentials.');
-      }
-    }
-  };
-
-  // Register a new subscriber with real Firebase Authentication
-  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMessage(null);
-
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-    const fullName = ((formData.get('fullName') as string) || '').trim();
-    const cleanEmail = ((formData.get('email') as string) || '').trim().toLowerCase();
-    const phone = ((formData.get('phone') as string) || '').trim();
-    const officeAddress = ((formData.get('officeAddress') as string) || '').trim();
-    const pass = ((formData.get('password') as string) || '').trim();
-    const confirmPass = ((formData.get('confirmPassword') as string) || '').trim();
-
-    if (!fullName || !cleanEmail || !phone || !pass) {
-      setError('Please fill in all required registration fields.');
-      return;
-    }
-
-    if (pass.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-
-    if (pass !== confirmPass) {
-      setError('Passwords do not match. Please re-enter your password.');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const newCustomer = await registerSubscriberAccount({
-        fullName,
-        email: cleanEmail,
-        password: pass,
-        phone,
-        officeAddress,
-      });
-
-      setSuccessMessage('Account registered in Firebase! Accessing your dashboard...');
-      setTimeout(() => {
-        setIsLoading(false);
-        onLoginSuccess(newCustomer);
-        onClose();
-      }, 700);
-    } catch (err: any) {
-      setIsLoading(false);
-      console.warn('[Firebase Auth] Registration error:', err);
-      if (err.code === 'auth/email-already-in-use') {
-        setError('This email address is already registered. Please switch to "Sign In" above to access your dashboard.');
-      } else if (err.code === 'auth/weak-password') {
-        setError('Password should be at least 6 characters long.');
-      } else if (err.code === 'auth/invalid-email') {
-        setError('Please enter a valid work email address.');
-      } else {
-        setError(err.message || 'Unable to create account. Please try again.');
       }
     }
   };
@@ -262,63 +186,13 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
     executeLogin(email.trim().toLowerCase(), password.trim());
   };
 
-  // If in login mode, render the full-featured SignInPage from components/ui/sign-in.tsx
-  if (mode === 'login') {
-    return (
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center animate-fadeIn">
-        <SignInPage
-          title={<span className="font-black text-zinc-900 tracking-tight">Subscriber Portal</span>}
-          description="Access your lunch control center, calendar days, and desk drop tracking."
-          heroImageSrc="https://i.ibb.co/rG6JFnyY/0904-ezgif-com-resize.gif"
-          testimonials={
-            testimonials && testimonials.length > 0
-              ? testimonials.slice(0, 4).map((t) => ({
-                  name: t.name,
-                  handle: `${t.role}${t.company ? ` • ${t.company}` : ''}`,
-                  text: t.text,
-                }))
-              : undefined
-          }
-          error={error}
-          successMessage={successMessage}
-          isLoading={isLoading}
-          onClose={onClose}
-          onSignIn={(e) => {
-            e.preventDefault();
-            const form = e.currentTarget;
-            const formData = new FormData(form);
-            const cleanEmail = ((formData.get('email') as string) || '').trim().toLowerCase();
-            const cleanPass = ((formData.get('password') as string) || '').trim();
-            setEmail(cleanEmail);
-            setPassword(cleanPass);
-            executeLogin(cleanEmail, cleanPass);
-          }}
-          onRegister={handleRegister}
-          onResetPassword={() => {
-            setError(null);
-            setSuccessMessage(null);
-            setMode('forgot_email');
-          }}
-          onGoogleSignIn={handleGoogleSignIn}
-          onCreateAccount={() => {
-            onClose();
-            const reserveSection = document.getElementById('reserve-section') || document.getElementById('plans-section');
-            if (reserveSection) {
-              reserveSection.scrollIntoView({ behavior: 'smooth' });
-            }
-          }}
-        />
-      </div>
-    );
-  }
-
   // 2. Request Password Reset Verification Code
   const handleRequestVerificationCode = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     const cleanEmail = email.trim().toLowerCase();
-    const customer = customers.find((c) => c.email.toLowerCase() === cleanEmail);
+    const customer = customers.find((c) => c.email && c.email.toLowerCase() === cleanEmail);
 
     if (!customer) {
       setError('No subscriber found with this email address. Please make sure you enter your registered work email.');
@@ -373,8 +247,9 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       return;
     }
 
-    // Update password in local and central live database
+    // Update password in local and central live database & Firestore
     onUpdateCustomerPassword(matchedCustomer.id, newPassword);
+    updateCustomerPasswordInFirestore(matchedCustomer.id, newPassword).catch(() => {});
 
     const updatedCustomer: CustomerRecord = {
       ...matchedCustomer,
@@ -392,27 +267,72 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-['Poppins']">
-      <div className="relative w-full max-w-md bg-white text-zinc-900 rounded-3xl border border-zinc-200 shadow-2xl overflow-hidden my-6 animate-fadeIn">
-        
-        {/* Real-time Email Toast Banner (Live Verification Notice) */}
-        {realtimeEmailToast && (
-          <div className="bg-[#141414] text-white p-3.5 border-b border-zinc-800 text-xs flex items-center justify-between animate-fadeIn">
-            <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              <span>
-                ✉️ Code sent to <strong>{realtimeEmailToast.to}</strong>: <span className="font-mono font-bold text-[#FF4C00] text-sm">{realtimeEmailToast.code}</span>
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setRealtimeEmailToast(null)}
-              className="text-zinc-400 hover:text-white text-[10px] ml-2 cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-        )}
+    <>
+      {mode === 'login' ? (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center animate-fadeIn">
+          <SignInPage
+            title={<span className="font-black text-zinc-900 tracking-tight">Subscriber Portal</span>}
+            description="Access your lunch control center, calendar days, and desk drop tracking."
+            heroImageSrc="https://i.ibb.co/rG6JFnyY/0904-ezgif-com-resize.gif"
+            testimonials={
+              testimonials && testimonials.length > 0
+                ? testimonials.slice(0, 4).map((t) => ({
+                    name: t.name,
+                    handle: `${t.role}${t.company ? ` • ${t.company}` : ''}`,
+                    text: t.text,
+                  }))
+                : undefined
+            }
+            error={error}
+            successMessage={successMessage}
+            isLoading={isLoading}
+            onClose={onClose}
+            onSignIn={(e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const formData = new FormData(form);
+              const cleanEmail = ((formData.get('email') as string) || '').trim().toLowerCase();
+              const cleanPass = ((formData.get('password') as string) || '').trim();
+              setEmail(cleanEmail);
+              setPassword(cleanPass);
+              executeLogin(cleanEmail, cleanPass);
+            }}
+            onResetPassword={() => {
+              setError(null);
+              setSuccessMessage(null);
+              setMode('forgot_email');
+            }}
+            onGoogleSignIn={handleGoogleSignIn}
+            onCreateAccount={() => {
+              onClose();
+              const reserveSection = document.getElementById('reserve-section') || document.getElementById('plans-section');
+              if (reserveSection) {
+                reserveSection.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+          />
+        </div>
+      ) : (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-['Poppins']">
+          <div className="relative w-full max-w-md bg-white text-zinc-900 rounded-3xl border border-zinc-200 shadow-2xl overflow-hidden my-6 animate-fadeIn">
+            {/* Real-time Email Toast Banner (Live Verification Notice) */}
+            {realtimeEmailToast && (
+              <div className="bg-[#141414] text-white p-3.5 border-b border-zinc-800 text-xs flex items-center justify-between animate-fadeIn">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span>
+                    ✉️ Code sent to <strong>{realtimeEmailToast.to}</strong>: <span className="font-mono font-bold text-[#FF4C00] text-sm">{realtimeEmailToast.code}</span>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRealtimeEmailToast(null)}
+                  className="text-zinc-400 hover:text-white text-[10px] ml-2 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-zinc-100 bg-[#FAF7F2]">
@@ -796,5 +716,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
 
       </div>
     </div>
+      )}
+    </>
   );
 };

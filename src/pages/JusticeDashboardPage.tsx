@@ -184,6 +184,7 @@ export const JusticeDashboardPage: React.FC<JusticeDashboardPageProps> = ({
           <CustomersManager
             submittedOrders={submittedOrders}
             customers={customers}
+            waitlistLeads={waitlistLeads}
             onAddCustomer={onAddCustomer}
             onUpdateCustomer={onUpdateCustomer}
             onDeleteCustomer={onDeleteCustomer}

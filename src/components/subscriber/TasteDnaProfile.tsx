@@ -148,27 +148,6 @@ export const TasteDnaProfile: React.FC<TasteDnaProfileProps> = ({ profile, onUpd
             <span>2. TASTE DNA ENGINE</span>
           </h4>
 
-          {/* Spice Level Toggles */}
-          <div>
-            <label className="block text-xs font-black uppercase font-mono-custom text-black mb-2">Spice Level Tolerance</label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {spiceLevels.map((lvl) => (
-                <button
-                  key={lvl}
-                  type="button"
-                  onClick={() => setFormData({ ...formData, spicePreference: lvl })}
-                  className={`py-3 px-3 border-3 border-black text-xs font-black uppercase cursor-pointer transition-all ${
-                    formData.spicePreference === lvl
-                      ? 'bg-[#FF4C00] text-white shadow-[3px_3px_0px_#000]'
-                      : 'bg-[#F8F8F8] text-black hover:bg-[#FACC15]'
-                  }`}
-                >
-                  {lvl}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Preferred Proteins */}
           <div>
             <label className="block text-xs font-black uppercase font-mono-custom text-black mb-2">Preferred Protein Allocations</label>

@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   StructuredMeal,
   SelectedLunchDay,
@@ -405,98 +404,89 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     <section id="pricing" className="py-20 bg-[#FAF7F2] border-t border-zinc-200/80 relative">
       
       {/* 2-Second Floating Top Meal Preview Popup with Smooth Fade Out */}
-      <AnimatePresence>
-        {activeMealPopup && (
-          <motion.div
-            key={`${activeMealPopup.meal.dateStr}-${activeMealPopup.action}-${activeMealPopup.meal.mealName}`}
-            initial={{ opacity: 0, y: -24, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -16, scale: 0.95 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className={`fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[100] w-[94%] max-w-md sm:max-w-xl rounded-2xl sm:rounded-3xl border shadow-2xl p-4 sm:p-5 backdrop-blur-md font-['Poppins'] ${
-              activeMealPopup.action === 'added'
-                ? 'bg-zinc-950/95 text-white border-[#FF4C00]/40 shadow-orange-500/10'
-                : 'bg-zinc-900/95 text-zinc-200 border-zinc-700/80 shadow-black/40'
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
-                  activeMealPopup.action === 'added'
-                    ? 'bg-[#FF4C00] text-white border-[#FF4C00]/50 shadow-md shadow-[#FF4C00]/25'
-                    : 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                }`}
-              >
-                {activeMealPopup.action === 'added' ? (
-                  <Utensils className="w-5 h-5" />
-                ) : (
-                  <X className="w-5 h-5" />
+      {activeMealPopup && (
+        <div
+          key={`${activeMealPopup.meal.dateStr}-${activeMealPopup.action}-${activeMealPopup.meal.mealName}`}
+          className={`fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[100] w-[94%] max-w-md sm:max-w-xl rounded-2xl sm:rounded-3xl border shadow-2xl p-4 sm:p-5 backdrop-blur-md font-['Poppins'] animate-in fade-in slide-in-from-top-4 duration-300 ${
+            activeMealPopup.action === 'added'
+              ? 'bg-zinc-950/95 text-white border-[#FF4C00]/40 shadow-orange-500/10'
+              : 'bg-zinc-900/95 text-zinc-200 border-zinc-700/80 shadow-black/40'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
+                activeMealPopup.action === 'added'
+                  ? 'bg-[#FF4C00] text-white border-[#FF4C00]/50 shadow-md shadow-[#FF4C00]/25'
+                  : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+              }`}
+            >
+              {activeMealPopup.action === 'added' ? (
+                <Utensils className="w-5 h-5" />
+              ) : (
+                <X className="w-5 h-5" />
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0 pr-1">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-zinc-400">
+                    {activeMealPopup.formattedDate}
+                  </span>
+                  <span
+                    className={`text-[9px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                      activeMealPopup.action === 'added'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                    }`}
+                  >
+                    {activeMealPopup.action === 'added' ? '✓ Added to Plan' : 'Removed from Plan'}
+                  </span>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={() => setActiveMealPopup(null)}
+                  className="text-zinc-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition cursor-pointer shrink-0"
+                  title="Close"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Full Meal Title */}
+              <h4 className="text-sm sm:text-base font-extrabold text-white leading-snug break-words">
+                {activeMealPopup.meal.mealName}
+              </h4>
+
+              {/* Meal Composition Tags */}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-300">
+                {activeMealPopup.meal.mealCategory && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/10 text-white/90">
+                    {activeMealPopup.meal.mealCategory}
+                  </span>
+                )}
+                {activeMealPopup.meal.protein && (
+                  <span className="truncate">Protein: <strong className="text-white">{activeMealPopup.meal.protein}</strong></span>
+                )}
+                {activeMealPopup.meal.soup && (
+                  <span className="truncate">• Soup: <strong className="text-white">{activeMealPopup.meal.soup}</strong></span>
                 )}
               </div>
-
-              <div className="flex-1 min-w-0 pr-1">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-zinc-400">
-                      {activeMealPopup.formattedDate}
-                    </span>
-                    <span
-                      className={`text-[9px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                        activeMealPopup.action === 'added'
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
-                      }`}
-                    >
-                      {activeMealPopup.action === 'added' ? '✓ Added to Plan' : 'Removed from Plan'}
-                    </span>
-                  </div>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setActiveMealPopup(null)}
-                    className="text-zinc-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition cursor-pointer shrink-0"
-                    title="Close"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Full Meal Title */}
-                <h4 className="text-sm sm:text-base font-extrabold text-white leading-snug break-words">
-                  {activeMealPopup.meal.mealName}
-                </h4>
-
-                {/* Meal Composition Tags */}
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-300">
-                  {activeMealPopup.meal.mealCategory && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/10 text-white/90">
-                      {activeMealPopup.meal.mealCategory}
-                    </span>
-                  )}
-                  {activeMealPopup.meal.protein && (
-                    <span className="truncate">Protein: <strong className="text-white">{activeMealPopup.meal.protein}</strong></span>
-                  )}
-                  {activeMealPopup.meal.soup && (
-                    <span className="truncate">• Soup: <strong className="text-white">{activeMealPopup.meal.soup}</strong></span>
-                  )}
-                </div>
-              </div>
             </div>
+          </div>
 
-            {/* 2-Second Visual Countdown Indicator Bar */}
-            <div className="mt-3 w-full bg-white/10 h-0.5 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: '100%' }}
-                animate={{ width: '0%' }}
-                transition={{ duration: 2, ease: 'linear' }}
-                className={`h-full ${
-                  activeMealPopup.action === 'added' ? 'bg-[#FF4C00]' : 'bg-zinc-500'
-                }`}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {/* 2-Second Visual Countdown Indicator Bar */}
+          <div className="mt-3 w-full bg-white/10 h-0.5 rounded-full overflow-hidden">
+            <div
+              className={`h-full animate-shrink-width ${
+                activeMealPopup.action === 'added' ? 'bg-[#FF4C00]' : 'bg-zinc-500'
+              }`}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         

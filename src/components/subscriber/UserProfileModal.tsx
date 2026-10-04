@@ -171,26 +171,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
 
           <div>
-            <label className="font-bold text-zinc-700 block mb-1">Spice Level Preference</label>
-            <div className="grid grid-cols-4 gap-2">
-              {(['Mild', 'Medium', 'Hot', 'Pepper Dem'] as const).map((lvl) => (
-                <button
-                  type="button"
-                  key={lvl}
-                  onClick={() => setSpicePref(lvl)}
-                  className={`py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                    spicePref === lvl
-                      ? 'bg-black text-white border-black'
-                      : 'bg-white text-zinc-600 border-zinc-200 hover:border-black'
-                  }`}
-                >
-                  {lvl}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
             <label className="font-bold text-zinc-700 block mb-1">Dietary Dislikes / Notes</label>
             <input
               type="text"

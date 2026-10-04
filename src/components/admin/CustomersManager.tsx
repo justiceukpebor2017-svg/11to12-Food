@@ -31,14 +31,16 @@ import {
   CalendarPlus,
   Trash2,
 } from 'lucide-react';
-import { OrderSubmission, UserProfile, MenuItem, TimeWindow, CustomerRecord, SelectedLunchDay, calculateOrderSummary } from '../../types';
+import { OrderSubmission, UserProfile, MenuItem, TimeWindow, CustomerRecord, SelectedLunchDay, calculateOrderSummary, WaitlistLead } from '../../types';
 import { CustomerMealCalendarPicker } from './CustomerMealCalendarPicker';
 import { generateDefaultPassword } from '../../utils/credentialUtils';
 import { CustomerCredentialsModal } from './CustomerCredentialsModal';
+import { saveCustomerToFirestore } from '../../services/firebase';
 
 interface CustomersManagerProps {
   submittedOrders: OrderSubmission[];
   customers?: CustomerRecord[];
+  waitlistLeads?: WaitlistLead[];
   onAddCustomer?: (customer: CustomerRecord) => void;
   onUpdateCustomer?: (customer: CustomerRecord) => void;
   onDeleteCustomer?: (customerId: string) => void;
@@ -55,6 +57,7 @@ interface CustomersManagerProps {
 export const CustomersManager: React.FC<CustomersManagerProps> = ({
   submittedOrders,
   customers: externalCustomers,
+  waitlistLeads,
   onAddCustomer: externalOnAddCustomer,
   onUpdateCustomer: externalOnUpdateCustomer,
   onDeleteCustomer,
@@ -140,6 +143,53 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Quick Auto-fill from Wishlist Member Code
+  const [memberCodeInput, setMemberCodeInput] = useState('');
+
+  const handleAutoFillFromMemberCode = (codeToSearch?: string) => {
+    const raw = codeToSearch !== undefined ? codeToSearch : memberCodeInput;
+    const code = raw.trim().toUpperCase();
+    if (!code) {
+      showToast('Please enter or paste a member code (e.g. DD-12345).');
+      return;
+    }
+    const match = waitlistLeads?.find(
+      (l) => l.memberCode && l.memberCode.trim().toUpperCase() === code
+    );
+    if (match) {
+      setCustFullName(match.name || '');
+      setCustEmail(match.email || '');
+      setCustPhone(match.phone || '');
+      setCustCompany(match.workplace || '');
+      setCustOfficeAddress(match.workplace || match.addressFloor || 'Victoria Island, Lagos');
+      setCustFloorSuite(match.addressFloor || 'Desk Drop');
+      setCustNotes(match.notes || '');
+      setCustPaymentStatus('Paid');
+      setSyncedOrderRef(undefined);
+      setShowAddCustomerModal(true);
+      setModalTab('details');
+      showToast(`✓ Auto-filled customer details for ${match.name} (Code: ${match.memberCode})!`);
+    } else {
+      showToast(`No waitlist lead found with Member Code "${code}".`);
+    }
+  };
+
+  const handleConfirmCustomerPayment = (cust: CustomerRecord) => {
+    const updatedCust: CustomerRecord = {
+      ...cust,
+      paymentStatus: 'Paid',
+      status: 'Active',
+    };
+    if (externalOnUpdateCustomer) {
+      externalOnUpdateCustomer(updatedCust);
+    }
+    saveCustomerToFirestore(updatedCust).catch(() => {});
+    if (cust.orderRef && onConfirmOrderPayment) {
+      onConfirmOrderPayment(cust.orderRef);
+    }
+    showToast(`✓ Payment confirmed for ${cust.fullName}! Active meals unlocked.`);
   };
 
   const handleOpenAddMoreMealDays = (cust: CustomerRecord) => {
@@ -273,6 +323,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
     } else {
       setInternalCustomers((prev) => [newCustomer, ...prev]);
     }
+    saveCustomerToFirestore(newCustomer).catch(() => {});
 
     if (syncedOrderRef && onConfirmOrderPayment) {
       onConfirmOrderPayment(syncedOrderRef);
@@ -490,6 +541,45 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
         </div>
       )}
 
+      {/* QUICK AUTO-FILL FROM WISHLIST MEMBER CODE */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 border border-orange-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-left">
+        <div>
+          <span className="text-[11px] font-black uppercase tracking-wider text-orange-900 flex items-center space-x-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-[#FF4C00]" />
+            <span>Auto-Fill Customer from Wishlist Member Code</span>
+          </span>
+          <p className="text-[11px] text-zinc-600 mt-0.5">
+            Copy a user's member code on the waitlist/wishlist and paste it here to automatically fill their contact details and onboard them without retyping!
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <div className="relative flex-1 sm:w-56">
+            <input
+              type="text"
+              placeholder="e.g. DD-12345"
+              value={memberCodeInput}
+              onChange={(e) => setMemberCodeInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAutoFillFromMemberCode();
+                }
+              }}
+              className="w-full px-3 py-2 bg-white border border-orange-300 rounded-xl text-xs font-mono font-bold text-zinc-900 uppercase focus:outline-hidden focus:border-[#FF4C00]"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => handleAutoFillFromMemberCode()}
+            className="px-4 py-2 bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center space-x-1.5 shadow-xs whitespace-nowrap"
+          >
+            <span>Auto-Fill Details</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-white p-4 rounded-2xl border border-zinc-200 shadow-xs">
         <div className="relative w-full sm:w-96">
@@ -631,6 +721,19 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
 
                     <td className="py-4 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end space-x-2">
+                        {/* Confirm Payment Action for pending verification */}
+                        {cust.paymentStatus !== 'Paid' && (
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmCustomerPayment(cust)}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-2xs"
+                            title="Confirm customer payment and unlock their active meals"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Confirm Payment</span>
+                          </button>
+                        )}
+
                         {/* Credentials Action */}
                         <button
                           type="button"
@@ -770,6 +873,35 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                       </select>
                     </div>
                   )}
+
+                  {/* Quick Auto-Fill from Wishlist Member Code */}
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                    <div>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-amber-950 flex items-center space-x-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#FF4C00]" />
+                        <span>Auto-Fill from Wishlist Member Code</span>
+                      </span>
+                      <p className="text-[11px] text-amber-800">
+                        Paste a member code (e.g. DD-12345) to automatically populate all fields below without retyping.
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        placeholder="DD-12345"
+                        value={memberCodeInput}
+                        onChange={(e) => setMemberCodeInput(e.target.value)}
+                        className="bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-zinc-900 uppercase w-32 focus:outline-hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAutoFillFromMemberCode()}
+                        className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition cursor-pointer whitespace-nowrap shadow-xs"
+                      >
+                        Auto-Fill
+                      </button>
+                    </div>
+                  </div>
 
                   {/* Section Title matching homepage and everywhere */}
                   <div className="border-b border-zinc-200 pb-2">

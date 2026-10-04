@@ -105,17 +105,13 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   error,
   successMessage,
   isLoading = false,
-  initialTab = 'signin',
   onSignIn,
-  onRegister,
   onGoogleSignIn,
   onResetPassword,
   onCreateAccount,
   onClose,
 }) => {
-  const [authTab, setAuthTab] = useState<'signin' | 'register'>(initialTab);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row font-['Poppins'] w-full bg-[#FAF7F2] text-zinc-900 relative overflow-x-hidden">
@@ -164,30 +160,8 @@ export const SignInPage: React.FC<SignInPageProps> = ({
               </p>
             </div>
 
-            {/* Auth Tab Switcher: Sign In vs Create Account */}
-            <div className="flex rounded-2xl bg-zinc-200/70 p-1 border border-zinc-300/60">
-              <button
-                type="button"
-                onClick={() => setAuthTab('signin')}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
-                  authTab === 'signin'
-                    ? 'bg-white text-zinc-900 shadow-xs'
-                    : 'text-zinc-600 hover:text-zinc-900'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthTab('register')}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
-                  authTab === 'register'
-                    ? 'bg-white text-zinc-900 shadow-xs'
-                    : 'text-zinc-600 hover:text-zinc-900'
-                }`}
-              >
-                Create Account
-              </button>
+            <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900 leading-relaxed">
+              <span className="font-bold">Subscriber Notice:</span> Customer logins are set up by kitchen admin upon plan reservation. Use your registered work email and default password to sign in.
             </div>
 
             {error && (
@@ -204,9 +178,8 @@ export const SignInPage: React.FC<SignInPageProps> = ({
               </div>
             )}
 
-            {/* MODE A: SIGN IN */}
-            {authTab === 'signin' ? (
-              <form className="space-y-4" onSubmit={onSignIn}>
+            {/* SIGN IN FORM */}
+            <form className="space-y-4" onSubmit={onSignIn}>
                 <div>
                   <label className="text-xs font-bold text-zinc-700 block mb-1">Work Email Address</label>
                   <GlassInputWrapper>
@@ -288,142 +261,6 @@ export const SignInPage: React.FC<SignInPageProps> = ({
                   )}
                 </button>
               </form>
-            ) : (
-              /* MODE B: CREATE ACCOUNT / REGISTER */
-              <form className="space-y-3.5" onSubmit={onRegister}>
-                <div>
-                  <label className="text-xs font-bold text-zinc-700 block mb-1">Full Name</label>
-                  <GlassInputWrapper>
-                    <div className="flex items-center px-4">
-                      <UserIcon className="w-4 h-4 text-zinc-400 shrink-0" />
-                      <input
-                        name="fullName"
-                        type="text"
-                        required
-                        placeholder="e.g. Adebayo Ogunlesi"
-                        className="w-full bg-transparent text-sm p-3 pl-2.5 rounded-2xl focus:outline-none font-medium text-zinc-900"
-                      />
-                    </div>
-                  </GlassInputWrapper>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-zinc-700 block mb-1">Work Email Address</label>
-                  <GlassInputWrapper>
-                    <div className="flex items-center px-4">
-                      <Mail className="w-4 h-4 text-zinc-400 shrink-0" />
-                      <input
-                        name="email"
-                        type="email"
-                        required
-                        placeholder="yourname@company.com"
-                        className="w-full bg-transparent text-sm p-3 pl-2.5 rounded-2xl focus:outline-none font-medium text-zinc-900"
-                      />
-                    </div>
-                  </GlassInputWrapper>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-zinc-700 block mb-1">Phone Number</label>
-                    <GlassInputWrapper>
-                      <div className="flex items-center px-3.5">
-                        <Phone className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                        <input
-                          name="phone"
-                          type="tel"
-                          required
-                          placeholder="0802 618 0680"
-                          className="w-full bg-transparent text-xs p-3 pl-2 rounded-2xl focus:outline-none font-medium text-zinc-900"
-                        />
-                      </div>
-                    </GlassInputWrapper>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-zinc-700 block mb-1">Office / Building</label>
-                    <GlassInputWrapper>
-                      <div className="flex items-center px-3.5">
-                        <Building className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                        <input
-                          name="officeAddress"
-                          type="text"
-                          required
-                          placeholder="e.g. Marina / VI"
-                          className="w-full bg-transparent text-xs p-3 pl-2 rounded-2xl focus:outline-none font-medium text-zinc-900"
-                        />
-                      </div>
-                    </GlassInputWrapper>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-zinc-700 block mb-1">Password</label>
-                    <GlassInputWrapper>
-                      <div className="relative flex items-center px-3.5">
-                        <Lock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                        <input
-                          name="password"
-                          type={showPassword ? 'text' : 'password'}
-                          required
-                          minLength={6}
-                          placeholder="6+ chars"
-                          className="w-full bg-transparent text-xs p-3 pl-2 pr-7 rounded-2xl focus:outline-none font-medium text-zinc-900"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-2.5 text-zinc-400 hover:text-zinc-700 cursor-pointer"
-                        >
-                          {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </GlassInputWrapper>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-zinc-700 block mb-1">Confirm Password</label>
-                    <GlassInputWrapper>
-                      <div className="relative flex items-center px-3.5">
-                        <Lock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                        <input
-                          name="confirmPassword"
-                          type={showConfirmPassword ? 'text' : 'password'}
-                          required
-                          minLength={6}
-                          placeholder="Re-enter password"
-                          className="w-full bg-transparent text-xs p-3 pl-2 pr-7 rounded-2xl focus:outline-none font-medium text-zinc-900"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-2.5 text-zinc-400 hover:text-zinc-700 cursor-pointer"
-                        >
-                          {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </GlassInputWrapper>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full rounded-2xl bg-[#FF4C00] hover:bg-[#E04300] disabled:opacity-60 py-3.5 font-bold text-xs uppercase tracking-wider text-white transition-all shadow-md active:scale-[0.99] cursor-pointer flex items-center justify-center space-x-2 mt-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Creating Account in Firebase...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Register & Access Dashboard</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </form>
-            )}
 
             {/* Google Authentication Option */}
             {onGoogleSignIn && (
