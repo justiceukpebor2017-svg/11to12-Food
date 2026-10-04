@@ -70,10 +70,8 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('marketing');
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('morning');
   const [showSubscriberAuthModal, setShowSubscriberAuthModal] = useState(false);
-  const [hasWatchedTeaser, setHasWatchedTeaser] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return sessionStorage.getItem('11to12_has_watched_teaser') === 'true';
-  });
+  // "Watch Before You Reserve" on Initial Load with Background Blur EVERY time the site is loaded or refreshed (never bypassed across refreshes)
+  const [hasWatchedTeaser, setHasWatchedTeaser] = useState<boolean>(false);
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
@@ -791,20 +789,21 @@ export default function App() {
       {/* VIEW MODE 1: MARKETING PAGE */}
       {viewMode === 'marketing' && (
         <>
-          {/* Watch Before You Reserve Focused Spotlight on Website Load */}
+          {/* Watch Before You Reserve Focused Spotlight on Website Load & Every Refresh */}
           <WatchBeforeYouReserveModal
             isOpen={!hasWatchedTeaser}
             onWatched={() => {
               setHasWatchedTeaser(true);
-              sessionStorage.setItem('11to12_has_watched_teaser', 'true');
             }}
             onSkipToWaitlist={() => {
               setHasWatchedTeaser(true);
-              sessionStorage.setItem('11to12_has_watched_teaser', 'true');
               setTimeout(() => {
-                const target = document.getElementById('reserve-desk-drop-section') || document.querySelector('#reserve-desk-drop-section');
+                const target =
+                  document.getElementById('reserve-form') ||
+                  document.getElementById('watch-and-reserve') ||
+                  document.getElementById('reserve-desk-drop-section');
                 if (target) target.scrollIntoView({ behavior: 'smooth' });
-              }, 100);
+              }, 120);
             }}
           />
 

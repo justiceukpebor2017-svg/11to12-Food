@@ -264,22 +264,35 @@ export async function loginSubscriberAccount(
 }
 
 /**
- * Update subscriber password in Firestore across all devices
+ * Update subscriber password in Firestore and server across all devices
  */
 export async function updateCustomerPasswordInFirestore(customerId: string, newPass: string): Promise<void> {
+  const clean = newPass.trim();
+  const payload = {
+    password: clean,
+    defaultPassword: clean,
+    isDefaultPassword: false,
+    mustChangePassword: false,
+    isPasswordSet: true,
+    passwordLastChangedAt: new Date().toISOString(),
+    status: 'Active',
+  };
+
   try {
     const custRef = doc(db, 'customers', customerId);
-    await updateDoc(custRef, {
-      password: newPass.trim(),
-      defaultPassword: newPass.trim(),
-      isDefaultPassword: false,
-      mustChangePassword: false,
-      isPasswordSet: true,
-      passwordLastChangedAt: new Date().toISOString(),
-      status: 'Active',
-    });
+    await updateDoc(custRef, payload);
   } catch (e) {
     console.warn('[Firebase] updateCustomerPasswordInFirestore warning:', e);
+  }
+
+  try {
+    await fetch(`/api/customers/${customerId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (serverErr) {
+    console.warn('[Firebase] Server sync password update notice:', serverErr);
   }
 }
 

@@ -101,7 +101,7 @@ export const WatchBeforeYouReserveModal: React.FC<WatchBeforeYouReserveModalProp
             </div>
           </div>
 
-          {/* Primary Action Button: "I Have Watched" */}
+          {/* Primary Action Buttons: "I Have Watched" */}
           <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
             <button
               type="button"
@@ -109,7 +109,7 @@ export const WatchBeforeYouReserveModal: React.FC<WatchBeforeYouReserveModalProp
               className="w-full sm:flex-1 py-4 px-6 rounded-2xl bg-[#FF4C00] hover:bg-[#ff5d1a] active:scale-[0.99] text-white font-black text-sm sm:text-base flex items-center justify-center space-x-2.5 shadow-xl shadow-[#FF4C00]/25 transition cursor-pointer"
             >
               <CheckCircle2 className="w-5 h-5 text-white" />
-              <span>I Have Watched — View Menu & Reserve</span>
+              <span>I Have Watched — Pick Days</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
@@ -117,9 +117,10 @@ export const WatchBeforeYouReserveModal: React.FC<WatchBeforeYouReserveModalProp
               <button
                 type="button"
                 onClick={onSkipToWaitlist}
-                className="w-full sm:w-auto py-3 sm:py-4 px-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white font-semibold text-xs transition cursor-pointer border border-zinc-800"
+                className="w-full sm:w-auto py-3.5 sm:py-4 px-5 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs sm:text-sm transition cursor-pointer border border-zinc-700 flex items-center justify-center space-x-2"
               >
-                Join Waitlist Directly
+                <span>I Have Watched — Join Waitlist</span>
+                <ArrowRight className="w-4 h-4 text-[#FF4C00]" />
               </button>
             )}
           </div>

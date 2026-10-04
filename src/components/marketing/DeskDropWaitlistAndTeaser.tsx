@@ -286,19 +286,18 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
-            
+          <div className="max-w-md mx-auto">
             {/* Live Waitlist Counter */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-zinc-800 flex items-center space-x-4 transition-all duration-300">
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-zinc-800 flex items-center justify-center space-x-4 transition-all duration-300 shadow-lg">
               <div className="w-12 h-12 rounded-2xl bg-[#FF4C00]/15 text-[#FF4C00] border border-[#FF4C00]/30 flex items-center justify-center shrink-0">
                 <Sparkles className="w-6 h-6" />
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
                     Waitlist Joined
                   </span>
-                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300">
+                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-zinc-800 text-[#FF4C00] border border-[#FF4C00]/30">
                     Live
                   </span>
                 </div>
@@ -313,33 +312,6 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                 </span>
               </div>
             </div>
-
-            {/* Live Confirmed Subscribers Counter (from Admin Confirmed Customers) */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-emerald-950/70 flex items-center space-x-4 transition-all duration-300">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                <CheckCircle className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs font-bold text-emerald-400/90 uppercase tracking-wider block">
-                    Confirmed Subscribers
-                  </span>
-                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/40">
-                    Live
-                  </span>
-                </div>
-                <div className="text-2xl sm:text-3xl font-black text-emerald-400">
-                  {confirmedSubscribersCount}{' '}
-                  <span className="text-xs font-medium text-emerald-500/70">
-                    active desks
-                  </span>
-                </div>
-                <span className="text-[11px] text-zinc-500 block">
-                  Dates selected & verified
-                </span>
-              </div>
-            </div>
-
           </div>
         </div>
 
