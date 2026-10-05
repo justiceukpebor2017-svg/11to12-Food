@@ -590,6 +590,7 @@ export default function App() {
   const handleTopUpOrderSubmitted = (order: OrderSubmission) => {
     setSubmittedOrders((prev) => [order, ...prev]);
     liveSync.submitOrder(order);
+    saveOrderToFirestore(order).catch((err) => console.error(err));
 
     // Create an urgent admin announcement so the admin gets an instant notification
     const topUpAnnouncement: AdminAnnouncement = {

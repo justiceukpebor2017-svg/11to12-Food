@@ -396,15 +396,34 @@ export async function logoutSubscriberAccount(): Promise<void> {
 }
 
 /**
+ * Recursively strips undefined fields from an object so Firestore setDoc never throws an invalid data error.
+ */
+export function sanitizeForFirestore<T>(obj: T): T {
+  if (obj === null || obj === undefined) return null as any;
+  if (typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirestore) as any;
+  }
+  const clean: Record<string, any> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined) {
+      clean[key] = sanitizeForFirestore(val);
+    }
+  }
+  return clean as T;
+}
+
+/**
  * Add or update Waitlist Lead in Firestore
  */
 export async function saveWaitlistLeadToFirestore(lead: WaitlistLead): Promise<void> {
   try {
-    const leadRef = doc(db, 'waitlist', lead.id);
-    await setDoc(leadRef, {
+    const cleanLead = sanitizeForFirestore({
       ...lead,
       emailStatus: (lead as any).emailStatus || 'pending',
-    }, { merge: true });
+    });
+    const leadRef = doc(db, 'waitlist', lead.id);
+    await setDoc(leadRef, cleanLead, { merge: true });
   } catch (e) {
     handleFirestoreError(e, OperationType.CREATE, `waitlist/${lead.id}`);
   }
@@ -415,8 +434,9 @@ export async function saveWaitlistLeadToFirestore(lead: WaitlistLead): Promise<v
  */
 export async function saveCustomerToFirestore(customer: CustomerRecord): Promise<void> {
   try {
+    const cleanCustomer = sanitizeForFirestore(customer);
     const custRef = doc(db, 'customers', customer.id);
-    await setDoc(custRef, customer, { merge: true });
+    await setDoc(custRef, cleanCustomer, { merge: true });
   } catch (e) {
     handleFirestoreError(e, OperationType.CREATE, `customers/${customer.id}`);
   }
@@ -435,16 +455,19 @@ export async function deleteCustomerFromFirestore(customerId: string): Promise<v
 }
 
 /**
- * Save Order to Firestore
+ * Save Order to Firestore (Sanitizes undefined fields and sets pending emailStatus for instant admin notification)
  */
 export async function saveOrderToFirestore(order: any): Promise<void> {
   try {
-    const orderRef = doc(db, 'orders', order.id);
-    await setDoc(orderRef, {
+    const cleanOrder = sanitizeForFirestore({
       ...order,
       emailStatus: order.emailStatus || 'pending',
-    }, { merge: true });
+    });
+    const orderRef = doc(db, 'orders', order.id);
+    await setDoc(orderRef, cleanOrder, { merge: true });
+    console.log('[Firebase] Order successfully persisted to Firestore with pending email status:', order.id);
   } catch (e) {
+    console.error('[Firebase] Failed to save order to Firestore:', e);
     handleFirestoreError(e, OperationType.CREATE, `orders/${order.id}`);
   }
 }

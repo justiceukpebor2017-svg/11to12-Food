@@ -5,6 +5,7 @@ import { InvoiceSlipModal } from './InvoiceSlipModal';
 import { downloadInvoiceDocument } from '../../utils/invoiceDownload';
 import { CONTACT_CONFIG } from '../../config/contactConfig';
 import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
+import { saveOrderToFirestore } from '../../services/firebase';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -163,6 +164,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setCreatedOrder(submission);
       setIsSubmitting(false);
       setIsSubmitted(true);
+      // Persist directly to Firestore with sanitized payload & pending email status
+      saveOrderToFirestore(submission).catch((e) => console.warn('Direct Firestore save notice:', e));
       onOrderSubmitted(submission);
       // Automatically trigger download of invoice file
       downloadInvoiceDocument(submission);
