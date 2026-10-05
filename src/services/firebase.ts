@@ -26,9 +26,34 @@ import {
   where,
   getDocFromServer,
   Firestore,
+  setLogLevel,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { CustomerRecord, WaitlistLead } from '../types';
+
+// Set log level to error to avoid noisy debug logs
+try {
+  setLogLevel('error');
+} catch {
+  // Ignore in environments where setLogLevel is not supported
+}
+
+// Filter benign internal Firestore WebChannel idle stream cancellations
+if (typeof console !== 'undefined' && console.error) {
+  const originalConsoleError = console.error.bind(console);
+  console.error = (...args: any[]) => {
+    const msg = args.map((a) => (typeof a === 'string' ? a : a?.message || '')).join(' ');
+    if (
+      msg.includes('Disconnecting idle stream') ||
+      msg.includes('Timed out waiting for new targets') ||
+      msg.includes("RPC 'Listen' stream")
+    ) {
+      // Benign keepalive/idle stream management in Firestore client - safely ignored
+      return;
+    }
+    originalConsoleError(...args);
+  };
+}
 
 // Initialize Firebase App
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
