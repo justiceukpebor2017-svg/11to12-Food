@@ -253,66 +253,66 @@ export default function App() {
     };
   }, []);
 
-  // Listen to the entire waitlist collection in real-time
+  // Real-time onSnapshot camera stream: Listen to entire waitlist collection across all devices
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'waitlist'), (snapshot) => {
-      // This callback fires immediately with the current count,
-      // and again every time a document is added or removed.
       setWaitlistCount(snapshot.size);
 
-      if (!snapshot.empty) {
-        const leads: WaitlistLead[] = [];
-        snapshot.forEach((d) => {
-          const data = d.data();
-          leads.push({
-            id: d.id,
-            name: data.name || data.fullName || 'Office Member',
-            email: data.email || '',
-            phone: data.phone || '',
-            workplace: data.workplace || data.company || 'Corporate Office',
-            addressFloor: data.addressFloor || data.officeAddress || 'Desk Drop',
-            createdAt: data.createdAt || data.joinedAt || new Date().toISOString(),
-            status: data.status || 'Waitlisted',
-            memberCode: data.memberCode || d.id,
-            notes: data.notes || data.dietaryNotes || '',
-          });
-        });
-        if (leads.length > 0) {
-          setWaitlistLeads(leads);
-        }
-      }
+      const leads: WaitlistLead[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          name: data.name || data.fullName || 'Office Member',
+          email: data.email || '',
+          phone: data.phone || '',
+          workplace: data.workplace || data.company || 'Corporate Office',
+          addressFloor: data.addressFloor || data.officeAddress || 'Desk Drop',
+          createdAt: data.createdAt || data.joinedAt || new Date().toISOString(),
+          status: data.status || 'Waitlisted',
+          memberCode: data.memberCode || d.id,
+          notes: data.notes || data.dietaryNotes || '',
+        };
+      });
+      setWaitlistLeads(leads);
     }, (error) => {
       console.warn('[Firestore onSnapshot waitlist error]:', error);
     });
 
-    // Don't forget to call unsubscribe() when the component unmounts
     return () => {
       unsubscribe();
     };
   }, []);
 
-  // Listen to customers collection from Firestore in real-time
+  // Real-time onSnapshot camera stream: Listen to customers collection across all devices
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'customers'), (snapshot) => {
-      if (!snapshot.empty) {
-        const firestoreCustomers: CustomerRecord[] = [];
-        snapshot.forEach((d) => {
-          const data = d.data() as CustomerRecord;
-          firestoreCustomers.push({ ...data, id: d.id });
-        });
-        if (firestoreCustomers.length > 0) {
-          setCustomers((prev) => {
-            const map = new Map<string, CustomerRecord>();
-            firestoreCustomers.forEach((c) => map.set(c.id, c));
-            prev.forEach((c) => {
-              if (!map.has(c.id)) map.set(c.id, c);
-            });
-            return Array.from(map.values());
-          });
-        }
-      }
+      const firestoreCustomers: CustomerRecord[] = snapshot.docs.map((d) => ({
+        ...(d.data() as CustomerRecord),
+        id: d.id,
+      }));
+      // Authoritative live feed: automatically pushes new, updated, and deleted customers to the screen
+      setCustomers(firestoreCustomers);
     }, (error) => {
       console.warn('[Firestore onSnapshot customers error]:', error);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // Real-time onSnapshot camera stream: Listen to submitted orders collection across all devices
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'orders'), (snapshot) => {
+      const firestoreOrders: OrderSubmission[] = snapshot.docs.map((d) => ({
+        ...(d.data() as OrderSubmission),
+        id: d.id,
+      }));
+      if (firestoreOrders.length > 0) {
+        setSubmittedOrders(firestoreOrders);
+      }
+    }, (error) => {
+      console.warn('[Firestore onSnapshot orders error]:', error);
     });
 
     return () => {

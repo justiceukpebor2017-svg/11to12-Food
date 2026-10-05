@@ -35,7 +35,7 @@ import { OrderSubmission, UserProfile, MenuItem, TimeWindow, CustomerRecord, Sel
 import { CustomerMealCalendarPicker } from './CustomerMealCalendarPicker';
 import { generateDefaultPassword } from '../../utils/credentialUtils';
 import { CustomerCredentialsModal } from './CustomerCredentialsModal';
-import { saveCustomerToFirestore } from '../../services/firebase';
+import { saveCustomerToFirestore, deleteCustomerFromFirestore, subscribeToCustomers } from '../../services/firebase';
 
 interface CustomersManagerProps {
   submittedOrders: OrderSubmission[];
@@ -70,9 +70,29 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   onNavigateToSubscriber,
   onConfirmOrderPayment,
 }) => {
-  // Local state for customers (clean slate by default)
+  // Local state for customers
   const [internalCustomers, setInternalCustomers] = useState<CustomerRecord[]>([]);
-  const customersList = externalCustomers ?? internalCustomers;
+  // Real-time onSnapshot camera stream: Immediately loads current customers and pushes live updates from any device
+  const [liveFirestoreCustomers, setLiveFirestoreCustomers] = useState<CustomerRecord[]>([]);
+  const [hasReceivedLiveFeed, setHasReceivedLiveFeed] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToCustomers(
+      (customers) => {
+        setLiveFirestoreCustomers(customers);
+        setHasReceivedLiveFeed(true);
+      },
+      (err) => {
+        console.warn('[CustomersManager onSnapshot stream notice]:', err);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // When live onSnapshot feed is active, it is the authoritative real-time camera view
+  const customersList = hasReceivedLiveFeed
+    ? liveFirestoreCustomers
+    : (externalCustomers ?? internalCustomers);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Paused' | 'Pending Activation'>('All');
@@ -89,7 +109,10 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
     if (onDeleteCustomer) {
       onDeleteCustomer(targetId);
     }
+    // Delete directly from Firestore collection so all devices reflect the deletion in real-time
+    deleteCustomerFromFirestore(targetId).catch(() => {});
     setInternalCustomers((prev) => prev.filter((c) => c.id !== targetId));
+    setLiveFirestoreCustomers((prev) => prev.filter((c) => c.id !== targetId));
     if (selectedCustomer?.id === targetId) {
       setSelectedCustomer(null);
     }
@@ -377,6 +400,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
     } else {
       setInternalCustomers((prev) => prev.map((c) => (c.id === customerId ? updated : c)));
     }
+    saveCustomerToFirestore(updated).catch(() => {});
 
     if (selectedCustomer?.id === customerId) {
       setSelectedCustomer(updated);
@@ -460,9 +484,18 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
           <span className="text-xs font-bold text-[#FF4C00] uppercase tracking-wider">
             Customer Management & Onboarding
           </span>
-          <h1 className="text-2xl sm:text-3xl font-black text-black mt-0.5">
-            Customers ({customersList.length})
-          </h1>
+          <div className="flex items-center space-x-3 mt-0.5">
+            <h1 className="text-2xl sm:text-3xl font-black text-black">
+              Customers ({customersList.length})
+            </h1>
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 text-[11px] font-bold">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>Live onSnapshot Camera • Auto-Pushes Changes</span>
+            </div>
+          </div>
           <p className="text-xs sm:text-sm text-zinc-500 font-normal">
             Onboard new clients, sync paid invoices, select meal days on the calendar, and generate default login credentials.
           </p>

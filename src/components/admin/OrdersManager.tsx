@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { OrderSubmission, CreditRedemptionOrder, CustomerRecord } from '../../types';
 import {
   ShoppingBag,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { InvoiceSlipModal } from '../marketing/InvoiceSlipModal';
 import { getStructuredMealForDate } from '../../data/menuRotation';
+import { subscribeToOrders } from '../../services/firebase';
 
 interface OrdersManagerProps {
   orders: OrderSubmission[];
@@ -55,6 +56,22 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
   const [statusFilter, setStatusFilter] = useState<'All' | 'Pending Verification' | 'Confirmed'>('All');
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<OrderSubmission | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Real-time onSnapshot camera stream for Orders
+  const [liveOrders, setLiveOrders] = useState<OrderSubmission[]>([]);
+  const [hasLiveOrders, setHasLiveOrders] = useState(false);
+
+  useEffect(() => {
+    const unsub = subscribeToOrders((live) => {
+      if (live && Array.isArray(live) && live.length > 0) {
+        setLiveOrders(live as OrderSubmission[]);
+        setHasLiveOrders(true);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const ordersList = hasLiveOrders ? liveOrders : orders;
 
   const currentMeal = getStructuredMealForDate(selectedDate);
 
@@ -200,7 +217,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
   };
 
   // Filtered order submissions for Tab 2
-  const filteredSubmissions = orders.filter((o) => {
+  const filteredSubmissions = ordersList.filter((o) => {
     const matchesSearch =
       o.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -248,7 +265,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
               }`}
             >
               <span>Submissions & Invoices</span>
-              {orders.filter((o) => o.paymentStatus === 'Pending Verification').length > 0 && (
+              {ordersList.filter((o) => o.paymentStatus === 'Pending Verification').length > 0 && (
                 <span className="w-2 h-2 rounded-full bg-[#FF4C00]" />
               )}
             </button>

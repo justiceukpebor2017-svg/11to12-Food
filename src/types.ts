@@ -131,6 +131,7 @@ export interface OrderSubmission {
   deliveryArea?: string;
   selectedDays: SelectedLunchDay[];
   totalDays: number;
+  planName?: string;
   subtotalNGN: number;
   discountNGN: number;
   finalTotalNGN: number;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   Users,
@@ -19,6 +19,7 @@ import {
   Check,
 } from 'lucide-react';
 import { WaitlistLead } from '../../types';
+import { subscribeToWaitlist } from '../../services/firebase';
 
 interface WaitlistManagerProps {
   waitlistLeads?: WaitlistLead[];
@@ -36,6 +37,20 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
   const [notice, setNotice] = useState<string | null>(null);
   const [copiedLeadId, setCopiedLeadId] = useState<string | null>(null);
 
+  // Real-time onSnapshot camera stream for Waitlist
+  const [liveWaitlist, setLiveWaitlist] = useState<WaitlistLead[]>([]);
+  const [hasLiveFeed, setHasLiveFeed] = useState(false);
+
+  useEffect(() => {
+    const unsub = subscribeToWaitlist((leads) => {
+      setLiveWaitlist(leads);
+      setHasLiveFeed(true);
+    });
+    return () => unsub();
+  }, []);
+
+  const leadsList = hasLiveFeed ? liveWaitlist : waitlistLeads;
+
   const showNotice = (msg: string) => {
     setNotice(msg);
     setTimeout(() => setNotice(null), 4000);
@@ -49,7 +64,7 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
     showNotice(`Updated ${lead.name}'s status to ${newStatus}`);
   };
 
-  const filtered = waitlistLeads.filter((l) => {
+  const filtered = leadsList.filter((l) => {
     const matchesSearch =
       l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       l.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -64,10 +79,10 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
     return true;
   });
 
-  const totalCount = waitlistLeads.length;
-  const pendingCount = waitlistLeads.filter((l) => l.status === 'Waitlisted').length;
-  const contactedCount = waitlistLeads.filter((l) => l.status === 'Contacted').length;
-  const convertedCount = waitlistLeads.filter((l) => l.status === 'Converted').length;
+  const totalCount = leadsList.length;
+  const pendingCount = leadsList.filter((l) => l.status === 'Waitlisted').length;
+  const contactedCount = leadsList.filter((l) => l.status === 'Contacted').length;
+  const convertedCount = leadsList.filter((l) => l.status === 'Converted').length;
 
   return (
     <div className="space-y-6 font-['Poppins']">

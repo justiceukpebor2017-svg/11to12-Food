@@ -418,4 +418,87 @@ export async function saveOrderToFirestore(order: any): Promise<void> {
   }
 }
 
+/**
+ * Real-time subscription to Customers collection via onSnapshot.
+ * Acts like a security camera: immediately gives current data and
+ * automatically pushes any changes from any device directly to the screen.
+ */
+export function subscribeToCustomers(
+  callback: (customers: CustomerRecord[]) => void,
+  onError?: (err: any) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'customers'),
+    (snapshot) => {
+      const customers: CustomerRecord[] = snapshot.docs.map((docSnap) => ({
+        ...(docSnap.data() as CustomerRecord),
+        id: docSnap.id,
+      }));
+      callback(customers);
+    },
+    (err) => {
+      console.warn('[Firebase onSnapshot customers error]:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Real-time subscription to Waitlist collection via onSnapshot.
+ */
+export function subscribeToWaitlist(
+  callback: (leads: WaitlistLead[]) => void,
+  onError?: (err: any) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'waitlist'),
+    (snapshot) => {
+      const leads: WaitlistLead[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          name: data.name || data.fullName || 'Office Member',
+          email: data.email || '',
+          phone: data.phone || '',
+          workplace: data.workplace || data.company || 'Corporate Office',
+          addressFloor: data.addressFloor || data.officeAddress || 'Desk Drop',
+          createdAt: data.createdAt || data.joinedAt || new Date().toISOString(),
+          status: data.status || 'Waitlisted',
+          memberCode: data.memberCode || d.id,
+          notes: data.notes || data.dietaryNotes || '',
+        };
+      });
+      callback(leads);
+    },
+    (err) => {
+      console.warn('[Firebase onSnapshot waitlist error]:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Real-time subscription to Orders collection via onSnapshot.
+ */
+export function subscribeToOrders(
+  callback: (orders: any[]) => void,
+  onError?: (err: any) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'orders'),
+    (snapshot) => {
+      const orders = snapshot.docs.map((d) => ({
+        ...d.data(),
+        id: d.id,
+      }));
+      callback(orders);
+    },
+    (err) => {
+      console.warn('[Firebase onSnapshot orders error]:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+
 

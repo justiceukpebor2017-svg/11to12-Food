@@ -26,6 +26,11 @@ import {
   updateTestimonialRecord,
   deleteTestimonialRecord,
 } from './src/server/liveDatabase';
+import {
+  notifyAdminWaitlistJoined,
+  notifyAdminPaymentOrder,
+  getRecentNotifications,
+} from './src/server/emailNotifier';
 
 dotenv.config();
 
@@ -234,6 +239,14 @@ app.post('/api/waitlist', (req, res) => {
   if (!result.success) {
     return res.status(409).json(result);
   }
+
+  // Trigger real-time email notification to admin@11to12.food
+  if (result.lead) {
+    notifyAdminWaitlistJoined(result.lead).catch((err) => {
+      console.warn('[Server] Admin waitlist notification notice:', err?.message || err);
+    });
+  }
+
   return res.status(201).json({
     ...result,
     stats: getPulseStats(),
@@ -292,7 +305,20 @@ app.get('/api/orders', (_req, res) => {
 
 app.post('/api/orders', (req, res) => {
   const order = addOrderSubmission(req.body);
+
+  // Trigger real-time email notification to admin@11to12.food
+  if (order) {
+    notifyAdminPaymentOrder(order).catch((err) => {
+      console.warn('[Server] Admin payment order notification notice:', err?.message || err);
+    });
+  }
+
   return res.status(201).json(order);
+});
+
+// Admin Notification Log Endpoint
+app.get('/api/admin/notifications', (_req, res) => {
+  res.json({ notifications: getRecentNotifications() });
 });
 
 app.post('/api/orders/:id/confirm-payment', (req, res) => {
