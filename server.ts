@@ -260,7 +260,7 @@ app.post('/api/waitlist', (req, res) => {
 
   // Trigger real-time email notification to admin@11to12.food
   if (result.lead) {
-    markAsNotified(result.lead.id);
+    markAsNotified('waitlist', result.lead.id);
     notifyAdminWaitlistJoined(result.lead).catch((err) => {
       console.warn('[Server] Admin waitlist notification notice:', err?.message || err);
     });
@@ -327,7 +327,7 @@ app.post('/api/orders', (req, res) => {
 
   // Trigger real-time email notification to admin@11to12.food
   if (order) {
-    markAsNotified(order.id);
+    markAsNotified('orders', order.id);
     notifyAdminPaymentOrder(order).catch((err) => {
       console.warn('[Server] Admin payment order notification notice:', err?.message || err);
     });

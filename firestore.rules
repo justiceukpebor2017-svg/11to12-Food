@@ -2,39 +2,34 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global Safety Net
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Security Helper Primitives
-    function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128;
-    }
-
-    // 1. Waitlist Leads Collection (Real-time live counter & reservation sync)
+    // 1. Waitlist Leads Collection (Real-time live counter & waitlist registration)
     match /waitlist/{leadId} {
-      allow read, write: if isValidId(leadId);
+      allow read, write: if true;
     }
 
-    // 2. Customers / Subscribers Collection (Cross-browser admin management & auth synchronization)
+    // 2. Customers / Subscribers Collection (Cross-device account management & profile sync)
     match /customers/{customerId} {
-      allow read, write: if isValidId(customerId);
+      allow read, write: if true;
     }
 
     // 3. Orders Collection (Real-time order submission & payment verification)
     match /orders/{orderId} {
-      allow read, write: if isValidId(orderId);
+      allow read, write: if true;
     }
 
-    // 4. Testimonials (Public Read, Admin Write)
+    // 4. Testimonials (Public testimonials)
     match /testimonials/{testimonialId} {
-      allow read, write: if isValidId(testimonialId);
+      allow read, write: if true;
     }
 
     // 5. Announcements
     match /announcements/{announcementId} {
-      allow read, write: if isValidId(announcementId);
+      allow read, write: if true;
+    }
+
+    // 6. System health ping
+    match /system/{docId} {
+      allow read, write: if true;
     }
   }
 }

@@ -172,92 +172,184 @@ Registered At: ${lead.createdAt}
 }
 
 /**
- * Trigger email notification when someone pays/submits an order
+ * Trigger email notification with full itemized INVOICE when someone pays/submits an order
  */
 export async function notifyAdminPaymentOrder(order: OrderSubmission): Promise<AdminNotificationLog> {
   const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || 'admin@11to12.food';
   const totalNGN = (order.finalTotalNGN || 0).toLocaleString();
-  const subject = `💳 [Payment Alert] ₦${totalNGN} received from ${order.fullName} (${order.totalDays} Days)`;
+  const subtotalNGN = (order.subtotalNGN || order.finalTotalNGN || 0).toLocaleString();
+  const discountNGN = (order.discountNGN || 0).toLocaleString();
+  const formattedDate = new Date(order.submittedAt || Date.now()).toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const subject = `🧾 [Official Invoice #${order.id}] ₦${totalNGN} Paid by ${order.fullName} (${order.totalDays} Days)`;
+
+  // Generate preview of selected meal days if provided
+  let selectedDaysHtml = '';
+  if (Array.isArray(order.selectedDays) && order.selectedDays.length > 0) {
+    const previewDays = order.selectedDays.slice(0, 10);
+    const dayRows = previewDays.map((d: any, idx: number) => {
+      const dayDate = d.dateStr || d.day || `Day ${idx + 1}`;
+      const mealName = d.meal?.title || d.mealName || 'Chef Choice Lunch';
+      const protein = d.meal?.protein ? `(${d.meal.protein})` : '';
+      return `
+        <tr style="border-bottom: 1px solid #f0f0f0; font-size: 13px;">
+          <td style="padding: 6px 8px; color: #555;">${dayDate}</td>
+          <td style="padding: 6px 8px; color: #111; font-weight: 500;">${mealName} <span style="color: #888; font-size: 12px;">${protein}</span></td>
+          <td style="padding: 6px 8px; color: #2e7d32; text-align: right;">Scheduled</td>
+        </tr>
+      `;
+    }).join('');
+
+    const remainingCount = order.selectedDays.length - previewDays.length;
+    const remainingNotice = remainingCount > 0 ? `
+      <tr>
+        <td colspan="3" style="padding: 6px 8px; font-size: 12px; color: #888; text-align: center; background: #fafafa;">
+          + ${remainingCount} additional booked workdays included in this lunch plan
+        </td>
+      </tr>
+    ` : '';
+
+    selectedDaysHtml = `
+      <div style="margin-top: 20px;">
+        <h4 style="margin: 0 0 8px 0; color: #333; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Booked Meal Schedule:</h4>
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
+          <tr style="background: #f7f5f2; font-size: 12px; color: #777;">
+            <th style="padding: 6px 8px; text-align: left;">Date</th>
+            <th style="padding: 6px 8px; text-align: left;">Meal Selected</th>
+            <th style="padding: 6px 8px; text-align: right;">Status</th>
+          </tr>
+          ${dayRows}
+          ${remainingNotice}
+        </table>
+      </div>
+    `;
+  }
 
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 12px; background: #faf7f2;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <h2 style="color: #FF4C00; margin: 0;">11 to 12 Desk Drop</h2>
-        <p style="color: #2e7d32; font-size: 15px; font-weight: bold; margin-top: 4px;">💳 New Customer Payment Pending Verification</p>
-      </div>
-
-      <div style="background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0;">
-        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 12px; margin-bottom: 12px;">
+    <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; padding: 25px; border: 1px solid #e5e5e5; border-radius: 12px; background: #faf7f2;">
+      
+      <!-- Brand & Invoice Header -->
+      <div style="background: #ffffff; padding: 24px; border-radius: 10px; border: 1px solid #e8e8e8; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #FF4C00; padding-bottom: 16px; margin-bottom: 18px;">
           <div>
-            <span style="font-size: 12px; color: #888;">Order ID:</span>
-            <div style="font-weight: bold; font-family: monospace; color: #111;">${order.id}</div>
+            <h1 style="color: #FF4C00; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">11 to 12 Desk Drop</h1>
+            <p style="color: #666; font-size: 13px; margin: 4px 0 0 0;">Lagos Corporate Lunch Remittance & Invoice</p>
           </div>
           <div style="text-align: right;">
-            <span style="font-size: 12px; color: #888;">Total Amount:</span>
-            <div style="font-size: 18px; font-weight: bold; color: #2e7d32;">₦${totalNGN}</div>
+            <span style="background: #e8f5e9; color: #2e7d32; font-weight: bold; font-size: 12px; padding: 4px 10px; border-radius: 20px; border: 1px solid #c8e6c9;">PAYMENT REMITTED</span>
+            <div style="margin-top: 8px; font-size: 13px; color: #555;">Invoice #: <strong style="font-family: monospace; color: #111;">${order.id}</strong></div>
+            <div style="font-size: 12px; color: #888;">Date: ${formattedDate}</div>
           </div>
         </div>
 
-        <h3 style="margin-top: 15px; color: #1a1a1a; font-size: 15px;">Customer Contact Information:</h3>
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-          <tr>
-            <td style="padding: 6px 0; color: #777; width: 130px;"><strong>Customer:</strong></td>
-            <td style="padding: 6px 0; color: #111; font-weight: bold;">${order.fullName}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #777;"><strong>Email:</strong></td>
-            <td style="padding: 6px 0; color: #111;"><a href="mailto:${order.email}">${order.email}</a></td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #777;"><strong>Phone:</strong></td>
-            <td style="padding: 6px 0; color: #111;"><a href="tel:${order.phone}">${order.phone}</a></td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #777;"><strong>Company:</strong></td>
-            <td style="padding: 6px 0; color: #111;">${order.company}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #777;"><strong>Delivery Office:</strong></td>
-            <td style="padding: 6px 0; color: #111;">${order.officeAddress}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #777;"><strong>Lunch Plan:</strong></td>
-            <td style="padding: 6px 0; color: #FF4C00; font-weight: bold;">${order.planName || `${order.totalDays} Days`} (${order.totalDays} selected meal days)</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; color: #777;"><strong>Payment Status:</strong></td>
-            <td style="padding: 6px 0;"><span style="background: #fff3e0; color: #e65100; font-weight: bold; padding: 3px 8px; border-radius: 4px;">${order.paymentStatus}</span></td>
-          </tr>
+        <!-- Customer & Delivery Floor Information -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 22px;">
+          <div style="background: #fdfbf7; padding: 14px; border-radius: 8px; border: 1px solid #f0ece3;">
+            <div style="font-size: 11px; text-transform: uppercase; color: #888; font-weight: bold; margin-bottom: 6px;">Billed To Customer:</div>
+            <div style="font-weight: bold; font-size: 15px; color: #111;">${order.fullName}</div>
+            <div style="font-size: 13px; color: #444; margin-top: 3px;"><a href="mailto:${order.email}" style="color: #FF4C00; text-decoration: none;">${order.email}</a></div>
+            <div style="font-size: 13px; color: #444; margin-top: 2px;"><a href="tel:${order.phone}" style="color: #333; text-decoration: none;">${order.phone}</a></div>
+            ${order.memberCode ? `<div style="font-size: 12px; color: #777; margin-top: 4px;">Member Code: <strong style="font-family: monospace; color: #FF4C00;">${order.memberCode}</strong></div>` : ''}
+          </div>
+
+          <div style="background: #fdfbf7; padding: 14px; border-radius: 8px; border: 1px solid #f0ece3;">
+            <div style="font-size: 11px; text-transform: uppercase; color: #888; font-weight: bold; margin-bottom: 6px;">Desk Drop Delivery Location:</div>
+            <div style="font-weight: bold; font-size: 14px; color: #111;">${order.company || 'Corporate Office'}</div>
+            <div style="font-size: 13px; color: #444; margin-top: 3px;">${order.officeAddress}</div>
+            ${order.floorSuite ? `<div style="font-size: 13px; color: #FF4C00; font-weight: 500; margin-top: 2px;">Floor / Station: ${order.floorSuite}</div>` : ''}
+            <div style="font-size: 12px; color: #2e7d32; margin-top: 4px;">Deliveries prompt before 12:00 PM</div>
+          </div>
+        </div>
+
+        <!-- Itemized Invoice Breakdown -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
+          <thead>
+            <tr style="background: #111; color: #fff; font-size: 12px;">
+              <th style="padding: 10px; text-align: left; border-top-left-radius: 6px;">Description</th>
+              <th style="padding: 10px; text-align: center;">Days</th>
+              <th style="padding: 10px; text-align: right; border-top-right-radius: 6px;">Amount (NGN)</th>
+            </tr>
+          </thead>
+          <tbody style="font-size: 14px;">
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 12px 10px;">
+                <strong>${order.planName || 'Custom Workday Lunch Plan'}</strong>
+                <div style="font-size: 12px; color: #777;">Individual meal choices & daily workstation dispatch</div>
+              </td>
+              <td style="padding: 12px 10px; text-align: center; color: #555;">${order.totalDays} Days</td>
+              <td style="padding: 12px 10px; text-align: right; font-weight: 500;">₦${subtotalNGN}</td>
+            </tr>
+            ${order.discountNGN && order.discountNGN > 0 ? `
+              <tr style="border-bottom: 1px solid #eee; background: #fff8f5;">
+                <td style="padding: 10px; color: #FF4C00;">
+                  <strong>20th Day Free Bonus Discount</strong>
+                </td>
+                <td style="padding: 10px; text-align: center; color: #FF4C00;">1 Day Free</td>
+                <td style="padding: 10px; text-align: right; color: #FF4C00; font-weight: bold;">- ₦${discountNGN}</td>
+              </tr>
+            ` : ''}
+            <tr style="background: #fafafa; font-size: 16px;">
+              <td colspan="2" style="padding: 14px 10px; text-align: right; font-weight: bold; color: #111;">
+                TOTAL AMOUNT PAID:
+              </td>
+              <td style="padding: 14px 10px; text-align: right; font-weight: 800; color: #2e7d32; font-size: 20px;">
+                ₦${totalNGN}
+              </td>
+            </tr>
+          </tbody>
         </table>
 
-        <div style="margin-top: 25px; padding: 15px; background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 8px; text-align: center;">
-          <h4 style="margin: 0 0 8px 0; color: #2e7d32;">Next Step: Onboard to Customer Dashboard</h4>
-          <p style="margin: 0 0 12px 0; font-size: 13px; color: #333;">
-            1. Open the Admin Dashboard -> <strong>Customers</strong> section.<br/>
-            2. Click <strong>"Sync & Onboard from Invoice"</strong> for ${order.fullName}.<br/>
-            3. Confirm payment & issue default login credentials so the user can access their active meals.
-          </p>
+        ${selectedDaysHtml}
+
+        <!-- Admin Action Callout -->
+        <div style="margin-top: 25px; padding: 16px; background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 8px;">
+          <h4 style="margin: 0 0 6px 0; color: #2e7d32; font-size: 15px;">Admin Action Required:</h4>
+          <ol style="margin: 0; padding-left: 20px; font-size: 13px; color: #333; line-height: 1.6;">
+            <li>Log in to the Admin Dashboard (<strong>Justice Dashboard -> Customers</strong>).</li>
+            <li>Click <strong>"Sync & Onboard from Invoice"</strong> for <strong>${order.fullName}</strong>.</li>
+            <li>Verify their bank remittance of <strong>₦${totalNGN}</strong> and issue login credentials so meals commence on their first scheduled workday.</li>
+          </ol>
         </div>
+
       </div>
 
-      <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">
-        Sent automatically to admin@11to12.food • <a href="https://11to12.food" style="color: #FF4C00;">11to12.food</a>
+      <div style="text-align: center; font-size: 12px; color: #888;">
+        11 to 12 Desk Drop • Lagos Corporate Food System • <a href="https://11to12.food" style="color: #FF4C00; text-decoration: none;">11to12.food</a>
       </div>
     </div>
   `;
 
   const text = `
-New Payment Received:
-Customer: ${order.fullName}
-Amount: ₦${totalNGN}
-Plan: ${order.planName} (${order.totalDays} days)
+=========================================
+11 TO 12 DESK DROP - OFFICIAL INVOICE
+=========================================
+Invoice #: ${order.id}
+Date: ${formattedDate}
+Payment Status: ${order.paymentStatus}
+
+CUSTOMER DETAILS:
+Name: ${order.fullName}
 Email: ${order.email}
 Phone: ${order.phone}
 Company: ${order.company}
-Address: ${order.officeAddress}
-Order ID: ${order.id}
+Delivery Office: ${order.officeAddress} ${order.floorSuite ? `(${order.floorSuite})` : ''}
+Member Code: ${order.memberCode || 'N/A'}
 
-Log in to the Admin Dashboard (Customers Section) to confirm payment and activate this user's meal calendar.
+ORDER BREAKDOWN:
+Plan: ${order.planName || 'Lunch Plan'} (${order.totalDays} Days)
+Subtotal: ₦${subtotalNGN}
+${order.discountNGN ? `Discount: -₦${discountNGN}\n` : ''}TOTAL AMOUNT PAID: ₦${totalNGN}
+
+NEXT STEP:
+Open Admin Dashboard -> Customers, click "Sync & Onboard from Invoice" to activate ${order.fullName}'s workstation delivery schedule.
+=========================================
   `;
 
   const result = await sendEmail({ to: adminEmail, subject, html, text });
@@ -265,8 +357,8 @@ Log in to the Admin Dashboard (Customers Section) to confirm payment and activat
   const log: AdminNotificationLog = {
     id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     type: 'PAYMENT_PENDING',
-    title: `Payment: ₦${totalNGN} from ${order.fullName}`,
-    message: `${order.fullName} paid ₦${totalNGN} for ${order.totalDays} meal days (${order.id}). Pending admin verification.`,
+    title: `Invoice #${order.id}: ₦${totalNGN} from ${order.fullName}`,
+    message: `${order.fullName} paid ₦${totalNGN} for ${order.totalDays} meal days (${order.id}). Itemized invoice generated.`,
     data: order,
     createdAt: new Date().toISOString(),
     emailSent: result.success,

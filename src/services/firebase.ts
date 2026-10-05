@@ -401,7 +401,10 @@ export async function logoutSubscriberAccount(): Promise<void> {
 export async function saveWaitlistLeadToFirestore(lead: WaitlistLead): Promise<void> {
   try {
     const leadRef = doc(db, 'waitlist', lead.id);
-    await setDoc(leadRef, lead, { merge: true });
+    await setDoc(leadRef, {
+      ...lead,
+      emailStatus: (lead as any).emailStatus || 'pending',
+    }, { merge: true });
   } catch (e) {
     handleFirestoreError(e, OperationType.CREATE, `waitlist/${lead.id}`);
   }
@@ -437,7 +440,10 @@ export async function deleteCustomerFromFirestore(customerId: string): Promise<v
 export async function saveOrderToFirestore(order: any): Promise<void> {
   try {
     const orderRef = doc(db, 'orders', order.id);
-    await setDoc(orderRef, order, { merge: true });
+    await setDoc(orderRef, {
+      ...order,
+      emailStatus: order.emailStatus || 'pending',
+    }, { merge: true });
   } catch (e) {
     handleFirestoreError(e, OperationType.CREATE, `orders/${order.id}`);
   }
