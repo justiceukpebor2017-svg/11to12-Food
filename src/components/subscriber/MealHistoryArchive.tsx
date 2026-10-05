@@ -34,7 +34,7 @@ export const MealHistoryArchive: React.FC<MealHistoryArchiveProps> = ({ ratingsH
           <body>
             <div class="header">
               <div class="title">11 TO 12 FOOD SERVICE LAGOS</div>
-              <div class="meta">CORPORATE EXPENSE TAX RECEIPT • ISSUED TO JUSTICE UKPEBOR</div>
+              <div class="meta">CORPORATE EXPENSE TAX RECEIPT • ISSUED TO 11 TO 12 SUBSCRIBER</div>
               <div class="meta">INVOICE MONTH: ${monthStr} • STATUS: PAID (PAYSTACK REF #PSTK-99201)</div>
             </div>
             <table class="table">
@@ -105,7 +105,7 @@ export const MealHistoryArchive: React.FC<MealHistoryArchiveProps> = ({ ratingsH
             </span>
             <h3 className="text-2xl font-black uppercase font-heading text-black mt-2">DELIVERED MEAL ARCHIVE & RATINGS</h3>
             <p className="text-xs font-bold text-zinc-700 mt-1 uppercase tracking-wider">
-              Your star ratings directly influence Chef Justice's menu planning for next month.
+              Your star ratings directly influence 11 to 12's menu planning for next month.
             </p>
           </div>
 
@@ -196,7 +196,7 @@ export const MealHistoryArchive: React.FC<MealHistoryArchiveProps> = ({ ratingsH
             </div>
 
             <div>
-              <label className="block text-xs font-black uppercase font-mono-custom text-black mb-1">Feedback for Chef Justice</label>
+              <label className="block text-xs font-black uppercase font-mono-custom text-black mb-1">Feedback for 11 to 12 Kitchen</label>
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}

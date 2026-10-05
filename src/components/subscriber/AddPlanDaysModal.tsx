@@ -67,7 +67,7 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
         id: `topup-meal-${idx}`,
         dateStr: `2026-11-${String(idx + 1).padStart(2, '0')}`,
         day: (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][idx % 5]) as any,
-        mealName: 'Chef Justice Kitchen Daily Special',
+        mealName: '11 to 12 Kitchen Daily Special',
         mealCategory: 'Rice',
       },
     })),

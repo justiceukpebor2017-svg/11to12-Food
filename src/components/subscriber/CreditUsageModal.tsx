@@ -289,7 +289,7 @@ export const CreditUsageModal: React.FC<CreditUsageModalProps> = ({
                 Credit Redemption Locked Until Tomorrow
               </h4>
               <p className="text-xs sm:text-sm text-zinc-600 font-medium leading-relaxed">
-                Chef Justice and the kitchen production line finalize all fresh market sourcing and ingredient prep strictly at <strong>5:00 PM</strong> each evening.
+                The 11 to 12 kitchen production line finalizes all fresh market sourcing and ingredient prep strictly at <strong>5:00 PM</strong> each evening.
               </p>
               <p className="text-xs text-zinc-500 font-medium">
                 To guarantee zero-compromise quality and prompt 11 to 12 desk delivery, extra plates cannot be scheduled after 5:00 PM. Please redeem your credits tomorrow before 5:00 PM.

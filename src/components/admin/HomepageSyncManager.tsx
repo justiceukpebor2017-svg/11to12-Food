@@ -42,7 +42,7 @@ export const HomepageSyncManager: React.FC<HomepageSyncProps> = ({ onNavigateHom
             Homepage Content & Broadcast Controls
           </h2>
           <p className="text-xs text-zinc-500">
-            Chef Justice controls live banners, sold out warnings, and founding member quotas without touching code.
+            11 to 12 controls live banners, sold out warnings, and founding member quotas without touching code.
           </p>
         </div>
 

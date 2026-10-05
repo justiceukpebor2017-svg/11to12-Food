@@ -34,7 +34,7 @@ export const AdminMegaphone: React.FC<AdminMegaphoneProps> = ({ announcements })
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] font-black uppercase tracking-wider font-mono-custom flex items-center space-x-1 opacity-90">
                 <BellRing className="w-3 h-3" />
-                <span>ADMIN MEGAPHONE BROADCAST FROM JUSTICE</span>
+                <span>ADMIN MEGAPHONE BROADCAST FROM 11 TO 12</span>
               </span>
               <span className="text-[10px] font-black font-mono-custom opacity-80">{ann.postedAt}</span>
             </div>

@@ -37,7 +37,7 @@ export const HelpSection: React.FC = () => {
             Help & Kitchen Support
           </h2>
           <p className="text-xs text-zinc-500 mt-0.5">
-            Direct line to Chef Justice and the desk drop dispatch team in Victoria Island.
+            Direct line to the 11 to 12 desk drop dispatch team in Victoria Island.
           </p>
         </div>
 

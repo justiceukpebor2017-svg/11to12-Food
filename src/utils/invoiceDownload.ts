@@ -223,7 +223,7 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
         <h1>11 to 12</h1>
         <p><strong>Catering & Office Lunch Delivery</strong></p>
         <p>Lagos Island, Ikoyi, Victoria Island & Lekki Phase 1</p>
-        <p>WhatsApp / Call: ${CONTACT_CONFIG.whatsappDisplay} • justiceukpebor2017@gmail.com</p>
+        <p>WhatsApp / Call: ${CONTACT_CONFIG.whatsappDisplay} • admin@11to12.food</p>
       </div>
       <div class="invoice-title">
         <h2>OFFICIAL INVOICE</h2>

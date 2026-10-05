@@ -49,7 +49,7 @@ export const MenuExplorerSection: React.FC<MenuExplorerSectionProps> = ({
       <div className="bg-white rounded-3xl border border-zinc-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4C00] block">
-            Chef Justice Kitchen
+            11 to 12 Kitchen
           </span>
           <h2 className="text-2xl font-black text-black">
             Weekly Kitchen Menu

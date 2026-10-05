@@ -41,7 +41,7 @@ import { CheckoutModal } from './components/marketing/CheckoutModal';
 import { WatchBeforeYouReserveModal } from './components/marketing/WatchBeforeYouReserveModal';
 import { SubscriberAuthModal } from './components/subscriber/SubscriberAuthModal';
 import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
-import { JusticeDashboardPage } from './pages/JusticeDashboardPage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { generateDefaultPassword } from './utils/credentialUtils';
 import { liveSync } from './services/liveSyncService';
 import {
@@ -51,6 +51,7 @@ import {
   onSnapshot,
   onAuthStateChanged,
   saveWaitlistLeadToFirestore,
+  deleteWaitlistLeadFromFirestore,
   saveCustomerToFirestore,
   deleteCustomerFromFirestore,
   saveOrderToFirestore,
@@ -519,7 +520,7 @@ export default function App() {
     setIsCheckoutOpen(true);
   };
 
-  const handleOrderSubmitted = (order: OrderSubmission) => {
+  const handleOrderSubmitted = async (order: OrderSubmission) => {
     setSubmittedOrders((prev) => [order, ...prev]);
 
     // Create a real customer record from the paid/submitted plan
@@ -555,10 +556,18 @@ export default function App() {
     setCustomers((prev) => [newCustomer, ...prev]);
 
     // Save to central live database and Firestore, and broadcast across all devices
-    liveSync.registerCustomer(newCustomer);
-    liveSync.submitOrder(order);
-    saveCustomerToFirestore(newCustomer).catch(() => {});
-    saveOrderToFirestore(order).catch(() => {});
+    try {
+      await liveSync.submitOrder(order);
+    } catch (e) {
+      console.warn('liveSync submitOrder notice:', e);
+    }
+    try {
+      await liveSync.registerCustomer(newCustomer);
+    } catch (e) {
+      console.warn('liveSync registerCustomer notice:', e);
+    }
+    await saveCustomerToFirestore(newCustomer).catch(() => {});
+    await saveOrderToFirestore(order).catch(() => {});
 
     // Deduplicate: If this person was in the waitlist (by unique code or email), remove from waitlist so admin has 0 duplicates
     setWaitlistLeads((prev) =>
@@ -770,6 +779,12 @@ export default function App() {
     await deleteCustomerFromFirestore(customerId).catch(() => {});
   };
 
+  const handleDeleteWaitlistLead = async (leadId: string) => {
+    setWaitlistLeads((prev) => prev.filter((l) => l.id !== leadId));
+    await liveSync.deleteWaitlistLead(leadId);
+    await deleteWaitlistLeadFromFirestore(leadId).catch(() => {});
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1A1A] font-['Poppins'] antialiased selection:bg-[#FF4C00] selection:text-white">
       
@@ -881,7 +896,7 @@ export default function App() {
 
       {/* VIEW MODE 3: KITCHEN ADMIN CONTROL */}
       {viewMode === 'admin' && (
-        <JusticeDashboardPage
+        <AdminDashboardPage
           menuItems={menuItems}
           subscribers={[userProfile]}
           announcements={announcements}

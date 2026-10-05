@@ -51,7 +51,7 @@ export const DashboardVideoTutorialModal: React.FC<DashboardVideoTutorialModalPr
       desc: 'Redeem stored credits for colleagues, guests, or rollover into your next month.',
     },
     {
-      title: '5. Direct Chef Justice WhatsApp Care',
+      title: '5. Direct 11 to 12 WhatsApp Care',
       time: '3:40',
       desc: 'Need dietary changes or office desk relocation? Message kitchen care instantly.',
     },

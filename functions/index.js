@@ -119,90 +119,101 @@ exports.onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => 
   const mailOptions = {
     from: '"11 to 12 Desk Drop" <admin@11to12.food>',
     to: ADMIN_EMAIL,
-    subject: `🧾 [Official Invoice #${orderId}] ₦${totalNGN} Paid by ${fullName} (${totalDays} Days)`,
+    subject: `🔔 [Invoice] ${fullName} - ${orderId} (₦${totalNGN})`,
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; padding: 25px; border: 1px solid #e5e5e5; border-radius: 12px; background: #faf7f2;">
-        <div style="background: #ffffff; padding: 24px; border-radius: 10px; border: 1px solid #e8e8e8; margin-bottom: 20px;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #FF4C00; padding-bottom: 16px; margin-bottom: 18px;">
-            <div>
-              <h1 style="color: #FF4C00; margin: 0; font-size: 24px; font-weight: 800;">11 to 12 Desk Drop</h1>
-              <p style="color: #666; font-size: 13px; margin: 4px 0 0 0;">Lagos Corporate Lunch Remittance & Invoice</p>
-            </div>
-            <div style="text-align: right;">
-              <span style="background: #e8f5e9; color: #2e7d32; font-weight: bold; font-size: 12px; padding: 4px 10px; border-radius: 20px;">PAYMENT REMITTED</span>
-              <div style="margin-top: 8px; font-size: 13px; color: #555;">Invoice #: <strong style="font-family: monospace;">${orderId}</strong></div>
-              <div style="font-size: 12px; color: #888;">Date: ${formattedDate}</div>
-            </div>
-          </div>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 12px; background: #faf7f2;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #FF4C00; margin: 0;">11 to 12 Desk Drop</h2>
+          <p style="color: #2e7d32; font-size: 14px; font-weight: bold; margin-top: 4px;">Official Invoice & Customer Payment Alert</p>
+        </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 22px;">
-            <div style="background: #fdfbf7; padding: 14px; border-radius: 8px; border: 1px solid #f0ece3;">
-              <div style="font-size: 11px; text-transform: uppercase; color: #888; font-weight: bold;">Billed To:</div>
-              <div style="font-weight: bold; font-size: 15px; color: #111; margin-top: 4px;">${fullName}</div>
-              <div style="font-size: 13px; color: #444;"><a href="mailto:${email}" style="color: #FF4C00;">${email}</a></div>
-              <div style="font-size: 13px; color: #444;"><a href="tel:${phone}">${phone}</a></div>
-              <div style="font-size: 12px; color: #777; margin-top: 4px;">Member Code: <strong style="color: #FF4C00;">${memberCode}</strong></div>
-            </div>
-
-            <div style="background: #fdfbf7; padding: 14px; border-radius: 8px; border: 1px solid #f0ece3;">
-              <div style="font-size: 11px; text-transform: uppercase; color: #888; font-weight: bold;">Delivery Location:</div>
-              <div style="font-weight: bold; font-size: 14px; color: #111; margin-top: 4px;">${company}</div>
-              <div style="font-size: 13px; color: #444;">${address}</div>
-              ${floorSuite ? `<div style="font-size: 13px; color: #FF4C00;">Floor: ${floorSuite}</div>` : ""}
-              <div style="font-size: 12px; color: #2e7d32; margin-top: 4px;">Desk Drop prompt before 12:00 PM</div>
-            </div>
-          </div>
-
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
-            <thead>
-              <tr style="background: #111; color: #fff; font-size: 12px;">
-                <th style="padding: 10px; text-align: left;">Description</th>
-                <th style="padding: 10px; text-align: center;">Days</th>
-                <th style="padding: 10px; text-align: right;">Amount (NGN)</th>
-              </tr>
-            </thead>
-            <tbody style="font-size: 14px;">
-              <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 12px 10px;">
-                  <strong>${planName}</strong>
-                  <div style="font-size: 12px; color: #777;">Individual meal choices & daily workstation dispatch</div>
-                </td>
-                <td style="padding: 12px 10px; text-align: center;">${totalDays} Days</td>
-                <td style="padding: 12px 10px; text-align: right;">₦${subtotalNGN}</td>
-              </tr>
-              ${order.discountNGN > 0 ? `
-                <tr style="border-bottom: 1px solid #eee; background: #fff8f5;">
-                  <td style="padding: 10px; color: #FF4C00;"><strong>20th Day Free Bonus Discount</strong></td>
-                  <td style="padding: 10px; text-align: center; color: #FF4C00;">1 Day Free</td>
-                  <td style="padding: 10px; text-align: right; color: #FF4C00; font-weight: bold;">- ₦${discountNGN}</td>
-                </tr>
-              ` : ""}
-              <tr style="background: #fafafa; font-size: 16px;">
-                <td colspan="2" style="padding: 14px 10px; text-align: right; font-weight: bold;">TOTAL PAID:</td>
-                <td style="padding: 14px 10px; text-align: right; font-weight: 800; color: #2e7d32; font-size: 20px;">₦${totalNGN}</td>
-              </tr>
-            </tbody>
+        <div style="background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0;">
+          <h3 style="margin-top: 0; color: #1a1a1a;">Order Invoice & Payment Breakdown:</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <tr>
+              <td style="padding: 8px 0; color: #777; width: 140px;"><strong>Invoice Number:</strong></td>
+              <td style="padding: 8px 0; color: #111; font-family: monospace; font-weight: bold; font-size: 15px;">${orderId}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Customer Name:</strong></td>
+              <td style="padding: 8px 0; color: #111; font-weight: bold;">${fullName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Email Address:</strong></td>
+              <td style="padding: 8px 0; color: #111;"><a href="mailto:${email}" style="color: #FF4C00;">${email}</a></td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Phone Number:</strong></td>
+              <td style="padding: 8px 0; color: #111;"><a href="tel:${phone}" style="color: #111;">${phone}</a></td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Company:</strong></td>
+              <td style="padding: 8px 0; color: #111;">${company || 'Corporate Office'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Delivery Office:</strong></td>
+              <td style="padding: 8px 0; color: #111;">${address} ${floorSuite ? `(${floorSuite})` : ''}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Lunch Plan:</strong></td>
+              <td style="padding: 8px 0; color: #FF4C00; font-weight: bold;">${planName} (${totalDays} Days)</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Subtotal:</strong></td>
+              <td style="padding: 8px 0; color: #444;">₦${subtotalNGN}</td>
+            </tr>
+            ${discountNGN && discountNGN !== '0' ? `
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Bonus Discount:</strong></td>
+              <td style="padding: 8px 0; color: #FF4C00; font-weight: bold;">- ₦${discountNGN} (20th Day Free)</td>
+            </tr>
+            ` : ''}
+            <tr>
+              <td style="padding: 10px 0; color: #111; font-size: 16px;"><strong>TOTAL PAID:</strong></td>
+              <td style="padding: 10px 0; color: #2e7d32; font-weight: 800; font-size: 20px;">₦${totalNGN}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Payment Status:</strong></td>
+              <td style="padding: 8px 0;"><span style="background: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 4px 8px; border-radius: 4px;">Paid / Remittance Confirmed</span></td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Member Code:</strong></td>
+              <td style="padding: 8px 0; color: #FF4C00; font-weight: bold; font-family: monospace;">${memberCode}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #777;"><strong>Submitted At:</strong></td>
+              <td style="padding: 8px 0; color: #111;">${formattedDate}</td>
+            </tr>
           </table>
 
-          <div style="margin-top: 25px; padding: 16px; background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 8px;">
-            <h4 style="margin: 0 0 6px 0; color: #2e7d32; font-size: 15px;">Admin Action Required:</h4>
-            <p style="margin: 0; font-size: 13px; color: #333;">
-              Open Admin Dashboard -> <strong>Customers</strong>, click <strong>"Sync & Onboard from Invoice"</strong> for ${fullName}, verify payment of ₦${totalNGN}, and issue login credentials.
+          <div style="margin-top: 20px; padding: 12px; background: #e8f5e9; border-left: 4px solid #2e7d32; border-radius: 4px;">
+            <p style="margin: 0; font-size: 13px; color: #1b5e20;">
+              <strong>Admin Action Tip:</strong> Open <strong>11 to 12 Admin Dashboard -> Customers</strong>, click <strong>"Sync & Onboard from Invoice"</strong> for ${fullName} to confirm and activate daily deliveries before 12:00 PM.
             </p>
           </div>
         </div>
 
-        <div style="text-align: center; font-size: 12px; color: #888;">
-          11 to 12 Desk Drop • <a href="https://11to12.food" style="color: #FF4C00;">11to12.food</a>
+        <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">
+          Sent automatically by 11 to 12 Desk Drop System • <a href="https://11to12.food" style="color: #FF4C00;">11to12.food</a>
         </div>
       </div>
     `,
-    text: `Official Invoice #${orderId}: ₦${totalNGN} paid by ${fullName} for ${totalDays} days. Email: ${email}, Phone: ${phone}`,
+    text: `New Order Payment & Invoice: #${orderId}. Customer: ${fullName}. Amount: ₦${totalNGN}. Email: ${email}, Phone: ${phone}`,
   };
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log("Order alert email sent:", info.messageId);
+    console.log("Order alert email sent to admin:", info.messageId);
+
+    if (email && email.includes("@") && email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      transporter.sendMail({
+        from: '"11 to 12 Desk Drop" <admin@11to12.food>',
+        to: email,
+        subject: `🧾 [11 to 12 Invoice] Your Official Lunch Order Receipt (${orderId})`,
+        html: mailOptions.html,
+        text: mailOptions.text,
+      }).catch((err) => console.warn("Failed sending customer receipt copy:", err));
+    }
   } catch (error) {
     console.error("Failed to send order email:", error);
   }

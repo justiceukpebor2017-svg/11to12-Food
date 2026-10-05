@@ -273,7 +273,7 @@ export async function loginSubscriberAccount(
     if (isPasswordValid) {
       return { user: fbUser, customer };
     } else {
-      const err = new Error('Incorrect password entered. Please verify your credentials or contact Chef Justice.');
+      const err = new Error('Incorrect password entered. Please verify your credentials or contact 11 to 12 Support.');
       (err as any).code = 'auth/wrong-password';
       throw err;
     }
@@ -426,6 +426,18 @@ export async function saveWaitlistLeadToFirestore(lead: WaitlistLead): Promise<v
     await setDoc(leadRef, cleanLead, { merge: true });
   } catch (e) {
     handleFirestoreError(e, OperationType.CREATE, `waitlist/${lead.id}`);
+  }
+}
+
+/**
+ * Delete Waitlist Lead from Firestore
+ */
+export async function deleteWaitlistLeadFromFirestore(leadId: string): Promise<void> {
+  try {
+    const leadRef = doc(db, 'waitlist', leadId);
+    await deleteDoc(leadRef);
+  } catch (e) {
+    handleFirestoreError(e, OperationType.DELETE, `waitlist/${leadId}`);
   }
 }
 

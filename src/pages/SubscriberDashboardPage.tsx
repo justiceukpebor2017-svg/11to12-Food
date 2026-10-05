@@ -160,8 +160,8 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
     },
     {
       id: 'notif-2',
-      title: 'Tomorrow’s Chef Special',
-      message: 'Chef Justice is cooking Honey Beans + Fried Plantain + Fish tomorrow. Remember to set any dietary notes.',
+      title: 'Tomorrow’s Lunch Special',
+      message: 'The 11 to 12 Culinary Team is cooking Honey Beans + Fried Plantain + Fish tomorrow. Remember to set any dietary notes.',
       timeAgo: 'Yesterday',
       type: 'meal',
       isUnread: true,
@@ -511,7 +511,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
                   Wait, Admin is Confirming Payment
                 </h2>
                 <p className="text-xs sm:text-sm text-zinc-600 leading-relaxed max-w-md mx-auto">
-                  Your lunch plan reservation has been received. Chef Justice and the admin team are currently verifying your payment receipt in the kitchen system.
+                  Your lunch plan reservation has been received. The 11 to 12 admin team is currently verifying your payment receipt in the kitchen system.
                 </p>
               </div>
 

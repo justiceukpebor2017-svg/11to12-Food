@@ -435,7 +435,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
             </button>
 
             <div className="pt-2 text-center text-xs text-zinc-500">
-              New subscriber? Use the default password sent to you on WhatsApp by Chef Justice.
+              New subscriber? Use the default password sent to you on WhatsApp by 11 to 12.
             </div>
           </form>
         )}
@@ -449,7 +449,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
                 <span>Welcome, {matchedCustomer?.fullName}!</span>
               </div>
               <p>
-                Chef Justice created your default login. Please set your personal permanent password to officially secure your lunch dashboard.
+                11 to 12 created your default login. Please set your personal permanent password to officially secure your lunch dashboard.
               </p>
             </div>
 
@@ -710,7 +710,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
             }}
             className="text-[#FF4C00] font-bold hover:underline cursor-pointer"
           >
-            Chef Justice Admin Portal →
+            11 to 12 Admin Portal →
           </button>
         </div>
 

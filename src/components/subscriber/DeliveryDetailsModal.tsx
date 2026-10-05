@@ -81,7 +81,7 @@ export const DeliveryDetailsModal: React.FC<DeliveryDetailsModalProps> = ({
           Delivery Addresses
         </h3>
         <p className="text-xs text-zinc-500 mt-0.5">
-          Tell Chef Justice couriers where to drop your lunch before 12:00 PM.
+          Tell 11 to 12 couriers where to drop your lunch before 12:00 PM.
         </p>
 
         {/* 24-Hour Policy Banner */}

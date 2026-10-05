@@ -392,7 +392,7 @@ export const TodayLunchHeroCard: React.FC<TodayLunchHeroCardProps> = ({
             </button>
 
             <span className="text-[10px] font-bold text-[#FF4C00] uppercase tracking-wider block mb-1">
-              Chef Justice Kitchen Sheet
+              11 to 12 Kitchen Sheet
             </span>
             <h3 className="text-xl font-black text-black">
               {mealTitle}
@@ -495,7 +495,7 @@ export const TodayLunchHeroCard: React.FC<TodayLunchHeroCardProps> = ({
 
             {ratingSubmitted ? (
               <div className="my-6 p-4 rounded-2xl bg-emerald-50 text-emerald-900 text-center text-xs font-bold border border-emerald-200">
-                ✓ Thank you! Your feedback has been sent directly to Chef Justice.
+                ✓ Thank you! Your feedback has been sent directly to the 11 to 12 kitchen team.
               </div>
             ) : (
               <div className="my-5 space-y-4">

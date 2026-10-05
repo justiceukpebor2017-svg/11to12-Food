@@ -872,7 +872,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
               </span>
             </div>
             <p className="text-xs text-zinc-500 mt-1">
-              Click any open date without a meal on your calendar above to queue extra days here. When ready, confirm payment and Chef Justice will activate them.
+              Click any open date without a meal on your calendar above to queue extra days here. When ready, confirm payment and the 11 to 12 kitchen team will activate them.
             </p>
           </div>
 
@@ -896,7 +896,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
               </h4>
             </div>
             <p className="text-xs text-emerald-800 leading-relaxed">
-              Your invoice slip has been downloaded. Chef Justice's admin desk has received the alert and will confirm your transfer to activate these <strong>{submittedTopUpOrder.totalDays} extra meal days</strong> directly onto your calendar.
+              Your invoice slip has been downloaded. The 11 to 12 admin desk has received the alert and will confirm your transfer to activate these <strong>{submittedTopUpOrder.totalDays} extra meal days</strong> directly onto your calendar.
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               <button
@@ -1094,7 +1094,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                   </div>
 
                   <p className="text-[11px] text-zinc-500 leading-relaxed">
-                    No need to re-enter your delivery address or contact info — your subscriber profile is already linked! After transferring ₦{topUpCalculatedSummary.finalTotalNGN.toLocaleString()}, click the button below. Chef Justice's admin desk will receive the notification to confirm and add your days directly to your active calendar.
+                    No need to re-enter your delivery address or contact info — your subscriber profile is already linked! After transferring ₦{topUpCalculatedSummary.finalTotalNGN.toLocaleString()}, click the button below. The 11 to 12 admin desk will receive the notification to confirm and add your days directly to your active calendar.
                   </p>
 
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">

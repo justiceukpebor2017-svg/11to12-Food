@@ -17,25 +17,30 @@ import {
   Ticket,
   Copy,
   Check,
+  Trash2,
+  AlertCircle,
 } from 'lucide-react';
 import { WaitlistLead } from '../../types';
-import { subscribeToWaitlist } from '../../services/firebase';
+import { subscribeToWaitlist, deleteWaitlistLeadFromFirestore } from '../../services/firebase';
 
 interface WaitlistManagerProps {
   waitlistLeads?: WaitlistLead[];
   onUpdateWaitlistLead?: (lead: WaitlistLead) => void;
   onConvertToCustomer?: (lead: WaitlistLead) => void;
+  onDeleteWaitlistLead?: (leadId: string) => void;
 }
 
 export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
   waitlistLeads = [],
   onUpdateWaitlistLead,
   onConvertToCustomer,
+  onDeleteWaitlistLead,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'waitlisted' | 'contacted' | 'converted'>('all');
   const [notice, setNotice] = useState<string | null>(null);
   const [copiedLeadId, setCopiedLeadId] = useState<string | null>(null);
+  const [leadToDelete, setLeadToDelete] = useState<WaitlistLead | null>(null);
 
   // Real-time onSnapshot camera stream for Waitlist
   const [liveWaitlist, setLiveWaitlist] = useState<WaitlistLead[]>([]);
@@ -54,6 +59,18 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
   const showNotice = (msg: string) => {
     setNotice(msg);
     setTimeout(() => setNotice(null), 4000);
+  };
+
+  const handleConfirmDeleteLead = () => {
+    if (!leadToDelete) return;
+    const targetId = leadToDelete.id;
+    if (onDeleteWaitlistLead) {
+      onDeleteWaitlistLead(targetId);
+    }
+    deleteWaitlistLeadFromFirestore(targetId).catch(() => {});
+    setLiveWaitlist((prev) => prev.filter((l) => l.id !== targetId));
+    showNotice(`✓ Successfully removed ${leadToDelete.name} from the waitlist.`);
+    setLeadToDelete(null);
   };
 
   const handleStatusChange = (lead: WaitlistLead, newStatus: WaitlistLead['status']) => {
@@ -344,6 +361,16 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
                               <span>Onboard</span>
                             </button>
                           )}
+
+                          {/* Remove Waitlist Lead Action */}
+                          <button
+                            type="button"
+                            onClick={() => setLeadToDelete(lead)}
+                            className="p-2 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 transition cursor-pointer"
+                            title="Remove lead completely from waitlist"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -351,6 +378,50 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM DELETE WAITLIST LEAD MODAL */}
+      {leadToDelete && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs font-['Poppins']">
+          <div className="relative w-full max-w-md bg-white rounded-3xl border border-zinc-200 shadow-2xl p-6 overflow-hidden animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center font-bold shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-black">Remove Waitlist Lead</h3>
+                <p className="text-xs text-zinc-500">Irreversible admin action</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 text-xs text-zinc-700 space-y-2 mb-5">
+              <p>
+                Are you sure you want to remove <strong>{leadToDelete.name}</strong> ({leadToDelete.email}) from the waitlist?
+              </p>
+              <p className="text-red-600 font-semibold text-[11px]">
+                ⚠️ This will permanently remove their reservation and member code ({leadToDelete.memberCode}) across all devices.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setLeadToDelete(null)}
+                className="px-4 py-2.5 rounded-full border border-zinc-300 text-zinc-700 hover:bg-zinc-100 font-bold text-xs cursor-pointer transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteLead}
+                className="px-5 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer transition flex items-center space-x-1.5 shadow-md active:scale-95"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Yes, Remove Lead</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

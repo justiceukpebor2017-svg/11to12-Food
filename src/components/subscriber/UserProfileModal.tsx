@@ -180,7 +180,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF7F2] border border-zinc-200 font-medium focus:outline-none focus:border-black"
             />
             <span className="text-[10px] text-zinc-400 mt-1 block">
-              Directly flagged on Chef Justice morning kitchen prep sheets.
+              Directly flagged on 11 to 12 morning kitchen prep sheets.
             </span>
           </div>
 

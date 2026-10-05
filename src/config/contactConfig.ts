@@ -7,5 +7,5 @@ export const CONTACT_CONFIG = {
   phoneFormatted: '0802 618 0680',
   email: 'confirm@11to12.food',
   supportEmail: 'confirm@11to12.food',
-  conciergeEmail: 'justiceukpebor2017@gmail.com',
+  conciergeEmail: 'admin@11to12.food',
 };

@@ -163,11 +163,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         <div className="flex items-center justify-between mb-3 text-xs">
           <div className="flex items-center space-x-2">
             <div className="w-7 h-7 rounded-full bg-[#FF4C00] text-white flex items-center justify-center font-bold text-xs">
-              JU
+              11
             </div>
             <div className="truncate">
-              <span className="text-xs font-bold text-white block truncate">Chef Justice</span>
-              <span className="text-[10px] text-zinc-400 block truncate">Head of Kitchen Ops</span>
+              <span className="text-xs font-bold text-white block truncate">11 to 12 Admin</span>
+              <span className="text-[10px] text-zinc-400 block truncate">Kitchen Operations & Dispatch</span>
             </div>
           </div>
         </div>

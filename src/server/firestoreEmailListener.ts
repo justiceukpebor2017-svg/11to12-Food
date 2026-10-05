@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { notifyAdminWaitlistJoined, notifyAdminPaymentOrder } from './emailNotifier';
 import { WaitlistLead, OrderSubmission } from '../types';
@@ -13,10 +13,14 @@ let pollTimer: NodeJS.Timeout | null = null;
 export async function markAsNotified(collectionName: 'waitlist' | 'orders', id: string): Promise<void> {
   if (!id) return;
   try {
-    await updateDoc(doc(db, collectionName, id), {
-      emailStatus: 'sent',
-      emailSentAt: new Date().toISOString(),
-    });
+    await setDoc(
+      doc(db, collectionName, id),
+      {
+        emailStatus: 'sent',
+        emailSentAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
   } catch {
     // Non-blocking
   }
@@ -50,10 +54,14 @@ async function checkPendingWaitlistLeads(): Promise<void> {
         try {
           const res = await notifyAdminWaitlistJoined(lead);
           if (res.emailSent) {
-            await updateDoc(doc(db, 'waitlist', d.id), {
-              emailStatus: 'sent',
-              emailSentAt: new Date().toISOString(),
-            });
+            await setDoc(
+              doc(db, 'waitlist', d.id),
+              {
+                emailStatus: 'sent',
+                emailSentAt: new Date().toISOString(),
+              },
+              { merge: true }
+            );
             console.log(`[Firestore Email Poller] Successfully sent email and marked waitlist doc ${d.id} as sent.`);
           }
         } catch (err: any) {
@@ -100,10 +108,14 @@ async function checkPendingOrders(): Promise<void> {
         try {
           const res = await notifyAdminPaymentOrder(order);
           if (res.emailSent) {
-            await updateDoc(doc(db, 'orders', d.id), {
-              emailStatus: 'sent',
-              emailSentAt: new Date().toISOString(),
-            });
+            await setDoc(
+              doc(db, 'orders', d.id),
+              {
+                emailStatus: 'sent',
+                emailSentAt: new Date().toISOString(),
+              },
+              { merge: true }
+            );
             console.log(`[Firestore Email Poller] Successfully sent email and marked order doc ${d.id} as sent.`);
           }
         } catch (err: any) {

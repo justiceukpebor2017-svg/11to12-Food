@@ -122,25 +122,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handleSubmitOrder = (e: React.FormEvent) => {
+  const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setCheckoutError(null);
-
-    const targetEmail = normalizeEmail(email);
-    const targetPhoneKey = getStandardPhoneKey(phone);
-
-    const existingCustEmail = customers.find((c) => normalizeEmail(c.email) === targetEmail);
-    const existingCustPhone = customers.find((c) => getStandardPhoneKey(c.phone) === targetPhoneKey);
-
-    if (existingCustEmail) {
-      setCheckoutError(`An active subscription already exists for ${targetEmail}. If you need to add days, please use the Subscriber Dashboard top-up.`);
-      return;
-    }
-    if (existingCustPhone) {
-      setCheckoutError(`An active subscription already exists for phone number ${phone}. Please sign in to your dashboard.`);
-      return;
-    }
-
     setIsSubmitting(true);
 
     const submission: OrderSubmission = {
@@ -160,16 +144,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       memberCode: appliedMemberCode || undefined,
     };
 
-    setTimeout(() => {
+    try {
+      // 1. Direct persistence to Firestore with pending email status
+      await saveOrderToFirestore(submission);
+      
+      // 2. Broadcast and notify parent
+      await onOrderSubmitted(submission);
+
       setCreatedOrder(submission);
-      setIsSubmitting(false);
       setIsSubmitted(true);
-      // Persist directly to Firestore with sanitized payload & pending email status
-      saveOrderToFirestore(submission).catch((e) => console.warn('Direct Firestore save notice:', e));
-      onOrderSubmitted(submission);
       // Automatically trigger download of invoice file
       downloadInvoiceDocument(submission);
-    }, 800);
+    } catch (err: any) {
+      console.warn('Checkout submission warning:', err);
+      // Fallback: still show invoice and submitted state
+      setCreatedOrder(submission);
+      setIsSubmitted(true);
+      downloadInvoiceDocument(submission);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -217,7 +211,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {/* Instructions box */}
               <div className="text-xs text-zinc-600 space-y-3 max-w-md mx-auto text-left bg-[#FAF7F2] p-4 sm:p-5 rounded-2xl border border-zinc-200">
                 <p className="font-semibold text-zinc-900">
-                  Thank you, {fullName}! Your lunch order ({createdOrder.id}) has been forwarded directly to Chef Justice's kitchen control operations.
+                  Thank you, {fullName}! Your lunch order ({createdOrder.id}) has been forwarded directly to 11 to 12 kitchen control operations.
                 </p>
                 
                 <div className="pt-2 border-t border-zinc-200">
@@ -543,7 +537,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
                 <div className="mt-2 text-center text-xs text-zinc-400 flex items-center justify-center space-x-1.5">
                   <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  <span>Your details will be logged in Chef Justice's dispatch operations</span>
+                  <span>Your details will be logged in 11 to 12 dispatch operations</span>
                 </div>
               </div>
 

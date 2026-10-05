@@ -7,7 +7,7 @@ export const AdminSettingsPermissions: React.FC = () => {
   const [saved, setSaved] = useState(false);
 
   const [team, setTeam] = useState([
-    { name: 'Justice Ukpebor', role: 'Head Chef & Admin', access: 'Full Superadmin' },
+    { name: '11 to 12 Operations', role: 'Head Admin & Kitchen Ops', access: 'Full Superadmin' },
     { name: 'Amina Bello', role: 'Kitchen Logistics Lead', access: 'Cook List & Inventory' },
     { name: 'Emmanuel Eze', role: 'Rider Captain', access: 'Dispatch Status Only' },
   ]);

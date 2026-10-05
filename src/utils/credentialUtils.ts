@@ -2,10 +2,10 @@
 
 /**
  * Generates a clean, readable default password for new or existing subscribers.
- * E.g. DeskDrop#842, ChefJustice@519, HotLunch!347
+ * E.g. DeskDrop#842, ElevenToTwelve@519, HotLunch!347
  */
 export function generateDefaultPassword(): string {
-  const words = ['DeskDrop', 'ChefJustice', 'HotLunch', 'LagosChow', 'OfficeMeal', 'FreshFood', 'JollofTime'];
+  const words = ['DeskDrop', 'ElevenToTwelve', 'HotLunch', 'LagosChow', 'OfficeMeal', 'FreshFood', 'JollofTime'];
   const symbols = ['#', '!', '@', '$'];
   const randomWord = words[Math.floor(Math.random() * words.length)];
   const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
@@ -36,7 +36,7 @@ export function formatCredentialWhatsAppMessage({
 
   return `Hello ${customerName}! 🎉
 
-Your 11 to 12 Desk Drop lunch subscription (${totalDays} workdays)${companyStr} has been officially confirmed by Chef Justice.
+Your 11 to 12 Desk Drop lunch subscription (${totalDays} workdays)${companyStr} has been officially confirmed by 11 to 12.
 
 Here are your default login details to access your Lunch Dashboard:
 🌐 Website: ${appOrigin}
@@ -80,9 +80,9 @@ Next Steps:
 2. Log in with your email and the default password above.
 3. You will be prompted to create your personal permanent password to secure your dashboard.
 
-If you have any questions or meal preference updates, you can contact Chef Justice directly on WhatsApp (08026180680).
+If you have any questions or meal preference updates, you can contact the 11 to 12 team directly on WhatsApp (08026180680).
 
 Warm regards,
-Chef Justice & The 11 to 12 Kitchen Team`,
+The 11 to 12 Team`,
   };
 }

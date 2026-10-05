@@ -58,7 +58,7 @@ export const TasteDnaProfile: React.FC<TasteDnaProfileProps> = ({ profile, onUpd
           </span>
           <h3 className="text-2xl font-black uppercase font-heading text-black mt-2">PERSONALIZE YOUR KITCHEN DELIVERY</h3>
           <p className="text-xs font-bold text-zinc-700 mt-1 uppercase tracking-wider">
-            Kitchen Justice uses these preferences to tailor seasoning, spice, and protein allocations for every single dish.
+            The 11 to 12 Kitchen uses these preferences to tailor seasoning, spice, and protein allocations for every single dish.
           </p>
         </div>
 
