@@ -22,6 +22,28 @@ export interface LiveSyncState {
 
 type SyncListener = (state: LiveSyncState) => void;
 
+// Live Cloud Run Backend URL for fallback when frontend is hosted on GitHub Pages or custom domain
+const LIVE_BACKEND_ORIGIN = 'https://ais-pre-secg2iyogbtgqwhfhfcqb5-158555251553.europe-west1.run.app';
+
+export function getApiBaseUrl(): string {
+  if (typeof window === 'undefined') return '';
+  const hostname = window.location.hostname.toLowerCase();
+  // Check if hosted statically (GitHub Pages or custom domain without local Node backend)
+  const isStaticHost =
+    hostname.includes('github.io') ||
+    ((hostname === '11to12.food' || hostname.endsWith('.11to12.food')) && !window.location.port);
+
+  if (isStaticHost) {
+    return (import.meta as any).env?.VITE_API_URL || LIVE_BACKEND_ORIGIN;
+  }
+  return '';
+}
+
+function apiUrl(endpoint: string): string {
+  const base = getApiBaseUrl();
+  return `${base}${endpoint}`;
+}
+
 async function safeParseJson(res: Response): Promise<any> {
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
@@ -88,7 +110,7 @@ class LiveSyncService {
         this.eventSource.close();
       }
 
-      this.eventSource = new EventSource('/api/live-stream');
+      this.eventSource = new EventSource(apiUrl('/api/live-stream'));
 
       this.eventSource.addEventListener('live-update', (event: MessageEvent) => {
         try {
@@ -181,7 +203,7 @@ class LiveSyncService {
 
   public async fetchBootstrap(): Promise<LiveSyncState> {
     try {
-      const res = await fetch('/api/bootstrap');
+      const res = await fetch(apiUrl('/api/bootstrap'));
       if (res.ok) {
         const json = await safeParseJson(res);
         if (json?.db) {
@@ -205,7 +227,7 @@ class LiveSyncService {
 
   public async fetchPulseAndSync(): Promise<void> {
     try {
-      const res = await fetch('/api/pulse');
+      const res = await fetch(apiUrl('/api/pulse'));
       if (res.ok) {
         const stats: PulseStats | null = await safeParseJson(res);
         if (!stats) return;
@@ -288,7 +310,7 @@ class LiveSyncService {
     memberCode?: string;
   }): Promise<{ success: boolean; lead?: WaitlistLead; error?: string; message?: string; existingLead?: WaitlistLead }> {
     try {
-      const res = await fetch('/api/waitlist', {
+      const res = await fetch(apiUrl('/api/waitlist'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(leadData),
@@ -355,7 +377,7 @@ class LiveSyncService {
     message?: string;
   }> {
     try {
-      const res = await fetch('/api/customers', {
+      const res = await fetch(apiUrl('/api/customers'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(customer),
@@ -403,7 +425,7 @@ class LiveSyncService {
    */
   public async addTestimonial(item: Omit<TestimonialItem, 'id'>): Promise<TestimonialItem> {
     try {
-      const res = await fetch('/api/testimonials', {
+      const res = await fetch(apiUrl('/api/testimonials'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item),
@@ -435,7 +457,7 @@ class LiveSyncService {
    */
   public async updateTestimonial(id: string, patch: Partial<TestimonialItem>): Promise<TestimonialItem | null> {
     try {
-      const res = await fetch(`/api/testimonials/${encodeURIComponent(id)}`, {
+      const res = await fetch(apiUrl(`/api/testimonials/${encodeURIComponent(id)}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -463,7 +485,7 @@ class LiveSyncService {
    */
   public async deleteTestimonial(id: string): Promise<boolean> {
     try {
-      const res = await fetch(`/api/testimonials/${encodeURIComponent(id)}`, {
+      const res = await fetch(apiUrl(`/api/testimonials/${encodeURIComponent(id)}`), {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -485,7 +507,7 @@ class LiveSyncService {
    */
   public async updateCustomer(id: string, patch: Partial<CustomerRecord>): Promise<CustomerRecord | null> {
     try {
-      const res = await fetch(`/api/customers/${encodeURIComponent(id)}`, {
+      const res = await fetch(apiUrl(`/api/customers/${encodeURIComponent(id)}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -507,7 +529,7 @@ class LiveSyncService {
    */
   public async deleteCustomer(id: string): Promise<boolean> {
     try {
-      const res = await fetch(`/api/customers/${encodeURIComponent(id)}`, {
+      const res = await fetch(apiUrl(`/api/customers/${encodeURIComponent(id)}`), {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -526,7 +548,7 @@ class LiveSyncService {
    */
   public async updateWaitlistLead(id: string, patch: Partial<WaitlistLead>): Promise<WaitlistLead | null> {
     try {
-      const res = await fetch(`/api/waitlist/${encodeURIComponent(id)}`, {
+      const res = await fetch(apiUrl(`/api/waitlist/${encodeURIComponent(id)}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -548,7 +570,7 @@ class LiveSyncService {
    */
   public async submitOrder(order: OrderSubmission): Promise<OrderSubmission | null> {
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch(apiUrl('/api/orders'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(order),
@@ -570,7 +592,7 @@ class LiveSyncService {
    */
   public async confirmOrderPayment(orderId: string): Promise<boolean> {
     try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/confirm-payment`, {
+      const res = await fetch(apiUrl(`/api/orders/${encodeURIComponent(orderId)}/confirm-payment`), {
         method: 'POST',
       });
       const data = await safeParseJson(res);

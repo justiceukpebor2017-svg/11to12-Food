@@ -31,6 +31,10 @@ import {
   notifyAdminPaymentOrder,
   getRecentNotifications,
 } from './src/server/emailNotifier';
+import {
+  startFirestoreEmailListener,
+  markAsNotified,
+} from './src/server/firestoreEmailListener';
 
 dotenv.config();
 
@@ -39,6 +43,17 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
+
+// Universal CORS configuration to support static deployment (e.g. GitHub Pages or Hostinger custom domain 11to12.food)
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
 
 app.use(express.json());
 
@@ -163,6 +178,9 @@ app.get('/api/health', (_req, res) => {
 // Live Database Initialization
 initLiveDatabase();
 
+// Real-Time Firestore Email Listener (detects waitlist entries and orders saved to Firestore from GitHub Pages or any client)
+startFirestoreEmailListener();
+
 // SSE Live Stream Endpoint for real-time push to all devices
 app.get('/api/live-stream', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -242,6 +260,7 @@ app.post('/api/waitlist', (req, res) => {
 
   // Trigger real-time email notification to admin@11to12.food
   if (result.lead) {
+    markAsNotified(result.lead.id);
     notifyAdminWaitlistJoined(result.lead).catch((err) => {
       console.warn('[Server] Admin waitlist notification notice:', err?.message || err);
     });
@@ -308,6 +327,7 @@ app.post('/api/orders', (req, res) => {
 
   // Trigger real-time email notification to admin@11to12.food
   if (order) {
+    markAsNotified(order.id);
     notifyAdminPaymentOrder(order).catch((err) => {
       console.warn('[Server] Admin payment order notification notice:', err?.message || err);
     });
@@ -319,6 +339,26 @@ app.post('/api/orders', (req, res) => {
 // Admin Notification Log Endpoint
 app.get('/api/admin/notifications', (_req, res) => {
   res.json({ notifications: getRecentNotifications() });
+});
+
+// On-demand Admin SMTP connection test endpoint
+app.post('/api/admin/test-smtp', async (_req, res) => {
+  try {
+    const fakeLead: any = {
+      id: `test-${Date.now()}`,
+      name: 'System Connection Test',
+      email: 'admin@11to12.food',
+      phone: '+234 802 618 0680',
+      workplace: 'Victoria Island HQ',
+      addressFloor: 'Floor 4 Test Desk',
+      createdAt: new Date().toISOString(),
+      memberCode: 'DD-TEST-99',
+    };
+    const log = await notifyAdminWaitlistJoined(fakeLead);
+    res.json({ success: log.emailSent, log });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'SMTP test error' });
+  }
 });
 
 app.post('/api/orders/:id/confirm-payment', (req, res) => {
