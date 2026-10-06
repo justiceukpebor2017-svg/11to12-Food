@@ -63,7 +63,7 @@ Customer: ${order.fullName} (${order.company})
 Delivery Address: ${order.officeAddress}
 WhatsApp/Phone: ${order.phone}
 Total Days: ${order.totalDays} workdays
-Total Amount Payable: ₦${order.finalTotalNGN.toLocaleString()}
+Total Amount Payable: ₦${(order.finalTotalNGN || 0).toLocaleString()}
 Bank Details: Flutterwave MFB (Formerly OK MFB) | 9838242145 | 11 TO 12 FOODS LTD 11 TO 12 FOODS FLW`;
 
     navigator.clipboard.writeText(text);
@@ -242,21 +242,21 @@ Bank Details: Flutterwave MFB (Formerly OK MFB) | 9838242145 | 11 TO 12 FOODS LT
 
             <div className="w-full sm:w-64 space-y-2 bg-[#FAF7F2] p-4 rounded-2xl border border-zinc-200 text-xs">
               <div className="flex justify-between text-zinc-600">
-                <span>Subtotal ({order.totalDays} Days):</span>
-                <span className="font-semibold text-black">₦{order.subtotalNGN.toLocaleString()}</span>
+                <span>Subtotal ({order.totalDays || 0} Days):</span>
+                <span className="font-semibold text-black">₦{(order.subtotalNGN || order.finalTotalNGN || 0).toLocaleString()}</span>
               </div>
 
-              {order.discountNGN > 0 && (
+              {(order.discountNGN || 0) > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">
                   <span>20th Day Free Bonus:</span>
-                  <span>-₦{order.discountNGN.toLocaleString()}</span>
+                  <span>-₦{(order.discountNGN || 0).toLocaleString()}</span>
                 </div>
               )}
 
               <div className="pt-2 border-t border-zinc-200 flex justify-between items-baseline">
                 <span className="font-bold text-sm text-black">Total Payable:</span>
                 <span className="text-xl font-black text-black">
-                  ₦{order.finalTotalNGN.toLocaleString()}
+                  ₦{(order.finalTotalNGN || 0).toLocaleString()}
                 </span>
               </div>
             </div>
@@ -266,7 +266,7 @@ Bank Details: Flutterwave MFB (Formerly OK MFB) | 9838242145 | 11 TO 12 FOODS LT
           <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-end print:hidden">
             <a
               href={`https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
-                `Hello 11 to 12! Here is my official order invoice (${order.id}) for ${order.totalDays} lunch days (₦${order.finalTotalNGN.toLocaleString()}). I have made the bank transfer. Attached is my payment proof:`
+                `Hello 11 to 12! Here is my official order invoice (${order.id}) for ${order.totalDays} lunch days (₦${(order.finalTotalNGN || 0).toLocaleString()}). I have made the bank transfer. Attached is my payment proof:`
               )}`}
               target="_blank"
               rel="noopener noreferrer"

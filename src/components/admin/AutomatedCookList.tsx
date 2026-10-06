@@ -10,7 +10,12 @@ export const AutomatedCookList: React.FC = () => {
   const orders: { id: string; userName: string; company: string; choice: string; meal: string; status: string; time: string }[] = [];
 
   const filteredOrders = orders.filter((o) => {
-    const matchesSearch = o.userName.toLowerCase().includes(searchTerm.toLowerCase()) || o.company.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!o) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
+    const matchesSearch =
+      !term ||
+      (o.userName || '').toLowerCase().includes(term) ||
+      (o.company || '').toLowerCase().includes(term);
     const matchesChoice = choiceFilter === 'all' || o.choice === choiceFilter;
     return matchesSearch && matchesChoice;
   });

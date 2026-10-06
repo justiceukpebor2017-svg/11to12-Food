@@ -82,11 +82,14 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   const allTransactions = [...liveOrderTransactions, ...customerTransactions, ...initialTransactions];
 
   const filtered = allTransactions.filter((tx) => {
+    if (!tx) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
     const matchesStatus = activeStatus === 'All' ? true : tx.status === activeStatus;
     const matchesSearch =
-      tx.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.reference.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      (tx.customerName || '').toLowerCase().includes(term) ||
+      (tx.company || '').toLowerCase().includes(term) ||
+      (tx.reference || '').toLowerCase().includes(term);
     return matchesStatus && matchesSearch;
   });
 

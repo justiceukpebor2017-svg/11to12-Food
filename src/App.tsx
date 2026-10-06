@@ -452,11 +452,11 @@ export default function App() {
     saveCustomerToFirestore(updatedCust).catch(() => {});
     setCustomers((prev) => {
       const exists = prev.some(
-        (c) => c.id === customer.id || (c.email && c.email.toLowerCase() === customer.email.toLowerCase())
+        (c) => c.id === customer.id || Boolean(c.email && customer.email && c.email.toLowerCase() === customer.email.toLowerCase())
       );
       if (exists) {
         return prev.map((c) =>
-          c.id === customer.id || (c.email && c.email.toLowerCase() === customer.email.toLowerCase())
+          c.id === customer.id || Boolean(c.email && customer.email && c.email.toLowerCase() === customer.email.toLowerCase())
             ? updatedCust
             : c
         );
@@ -573,7 +573,7 @@ export default function App() {
     setWaitlistLeads((prev) =>
       prev.filter((lead) => {
         const matchesCode = Boolean(order.memberCode && lead.memberCode && lead.memberCode.toUpperCase() === order.memberCode.toUpperCase());
-        const matchesEmail = lead.email.toLowerCase() === order.email.toLowerCase();
+        const matchesEmail = Boolean(lead.email && order.email && lead.email.toLowerCase() === order.email.toLowerCase());
         return !(matchesCode || matchesEmail);
       })
     );
@@ -605,7 +605,7 @@ export default function App() {
     const topUpAnnouncement: AdminAnnouncement = {
       id: `ann-${Date.now()}`,
       title: `🔔 Paid Top-Up Invoice: ${order.fullName}`,
-      message: `${order.fullName} (${order.company}) submitted a top-up of ${order.totalDays} meal days (₦${order.finalTotalNGN.toLocaleString()}). Invoice #${order.id} is awaiting confirmation to add days to their calendar.`,
+      message: `${order.fullName} (${order.company}) submitted a top-up of ${order.totalDays || 0} meal days (₦${(order.finalTotalNGN || 0).toLocaleString()}). Invoice #${order.id} is awaiting confirmation to add days to their calendar.`,
       type: 'warning',
       active: true,
       postedAt: new Date().toISOString(),
@@ -628,9 +628,9 @@ export default function App() {
     // 2. Locate customer by orderRef, email, or memberCode
     const custIdx = customers.findIndex(
       (c) =>
-        c.orderRef === order.id ||
-        c.email.toLowerCase() === order.email.toLowerCase() ||
-        (order.memberCode && c.memberCode && c.memberCode.toUpperCase() === order.memberCode.toUpperCase())
+        (order.id && c.orderRef === order.id) ||
+        Boolean(c.email && order.email && c.email.toLowerCase() === order.email.toLowerCase()) ||
+        Boolean(order.memberCode && c.memberCode && c.memberCode.toUpperCase() === order.memberCode.toUpperCase())
     );
 
     if (custIdx >= 0) {
@@ -661,7 +661,10 @@ export default function App() {
       });
 
       // Synchronize active userProfile if this customer is the logged-in user
-      if (userProfile.email.toLowerCase() === cust.email.toLowerCase() || userProfile.id === cust.id) {
+      if (
+        (userProfile.email && cust.email && userProfile.email.toLowerCase() === cust.email.toLowerCase()) ||
+        userProfile.id === cust.id
+      ) {
         setUserProfile((prev) => ({
           ...prev,
           selectedDays: mergedDays,

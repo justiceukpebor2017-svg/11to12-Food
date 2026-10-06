@@ -94,12 +94,15 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
   };
 
   const filtered = leadsList.filter((l) => {
+    if (!l) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
     const matchesSearch =
-      l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      l.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      l.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      l.workplace.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      l.addressFloor.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      (l.name || '').toLowerCase().includes(term) ||
+      (l.email || '').toLowerCase().includes(term) ||
+      (l.phone || '').toLowerCase().includes(term) ||
+      (l.workplace || '').toLowerCase().includes(term) ||
+      (l.addressFloor || '').toLowerCase().includes(term);
 
     if (!matchesSearch) return false;
     if (activeTab === 'waitlisted') return l.status === 'Waitlisted';

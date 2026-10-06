@@ -312,7 +312,8 @@ export const TodayOperationsView: React.FC<TodayOperationsViewProps> = ({
             <div className="space-y-3 mt-4 text-xs">
               {pendingOrders.length > 0 ? (
                 pendingOrders.map((ord) => {
-                  const isTopUp = ord.isTopUp || customers.some((c) => c.email.toLowerCase() === ord.email.toLowerCase());
+                  const ordEmail = (ord.email || '').trim().toLowerCase();
+                  const isTopUp = ord.isTopUp || Boolean(ordEmail && customers.some((c) => (c.email || '').trim().toLowerCase() === ordEmail));
                   return (
                     <div
                       key={ord.id}
@@ -335,8 +336,8 @@ export const TodayOperationsView: React.FC<TodayOperationsViewProps> = ({
                         </div>
                         <span className="text-[11px] text-zinc-400 block mt-0.5">
                           {isTopUp
-                            ? `${ord.company} • ₦${ord.finalTotalNGN.toLocaleString()}. Click to verify & add days to calendar.`
-                            : `${ord.company} • ₦${ord.finalTotalNGN.toLocaleString()} (${ord.totalDays} days). Click to sync.`}
+                            ? `${ord.company} • ₦${(ord.finalTotalNGN || 0).toLocaleString()}. Click to verify & add days to calendar.`
+                            : `${ord.company} • ₦${(ord.finalTotalNGN || 0).toLocaleString()} (${ord.totalDays || 0} days). Click to sync.`}
                         </span>
                       </div>
                     </div>

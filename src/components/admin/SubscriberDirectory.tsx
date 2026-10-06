@@ -17,10 +17,13 @@ export const SubscriberDirectory: React.FC<SubscriberDirectoryProps> = ({
   const [selectedUserForDeepDive, setSelectedUserForDeepDive] = useState<UserProfile | null>(null);
 
   const filteredUsers = subscribers.filter((u) => {
+    if (!u) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
     return (
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.company.toLowerCase().includes(searchTerm.toLowerCase())
+      !term ||
+      (u.name || '').toLowerCase().includes(term) ||
+      (u.email || '').toLowerCase().includes(term) ||
+      (u.company || '').toLowerCase().includes(term)
     );
   });
 

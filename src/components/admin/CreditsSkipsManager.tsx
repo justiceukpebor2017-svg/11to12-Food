@@ -24,11 +24,15 @@ export const CreditsSkipsManager: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filtered = records.filter(
-    (r) =>
-      r.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.company.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filtered = records.filter((r) => {
+    if (!r) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
+    return (
+      !term ||
+      (r.customerName || '').toLowerCase().includes(term) ||
+      (r.company || '').toLowerCase().includes(term)
+    );
+  });
 
   const toggleApplied = (id: string) => {
     setRecords((prev) =>

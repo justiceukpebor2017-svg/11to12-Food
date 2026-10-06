@@ -84,10 +84,13 @@ export const SubscriptionsManager: React.FC = () => {
   };
 
   const filtered = subscriptions.filter((s) => {
+    if (!s) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
     const matchesFilter = activeFilter === 'All' ? true : s.status === activeFilter;
     const matchesSearch =
-      s.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.company.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      (s.customerName || '').toLowerCase().includes(term) ||
+      (s.company || '').toLowerCase().includes(term);
     return matchesFilter && matchesSearch;
   });
 

@@ -450,23 +450,28 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   };
 
   const filteredCustomers = customersList.filter((c) => {
+    if (!c) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
     const matchesSearch =
-      c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.deliveryArea && c.deliveryArea.toLowerCase().includes(searchTerm.toLowerCase()));
+      !term ||
+      (c.fullName || '').toLowerCase().includes(term) ||
+      (c.company || '').toLowerCase().includes(term) ||
+      (c.email || '').toLowerCase().includes(term) ||
+      Boolean(c.deliveryArea && c.deliveryArea.toLowerCase().includes(term));
 
     const matchesStatus = statusFilter === 'All' ? true : c.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const pendingHomepageOrders = submittedOrders.filter(
-    (ord) =>
-      ord.paymentStatus === 'Pending Verification' &&
-      !customersList.some(
-        (c) => c.orderRef === ord.id || c.email.toLowerCase() === ord.email.toLowerCase()
-      )
-  );
+  const pendingHomepageOrders = submittedOrders.filter((ord) => {
+    if (!ord || ord.paymentStatus !== 'Pending Verification') return false;
+    const ordEmail = (ord.email || '').trim().toLowerCase();
+    return !customersList.some(
+      (c) =>
+        (ord.id && c.orderRef === ord.id) ||
+        Boolean(ordEmail && (c.email || '').trim().toLowerCase() === ordEmail)
+    );
+  });
 
   return (
     <div className="space-y-6 font-['Poppins']">
@@ -554,8 +559,8 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                   <p className="text-[11px] text-zinc-400 truncate mt-1">{ord.officeAddress}</p>
 
                   <div className="mt-2 pt-2 border-t border-zinc-100 flex items-center justify-between text-xs font-semibold">
-                    <span className="text-zinc-600">{ord.totalDays} Days Selected</span>
-                    <span className="font-black text-zinc-900">₦{ord.finalTotalNGN.toLocaleString()}</span>
+                    <span className="text-zinc-600">{ord.totalDays || 0} Days Selected</span>
+                    <span className="font-black text-zinc-900">₦{(ord.finalTotalNGN || 0).toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -901,7 +906,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                         <option value="" disabled>Choose an order to sync...</option>
                         {submittedOrders.map((o) => (
                           <option key={o.id} value={o.id}>
-                            {o.fullName} — {o.company} ({o.totalDays} days, ₦{o.finalTotalNGN.toLocaleString()})
+                            {o.fullName} — {o.company} ({o.totalDays || 0} days, ₦{(o.finalTotalNGN || 0).toLocaleString()})
                           </option>
                         ))}
                       </select>

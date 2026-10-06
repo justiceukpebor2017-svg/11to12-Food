@@ -281,26 +281,26 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
 
     <div class="summary-card">
       <div class="summary-row">
-        <span>Subtotal (${order.totalDays} Days):</span>
-        <strong style="color: #111;">₦${order.subtotalNGN.toLocaleString()}</strong>
+        <span>Subtotal (${order.totalDays || 0} Days):</span>
+        <strong style="color: #111;">₦${(order.subtotalNGN || order.finalTotalNGN || 0).toLocaleString()}</strong>
       </div>
       ${
         order.discountNGN && order.discountNGN > 0
           ? `<div class="summary-row" style="color: #059669; font-weight: bold;">
                <span>20th Day Free Promotion:</span>
-               <span>-₦${order.discountNGN.toLocaleString()}</span>
+               <span>-₦${(order.discountNGN || 0).toLocaleString()}</span>
              </div>`
           : ''
       }
       <div class="total-row">
         <span>Total Payable:</span>
-        <span style="color: #ff4c00;">₦${order.finalTotalNGN.toLocaleString()}</span>
+        <span style="color: #ff4c00;">₦${(order.finalTotalNGN || 0).toLocaleString()}</span>
       </div>
     </div>
 
     <div style="margin-top: 20px; font-size: 12px; color: #666; line-height: 1.5; background: #faf7f2; padding: 14px; border-radius: 12px; border: 1px solid #ede8e0;">
       <strong style="color: #111;">Payment Instructions:</strong><br />
-      1. Make transfer of <strong>₦${order.finalTotalNGN.toLocaleString()}</strong> to Flutterwave MFB (Formerly OK MFB) (Acct: <strong>9838242145</strong>, 11 TO 12 FOODS LTD 11 TO 12 FOODS FLW).<br />
+      1. Make transfer of <strong>₦${(order.finalTotalNGN || 0).toLocaleString()}</strong> to Flutterwave MFB (Formerly OK MFB) (Acct: <strong>9838242145</strong>, 11 TO 12 FOODS LTD 11 TO 12 FOODS FLW).<br />
       2. Send your transfer receipt with this Invoice Reference <strong>${order.id}</strong> to WhatsApp: <strong>${CONTACT_CONFIG.whatsappDisplay}</strong> or email: <strong>confirm@11to12.food</strong>.<br />
       3. Your desk-drop lunches will commence promptly at 11:00 AM on your scheduled dates!
     </div>
@@ -308,7 +308,7 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
     <div class="action-bar">
       <button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>
       <a class="btn btn-whatsapp" href="https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
-        `Hello 11 to 12! Here is my official payment proof for invoice ${order.id} (₦${order.finalTotalNGN.toLocaleString()} for ${order.totalDays} lunch days).`
+        `Hello 11 to 12! Here is my official payment proof for invoice ${order.id} (₦${(order.finalTotalNGN || 0).toLocaleString()} for ${order.totalDays || 0} lunch days).`
       )}" target="_blank">Send on WhatsApp</a>
     </div>
   </div>

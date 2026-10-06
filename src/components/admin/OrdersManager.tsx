@@ -218,13 +218,30 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
     setSelectedDate(next);
   };
 
+  const isOrderCustomerLinked = (sub: OrderSubmission) => {
+    if (!sub) return false;
+    const subEmail = (sub.email || '').trim().toLowerCase();
+    return Boolean(
+      (subEmail && customers.some((c) => (c.email || '').trim().toLowerCase() === subEmail)) ||
+      (sub.id && customers.some((c) => c.orderRef === sub.id))
+    );
+  };
+
   // Filtered order submissions for Tab 2
-  const filteredSubmissions = ordersList.filter((o) => {
+  const filteredSubmissions = (ordersList || []).filter((o) => {
+    if (!o) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
+    const fullName = (o.fullName || '').toLowerCase();
+    const email = (o.email || '').toLowerCase();
+    const company = (o.company || '').toLowerCase();
+    const id = (o.id || '').toLowerCase();
+
     const matchesSearch =
-      o.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.id.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      fullName.includes(term) ||
+      email.includes(term) ||
+      company.includes(term) ||
+      id.includes(term);
     const matchesStatus = statusFilter === 'All' || o.paymentStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -711,7 +728,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                           <span className="text-[11px] text-zinc-500 block">
                             {sub.selectedDays?.length || 0} dates picked
                           </span>
-                          {(sub.isTopUp || customers.some((c) => c.email.toLowerCase() === sub.email.toLowerCase())) && (
+                          {(sub.isTopUp || isOrderCustomerLinked(sub)) && (
                             <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black">
                               ⚡ Top-Up Plan (+{sub.totalDays} Days)
                             </span>
@@ -719,7 +736,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                         </td>
 
                         <td className="py-4 px-4 font-black text-black">
-                          ₦{sub.finalTotalNGN.toLocaleString()}
+                          ₦{(sub.finalTotalNGN || 0).toLocaleString()}
                         </td>
 
                         <td className="py-4 px-4 whitespace-nowrap">
@@ -747,7 +764,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                             </button>
 
                             {/* Onboard directly to Customers */}
-                            {onOnboardOrder && !customers.some((c) => c.email.toLowerCase() === sub.email.toLowerCase() || c.orderRef === sub.id) && (
+                            {onOnboardOrder && !isOrderCustomerLinked(sub) && (
                               <button
                                 type="button"
                                 onClick={() => onOnboardOrder(sub)}
@@ -763,7 +780,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (sub.isTopUp || customers.some((c) => c.email.toLowerCase() === sub.email.toLowerCase())) {
+                                  if (sub.isTopUp || isOrderCustomerLinked(sub)) {
                                     if (onConfirmTopUpOrder) {
                                       onConfirmTopUpOrder(sub.id);
                                     } else {
@@ -781,7 +798,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                                 }}
                                 className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center space-x-1"
                               >
-                                <span>{(sub.isTopUp || customers.some((c) => c.email.toLowerCase() === sub.email.toLowerCase())) ? `Confirm & Add ${sub.totalDays} Days` : 'Confirm Payment'}</span>
+                                <span>{(sub.isTopUp || isOrderCustomerLinked(sub)) ? `Confirm & Add ${sub.totalDays} Days` : 'Confirm Payment'}</span>
                               </button>
                             )}
                           </div>
