@@ -262,44 +262,6 @@ export const SignInPage: React.FC<SignInPageProps> = ({
                 </button>
               </form>
 
-            {/* Google Authentication Option */}
-            {onGoogleSignIn && (
-              <div className="pt-1">
-                <div className="relative my-3">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-zinc-200" />
-                  </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="bg-[#FAF7F2] px-3 text-zinc-400 font-medium">Or continue with</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={onGoogleSignIn}
-                  disabled={isLoading}
-                  className="w-full rounded-2xl bg-white hover:bg-zinc-50 disabled:opacity-60 border border-zinc-200 py-3 font-semibold text-xs text-zinc-800 transition-all shadow-xs active:scale-[0.99] cursor-pointer flex items-center justify-center space-x-2.5"
-                >
-                  <GoogleIcon />
-                  <span>Continue with Google Workspace</span>
-                </button>
-              </div>
-            )}
-
-            <p className="text-center text-xs text-zinc-500 pt-2">
-              Need to customize lunch dates first?{' '}
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  onCreateAccount?.();
-                }}
-                className="text-[#FF4C00] font-bold hover:underline"
-              >
-                Build Plan on Homepage →
-              </a>
-            </p>
-
           </div>
         </div>
       </section>
