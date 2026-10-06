@@ -292,42 +292,7 @@ export function addWaitlistLead(leadData: Omit<WaitlistLead, 'id' | 'createdAt' 
     };
   }
 
-  // 1. Check if email is already in customers
-  const custDup = findDuplicateInCustomers(email, leadData.phone);
-  if (custDup.duplicateEmail) {
-    return {
-      success: false,
-      error: 'DUPLICATE_EMAIL',
-      message: `The email ${email} is already registered as an active office subscriber!`,
-    };
-  }
-  if (custDup.duplicatePhone) {
-    return {
-      success: false,
-      error: 'DUPLICATE_PHONE',
-      message: `The phone number ${leadData.phone} is already registered to an active subscriber account!`,
-    };
-  }
-
-  // 2. Check if email or phone is already on waitlist
-  const waitlistDup = findDuplicateInWaitlist(email, leadData.phone);
-  if (waitlistDup.duplicateEmail) {
-    return {
-      success: false,
-      error: 'DUPLICATE_EMAIL',
-      message: `The email ${email} is already on the waitlist! Member code: ${waitlistDup.existingLead?.memberCode || 'Active'}.`,
-      existingLead: waitlistDup.existingLead,
-    };
-  }
-  if (waitlistDup.duplicatePhone) {
-    return {
-      success: false,
-      error: 'DUPLICATE_PHONE',
-      message: `The phone number ${leadData.phone} is already registered on our waitlist. Each member can register once.`,
-      existingLead: waitlistDup.existingLead,
-    };
-  }
-
+  // Phone number and email can be used as many times as desired without restriction
   const newLead: WaitlistLead = {
     id: `wl-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
     name: leadData.name.trim(),
@@ -394,33 +359,7 @@ export function addCustomerRecord(customer: CustomerRecord): {
   const email = normalizeEmail(customer.email);
   const phoneKey = getStandardPhoneKey(customer.phone);
 
-  // Check duplicate active customer
-  const existingEmail = dbState.customers.find((c) => normalizeEmail(c.email) === email);
-  if (existingEmail && existingEmail.id !== customer.id) {
-    return {
-      success: false,
-      error: 'DUPLICATE_EMAIL',
-      message: `An active subscription already exists for email ${email}.`,
-    };
-  }
-
-  const existingPhone = dbState.customers.find((c) => getStandardPhoneKey(c.phone) === phoneKey);
-  if (existingPhone && existingPhone.id !== customer.id) {
-    return {
-      success: false,
-      error: 'DUPLICATE_PHONE',
-      message: `An active subscription already exists with phone number ${customer.phone}.`,
-    };
-  }
-
-  // Deduplicate waitlist: If user is on waitlist, remove them (since they are now an active subscriber)
-  dbState.waitlistLeads = dbState.waitlistLeads.filter((l) => {
-    const matchesEmail = normalizeEmail(l.email) === email;
-    const matchesPhone = getStandardPhoneKey(l.phone) === phoneKey;
-    const matchesCode = Boolean(customer.memberCode && l.memberCode && l.memberCode.toUpperCase() === customer.memberCode.toUpperCase());
-    return !(matchesEmail || matchesPhone || matchesCode);
-  });
-
+  // Customers can be created or renewed with any phone or email as many times as desired
   dbState.customers.unshift(customer);
   saveLiveDatabase();
   broadcastLiveUpdate('CUSTOMER_CREATED', customer);

@@ -23,8 +23,7 @@ import { PaymentsManager } from '../components/admin/PaymentsManager';
 import { CreditsSkipsManager } from '../components/admin/CreditsSkipsManager';
 import { HomepageSyncManager } from '../components/admin/HomepageSyncManager';
 import { TestimonialsManager } from '../components/admin/TestimonialsManager';
-import { Menu, X, ArrowLeft, RefreshCw, CheckCircle2 } from 'lucide-react';
-import { liveSync } from '../services/liveSyncService';
+import { Menu, X, ArrowLeft } from 'lucide-react';
 
 interface AdminDashboardPageProps {
   menuItems: MenuItem[];
@@ -95,39 +94,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [activeTab, setActiveTab] = useState<AdminTab>('operations-today');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [adminDate, setAdminDate] = useState<Date>(new Date(2026, 8, 22)); // Tuesday Sept 22, 2026
-  const [lastSyncTime, setLastSyncTime] = useState<string>('Just now');
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
-
-  // Auto-Save & 5-Second Real-Time Heartbeat Sync
-  useEffect(() => {
-    const timer = setInterval(async () => {
-      try {
-        setIsSyncing(true);
-        await liveSync.fetchPulseAndSync();
-        const now = new Date();
-        setLastSyncTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      } catch (err) {
-        // Non-blocking notice
-      } finally {
-        setTimeout(() => setIsSyncing(false), 600);
-      }
-    }, 5000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleManualSyncNow = async () => {
-    try {
-      setIsSyncing(true);
-      await liveSync.fetchPulseAndSync();
-      const now = new Date();
-      setLastSyncTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    } catch {
-      // Non-blocking
-    } finally {
-      setTimeout(() => setIsSyncing(false), 600);
-    }
-  };
 
   const pendingOrdersCount = submittedOrders.filter(
     (o) => o.paymentStatus === 'Pending Verification'
@@ -205,33 +171,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       {/* Main Content Viewport */}
       <main className="flex-1 p-4 sm:p-8 lg:p-10 max-w-7xl mx-auto w-full overflow-y-auto">
         
-        {/* Live Auto-Save Heartbeat Sync Status Bar */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 p-3 px-4 rounded-2xl bg-white border border-zinc-200 shadow-xs text-xs font-semibold text-zinc-700">
-          <div className="flex items-center space-x-2.5">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <span>
-              <strong>11 to 12 Live Engine:</strong> Auto-saves & syncs across all devices every 5s
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-3 text-[11px] text-zinc-500">
-            <span>Last Sync: <strong className="text-zinc-800 font-mono">{lastSyncTime}</strong></span>
-            <button
-              type="button"
-              onClick={handleManualSyncNow}
-              disabled={isSyncing}
-              className="px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold transition flex items-center space-x-1 cursor-pointer disabled:opacity-50"
-              title="Force sync now"
-            >
-              <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-[#FF4C00]' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
-            </button>
-          </div>
-        </div>
-
         {/* Operations Today (Home / Mission Control) */}
         {activeTab === 'operations-today' && (
           <TodayOperationsView
@@ -283,6 +222,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             orders={submittedOrders}
             onConfirmPayment={onConfirmOrderPayment}
             onConfirmTopUpOrder={onConfirmTopUpOrder}
+            onOnboardOrder={(_order) => {
+              setActiveTab('customers');
+            }}
             creditRedemptions={creditRedemptions}
             onConfirmCreditRedemption={onConfirmCreditRedemption}
             customers={customers}

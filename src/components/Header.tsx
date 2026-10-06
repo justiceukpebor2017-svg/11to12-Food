@@ -128,27 +128,11 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Mobile Navigation Row */}
-          <div className="flex md:hidden items-center justify-between py-2 border-t border-white/15 text-[11px] sm:text-xs font-semibold overflow-x-auto gap-2">
-            <div className="flex items-center space-x-2.5 sm:space-x-4 shrink-0">
-              <a href="#how-it-works" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">How It Works</a>
-              <a href="#menu" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">Menu</a>
-              <a href="#pricing" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">Build Plan</a>
-              <a href="#faq" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">FAQ</a>
-            </div>
-            <button
-              onClick={() => {
-                if (onOpenSubscriberLogin) {
-                  onOpenSubscriberLogin();
-                } else {
-                  setLoginError('');
-                  setShowLoginModal(true);
-                }
-              }}
-              className="text-white font-bold underline flex items-center space-x-1 cursor-pointer shrink-0 ml-auto pl-2"
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>Log In</span>
-            </button>
+          <div className="flex md:hidden items-center justify-center py-2 border-t border-white/15 text-[11px] sm:text-xs font-semibold overflow-x-auto gap-4">
+            <a href="#how-it-works" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">How It Works</a>
+            <a href="#menu" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">Menu</a>
+            <a href="#pricing" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">Build Plan</a>
+            <a href="#faq" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">FAQ</a>
           </div>
 
         </div>

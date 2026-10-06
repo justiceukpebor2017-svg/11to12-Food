@@ -51,9 +51,9 @@ import {
   onSnapshot,
   onAuthStateChanged,
   saveWaitlistLeadToFirestore,
-  deleteWaitlistLeadFromFirestore,
   saveCustomerToFirestore,
   deleteCustomerFromFirestore,
+  deleteWaitlistLeadFromFirestore,
   saveOrderToFirestore,
   logoutSubscriberAccount,
 } from './services/firebase';
@@ -915,6 +915,7 @@ export default function App() {
           onAddCustomer={handleAddCustomer}
           onUpdateCustomer={handleUpdateCustomer}
           onDeleteCustomer={handleDeleteCustomer}
+          onDeleteWaitlistLead={handleDeleteWaitlistLead}
           onSimulateUserActivation={handleSimulateUserLogin}
           onNavigateToSubscriber={() => setViewMode('subscriber')}
           userProfile={userProfile}

@@ -88,10 +88,10 @@ class LiveSyncService {
     this.fetchBootstrap();
     this.connectSSE();
 
-    // Fallback polling every 4 seconds to guarantee multi-device real-time sync
+    // Guaranteed multi-device real-time sync auto-saving & refreshing every 5 seconds
     this.pollInterval = setInterval(() => {
       this.fetchPulseAndSync();
-    }, 4000);
+    }, 5000);
 
     // Refresh immediately on tab focus or active
     window.addEventListener('focus', () => this.fetchBootstrap());
@@ -538,13 +538,9 @@ class LiveSyncService {
         return true;
       }
     } catch (e) {
-      console.warn('[LiveSync] deleteCustomer network notice:', e);
+      console.error('[LiveSync] deleteCustomer error:', e);
     }
-
-    // Always optimistically remove from local state
-    this.state.customers = this.state.customers.filter((c) => c.id !== id);
-    this.notify();
-    return true;
+    return false;
   }
 
   /**
@@ -563,8 +559,7 @@ class LiveSyncService {
     } catch (e) {
       console.warn('[LiveSync] deleteWaitlistLead network notice:', e);
     }
-
-    // Always optimistically remove from local state
+    // Optimistic local state update
     this.state.waitlistLeads = this.state.waitlistLeads.filter((l) => l.id !== id);
     this.notify();
     return true;

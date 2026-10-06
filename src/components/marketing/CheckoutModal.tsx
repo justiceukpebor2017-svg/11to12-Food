@@ -427,7 +427,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       className="w-full bg-white border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
-                      placeholder="Your Full Name"
+                      placeholder="Your full name"
                     />
                   </div>
                 </div>
@@ -443,7 +443,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="w-full bg-white border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
-                        placeholder="name@company.com"
+                        placeholder="Your work email"
                       />
                     </div>
                   </div>
@@ -458,7 +458,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         className="w-full bg-white border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
-                        placeholder="Phone Number"
+                        placeholder="Your phone number"
                       />
                     </div>
                   </div>
@@ -473,7 +473,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       value={company}
                       onChange={(e) => setCompany(e.target.value)}
                       className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
-                      placeholder="Workplace / Office Building"
+                      placeholder="Your workplace or office"
                     />
                   </div>
 
@@ -485,7 +485,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       value={officeAddress}
                       onChange={(e) => setOfficeAddress(e.target.value)}
                       className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
-                      placeholder="Floor 4, Suite 402"
+                      placeholder="Your office desk floor"
                     />
                   </div>
                 </div>

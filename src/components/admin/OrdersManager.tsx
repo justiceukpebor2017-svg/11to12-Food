@@ -28,6 +28,7 @@ interface OrdersManagerProps {
   orders: OrderSubmission[];
   onConfirmPayment: (orderId: string) => void;
   onConfirmTopUpOrder?: (orderId: string) => void;
+  onOnboardOrder?: (order: OrderSubmission) => void;
   creditRedemptions?: CreditRedemptionOrder[];
   onConfirmCreditRedemption?: (redemptionId: string) => void;
   customers?: CustomerRecord[];
@@ -40,6 +41,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
   orders,
   onConfirmPayment,
   onConfirmTopUpOrder,
+  onOnboardOrder,
   creditRedemptions = [],
   onConfirmCreditRedemption,
   customers = [],
@@ -47,7 +49,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
   selectedDate: propSelectedDate,
   onSelectDate,
 }) => {
-  const [activeTab, setActiveTab] = useState<'daily' | 'submissions'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'submissions'>('submissions');
   const [internalDate, setInternalDate] = useState<Date>(new Date(2026, 8, 22)); // Tuesday Sept 22, 2026
   const selectedDate = propSelectedDate || internalDate;
   const setSelectedDate = onSelectDate || setInternalDate;
@@ -744,6 +746,19 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                               <span>Invoice</span>
                             </button>
 
+                            {/* Onboard directly to Customers */}
+                            {onOnboardOrder && !customers.some((c) => c.email.toLowerCase() === sub.email.toLowerCase() || c.orderRef === sub.id) && (
+                              <button
+                                type="button"
+                                onClick={() => onOnboardOrder(sub)}
+                                className="px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center space-x-1"
+                                title="Onboard this customer into the subscriber database"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-[#FF4C00]" />
+                                <span>Onboard</span>
+                              </button>
+                            )}
+
                             {sub.paymentStatus !== 'Confirmed' && (
                               <button
                                 type="button"
@@ -759,11 +774,14 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                                     onConfirmPayment(sub.id);
                                     setToastMessage(`✓ Confirmed payment for ${sub.fullName} (${sub.id})!`);
                                   }
+                                  setLiveOrders((prev) =>
+                                    prev.map((o) => (o.id === sub.id ? { ...o, paymentStatus: 'Confirmed' } : o))
+                                  );
                                   setTimeout(() => setToastMessage(null), 3500);
                                 }}
                                 className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center space-x-1"
                               >
-                                <span>{(sub.isTopUp || customers.some((c) => c.email.toLowerCase() === sub.email.toLowerCase())) ? `Confirm & Add ${sub.totalDays} Days` : 'Confirm'}</span>
+                                <span>{(sub.isTopUp || customers.some((c) => c.email.toLowerCase() === sub.email.toLowerCase())) ? `Confirm & Add ${sub.totalDays} Days` : 'Confirm Payment'}</span>
                               </button>
                             )}
                           </div>

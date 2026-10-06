@@ -259,7 +259,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   };
 
   // Sync / Auto-fill from an invoice submitted from the homepage
-  const handleSyncFromInvoice = (order: OrderSubmission) => {
+  const handleSyncFromInvoice = (order: OrderSubmission, targetTab: 'details' | 'calendar' = 'details') => {
     setCustFullName(order.fullName);
     setCustEmail(order.email);
     setCustPhone(order.phone);
@@ -279,9 +279,10 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
     setCustSelectedDays(order.selectedDays || []);
     setSyncedOrderRef(order.id);
     
-    // Open modal directly on calendar tab to review the days
-    setModalTab('calendar');
+    // Keep user on the requested tab so details remain visible
+    setModalTab(targetTab);
     setShowAddCustomerModal(true);
+    showToast(`✓ Pre-filled customer info from Invoice #${order.id} (${order.totalDays} meal days linked)!`);
   };
 
   const handleOpenNewCustomerModal = () => {
@@ -892,9 +893,9 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                       <select
                         onChange={(e) => {
                           const ord = submittedOrders.find((o) => o.id === e.target.value);
-                          if (ord) handleSyncFromInvoice(ord);
+                          if (ord) handleSyncFromInvoice(ord, 'details');
                         }}
-                        defaultValue=""
+                        value={syncedOrderRef || ''}
                         className="bg-white border border-orange-300 rounded-xl px-3 py-2 text-xs font-bold text-zinc-900 focus:outline-hidden"
                       >
                         <option value="" disabled>Choose an order to sync...</option>
@@ -904,6 +905,23 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                           </option>
                         ))}
                       </select>
+                    </div>
+                  )}
+
+                  {/* Synced Invoice Active Indicator */}
+                  {syncedOrderRef && (
+                    <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Pre-filled from Invoice <strong>#{syncedOrderRef}</strong> ({custSelectedDays.length} meals assigned)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setModalTab('calendar')}
+                        className="text-xs text-[#FF4C00] font-bold hover:underline cursor-pointer"
+                      >
+                        Step 2: Meal Calendar →
+                      </button>
                     </div>
                   )}
 
@@ -1074,15 +1092,37 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                     </p>
                   </div>
 
-                  <div className="pt-2 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setModalTab('calendar')}
-                      className="px-6 py-3 rounded-full bg-zinc-900 hover:bg-black text-white font-bold text-xs uppercase tracking-wider flex items-center space-x-2 transition cursor-pointer"
-                    >
-                      <span>Proceed to Meal Calendar</span>
-                      <ArrowRight className="w-4 h-4 text-[#FF4C00]" />
-                    </button>
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <span className="text-zinc-500 text-[11px]">
+                      {custSelectedDays.length > 0
+                        ? `✓ ${custSelectedDays.length} meal dates linked from invoice`
+                        : 'Next: Pick meal schedule in Step 2'}
+                    </span>
+                    <div className="flex items-center space-x-2 w-full sm:w-auto">
+                      {custSelectedDays.length > 0 && (
+                        <button
+                          type="submit"
+                          className="flex-1 sm:flex-none px-5 py-2.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer shadow-xs flex items-center justify-center space-x-1.5"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                          <span>Create Subscriber Now</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!custFullName.trim() || !custEmail.trim()) {
+                            showToast('Please provide at least a Full Name and Email before proceeding.');
+                            return;
+                          }
+                          setModalTab('calendar');
+                        }}
+                        className="flex-1 sm:flex-none px-6 py-2.5 rounded-full bg-zinc-900 hover:bg-black text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition cursor-pointer"
+                      >
+                        <span>Proceed to Meal Calendar</span>
+                        <ArrowRight className="w-4 h-4 text-[#FF4C00]" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

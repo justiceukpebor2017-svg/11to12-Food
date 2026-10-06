@@ -83,36 +83,6 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
       return;
     }
 
-    // 1. Client-Side instant duplicate validation across both waitlist and customers
-    const emailInWaitlist = existingWaitlist.find((l) => normalizeEmail(l.email) === cleanEmail);
-    const emailInCustomers = existingCustomers.find((c) => normalizeEmail(c.email) === cleanEmail);
-    const phoneInWaitlist = existingWaitlist.find((l) => getStandardPhoneKey(l.phone) === phoneKey);
-    const phoneInCustomers = existingCustomers.find((c) => getStandardPhoneKey(c.phone) === phoneKey);
-
-    const isDupEmail = Boolean(emailInWaitlist || emailInCustomers);
-    const isDupPhone = Boolean(phoneInWaitlist || phoneInCustomers);
-
-    if (isDupEmail && isDupPhone) {
-      setDuplicateFieldError('both');
-      setFormError('Both this email address and phone number are already registered on our list.');
-      setExistingLeadMatch(emailInWaitlist || phoneInWaitlist || null);
-      return;
-    }
-
-    if (isDupEmail) {
-      setDuplicateFieldError('email');
-      setFormError(`The email address "${cleanEmail}" is already registered. You're already locked in for launch!`);
-      setExistingLeadMatch(emailInWaitlist || null);
-      return;
-    }
-
-    if (isDupPhone) {
-      setDuplicateFieldError('phone');
-      setFormError(`The phone number "${cleanPhone}" is already registered on our list. Each member can register once.`);
-      setExistingLeadMatch(phoneInWaitlist || null);
-      return;
-    }
-
     // Generate unique readable member code (e.g. DD-84920)
     const code = `DD-${Math.floor(10000 + Math.random() * 90000)}`;
 
@@ -132,15 +102,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
         const result = await onJoinWaitlist(newLeadData);
         if (!result.success) {
           setIsSubmitting(false);
-          if (result.error === 'DUPLICATE_EMAIL') {
-            setDuplicateFieldError('email');
-          } else if (result.error === 'DUPLICATE_PHONE') {
-            setDuplicateFieldError('phone');
-          }
-          setFormError(result.message || 'This contact is already registered.');
-          if (result.existingLead) {
-            setExistingLeadMatch(result.existingLead);
-          }
+          setFormError(result.message || 'Unable to register at this time. Please try again.');
           return;
         }
 
@@ -274,47 +236,6 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
           </div>
         </div>
 
-        {/* LIVE COHORT COUNTER BANNER: EXACTLY ABOVE RESERVE YOUR DESK DROP */}
-        <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-black rounded-3xl p-4 sm:p-7 border border-zinc-800 shadow-xl max-w-full overflow-hidden">
-          <div className="text-center mb-4 flex flex-wrap items-center justify-center gap-1.5">
-            <span className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4C00] bg-[#FF4C00]/10 border border-[#FF4C00]/30 px-2.5 py-1 rounded-full text-center leading-normal break-words max-w-full">
-              Live Real-Time Reservation Pulse • Synced Across Devices
-            </span>
-          </div>
-
-          <div className="max-w-md mx-auto">
-            {/* Live Waitlist Counter */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-zinc-800 flex items-center justify-center space-x-4 transition-all duration-300 shadow-lg">
-              <div className="w-12 h-12 rounded-2xl bg-[#FF4C00]/15 text-[#FF4C00] border border-[#FF4C00]/30 flex items-center justify-center shrink-0">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
-                    Waitlist Joined
-                  </span>
-                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-zinc-800 text-[#FF4C00] border border-[#FF4C00]/30">
-                    Live
-                  </span>
-                </div>
-                <div className="text-2xl sm:text-3xl font-black text-white">
-                  {waitlistCount}{' '}
-                  <span className="text-xs font-medium text-zinc-400">
-                    professionals
-                  </span>
-                </div>
-                <span className="text-[11px] text-zinc-500 block">
-                  Awaiting route launch
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Reserve Your Desk Drop Form */}
         <div id="reserve-form" className="bg-[#1F1F1F] rounded-3xl p-6 sm:p-10 border border-zinc-800 shadow-xl">
           <div className="text-center space-y-1 mb-8">
@@ -322,39 +243,19 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
               Reserve Your Desk Drop
             </h2>
             <p className="text-sm sm:text-base text-zinc-400 font-normal">
-              Deliveries activate {LAUNCH_CONFIG.displayShort}. One registration per email and phone.
+              Deliveries activate {LAUNCH_CONFIG.displayShort}. Priority meal drop to your desk.
             </p>
           </div>
 
           {!isSubmitted ? (
             <form onSubmit={handleReserve} className="max-w-xl mx-auto space-y-4">
-              {/* Form Duplicate / Validation Alert */}
+              {/* Form Validation Alert */}
               {formError && (
                 <div className="p-4 rounded-2xl bg-red-950/60 border border-red-800/80 text-red-200 text-xs sm:text-sm space-y-2">
                   <div className="flex items-start space-x-2">
                     <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <p className="font-semibold text-white">{formError}</p>
-                      {existingLeadMatch && (
-                        <div className="mt-2 p-2.5 rounded-xl bg-black/60 border border-red-900/60 flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
-                          <div className="min-w-0">
-                            <span className="text-[11px] text-zinc-400 block">Your Existing Member Code:</span>
-                            <span className="font-mono text-base font-bold text-[#FF4C00] break-words">{existingLeadMatch.memberCode}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(existingLeadMatch.memberCode);
-                              setCopiedCode(true);
-                              setTimeout(() => setCopiedCode(false), 2000);
-                            }}
-                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg flex items-center justify-center space-x-1 shrink-0 self-start sm:self-auto"
-                          >
-                            {copiedCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                            <span>{copiedCode ? 'Copied' : 'Copy Code'}</span>
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -368,56 +269,34 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Your Full Name"
+                    placeholder="Your full name"
                     className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1">
-                    Email Address <span className="text-zinc-500 font-normal">(Unique per user)</span>
-                  </label>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">Email Address</label>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => handleEmailChange(e.target.value)}
-                    placeholder="name@company.com"
-                    className={`w-full bg-[#141414] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition ${
-                      duplicateFieldError === 'email' || duplicateFieldError === 'both'
-                        ? 'border-2 border-red-500 focus:border-red-500'
-                        : 'border border-zinc-700 focus:border-[#FF4C00]'
-                    }`}
+                    placeholder="Your work email"
+                    className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
                   />
-                  {(duplicateFieldError === 'email' || duplicateFieldError === 'both') && (
-                    <span className="text-[11px] text-red-400 font-medium mt-1 block">
-                      ⚠️ Email address already registered
-                    </span>
-                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1">
-                    Phone Number <span className="text-zinc-500 font-normal">(Unique per user)</span>
-                  </label>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">Phone Number</label>
                   <input
                     type="tel"
                     required
                     value={phone}
                     onChange={(e) => handlePhoneChange(e.target.value)}
-                    placeholder="0802 618 0680"
-                    className={`w-full bg-[#141414] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition ${
-                      duplicateFieldError === 'phone' || duplicateFieldError === 'both'
-                        ? 'border-2 border-red-500 focus:border-red-500'
-                        : 'border border-zinc-700 focus:border-[#FF4C00]'
-                    }`}
+                    placeholder="Your phone number"
+                    className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
                   />
-                  {(duplicateFieldError === 'phone' || duplicateFieldError === 'both') && (
-                    <span className="text-[11px] text-red-400 font-medium mt-1 block">
-                      ⚠️ Phone number already registered
-                    </span>
-                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-400 mb-1">Workplace / Building</label>
@@ -426,7 +305,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                     required
                     value={workplace}
                     onChange={(e) => setWorkplace(e.target.value)}
-                    placeholder="Landmark Towers, VI"
+                    placeholder="Your workplace or office"
                     className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
                   />
                 </div>
@@ -439,7 +318,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                   required
                   value={addressFloor}
                   onChange={(e) => setAddressFloor(e.target.value)}
-                  placeholder="Floor 4, Suite 402"
+                  placeholder="Your office desk floor"
                   className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
                 />
               </div>

@@ -18,23 +18,23 @@ import {
   Copy,
   Check,
   Trash2,
-  AlertCircle,
 } from 'lucide-react';
 import { WaitlistLead } from '../../types';
 import { subscribeToWaitlist, deleteWaitlistLeadFromFirestore } from '../../services/firebase';
+import { liveSync } from '../../services/liveSyncService';
 
 interface WaitlistManagerProps {
   waitlistLeads?: WaitlistLead[];
   onUpdateWaitlistLead?: (lead: WaitlistLead) => void;
-  onConvertToCustomer?: (lead: WaitlistLead) => void;
   onDeleteWaitlistLead?: (leadId: string) => void;
+  onConvertToCustomer?: (lead: WaitlistLead) => void;
 }
 
 export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
   waitlistLeads = [],
   onUpdateWaitlistLead,
-  onConvertToCustomer,
   onDeleteWaitlistLead,
+  onConvertToCustomer,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'waitlisted' | 'contacted' | 'converted'>('all');
@@ -61,24 +61,36 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
     setTimeout(() => setNotice(null), 4000);
   };
 
-  const handleConfirmDeleteLead = () => {
-    if (!leadToDelete) return;
-    const targetId = leadToDelete.id;
-    if (onDeleteWaitlistLead) {
-      onDeleteWaitlistLead(targetId);
-    }
-    deleteWaitlistLeadFromFirestore(targetId).catch(() => {});
-    setLiveWaitlist((prev) => prev.filter((l) => l.id !== targetId));
-    showNotice(`✓ Successfully removed ${leadToDelete.name} from the waitlist.`);
-    setLeadToDelete(null);
-  };
-
   const handleStatusChange = (lead: WaitlistLead, newStatus: WaitlistLead['status']) => {
     const updated = { ...lead, status: newStatus };
     if (onUpdateWaitlistLead) {
       onUpdateWaitlistLead(updated);
     }
     showNotice(`Updated ${lead.name}'s status to ${newStatus}`);
+  };
+
+  const handleConfirmDeleteLead = () => {
+    if (!leadToDelete) return;
+    const targetId = leadToDelete.id;
+    const targetName = leadToDelete.name;
+
+    // 1. Direct callback to parent
+    if (onDeleteWaitlistLead) {
+      onDeleteWaitlistLead(targetId);
+    }
+
+    // 2. Direct Firestore deletion for real-time multi-device sync
+    deleteWaitlistLeadFromFirestore(targetId).catch((err) => {
+      console.warn('Firestore delete waitlist lead notice:', err);
+    });
+
+    // 3. Central liveSync deletion
+    liveSync.deleteWaitlistLead(targetId).catch(() => {});
+
+    // 4. Update local state
+    setLiveWaitlist((prev) => prev.filter((l) => l.id !== targetId));
+    setLeadToDelete(null);
+    showNotice(`✓ Removed ${targetName} from the waitlist.`);
   };
 
   const filtered = leadsList.filter((l) => {
@@ -362,12 +374,12 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
                             </button>
                           )}
 
-                          {/* Remove Waitlist Lead Action */}
+                          {/* Delete / Remove Lead */}
                           <button
                             type="button"
                             onClick={() => setLeadToDelete(lead)}
-                            className="p-2 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 transition cursor-pointer"
-                            title="Remove lead completely from waitlist"
+                            className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition cursor-pointer"
+                            title="Remove waitlist reservation completely"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -382,16 +394,16 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
         </div>
       )}
 
-      {/* CONFIRM DELETE WAITLIST LEAD MODAL */}
+      {/* DELETE WAITLIST LEAD CONFIRMATION MODAL */}
       {leadToDelete && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs font-['Poppins']">
-          <div className="relative w-full max-w-md bg-white rounded-3xl border border-zinc-200 shadow-2xl p-6 overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-['Poppins']">
+          <div className="relative w-full max-w-md bg-white rounded-3xl border border-red-200 shadow-2xl p-6 text-left animate-in fade-in zoom-in duration-150">
             <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center font-bold shrink-0">
-                <AlertCircle className="w-5 h-5" />
+              <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
+                <Trash2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-black text-black">Remove Waitlist Lead</h3>
+                <h3 className="text-base font-black text-black">Remove Waitlist Reservation</h3>
                 <p className="text-xs text-zinc-500">Irreversible admin action</p>
               </div>
             </div>
@@ -401,7 +413,7 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
                 Are you sure you want to remove <strong>{leadToDelete.name}</strong> ({leadToDelete.email}) from the waitlist?
               </p>
               <p className="text-red-600 font-semibold text-[11px]">
-                ⚠️ This will permanently remove their reservation and member code ({leadToDelete.memberCode}) across all devices.
+                ⚠️ This will permanently delete their reservation record and member code across all synced devices.
               </p>
             </div>
 
@@ -419,7 +431,7 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
                 className="px-5 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer transition flex items-center space-x-1.5 shadow-md active:scale-95"
               >
                 <Trash2 className="w-4 h-4" />
-                <span>Yes, Remove Lead</span>
+                <span>Yes, Delete Reservation</span>
               </button>
             </div>
           </div>
