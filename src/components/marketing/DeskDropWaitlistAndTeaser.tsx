@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle2, ArrowDown, Utensils, Users, Sparkles, CheckCircle, Copy, Check, Ticket, ArrowRight, AlertTriangle, Loader2 } from 'lucide-react';
 import { WaitlistLead, CustomerRecord } from '../../types';
-import { LAUNCH_CONFIG, getTimeUntilLaunch } from '../../config/launchConfig';
+import { LAUNCH_CONFIG, getTimeUntilLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
 
 interface DeskDropWaitlistAndTeaserProps {
@@ -42,12 +42,20 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
 
   // Dynamic countdown anchored directly to LAUNCH_CONFIG
   const [countdown, setCountdown] = useState(getTimeUntilLaunch());
+  const [, setLaunchConfigTick] = useState(0);
 
   useEffect(() => {
+    const unsub = subscribeLaunchConfig(() => {
+      setCountdown(getTimeUntilLaunch());
+      setLaunchConfigTick((t) => t + 1);
+    });
     const timer = setInterval(() => {
       setCountdown(getTimeUntilLaunch());
     }, 1000);
-    return () => clearInterval(timer);
+    return () => {
+      unsub();
+      clearInterval(timer);
+    };
   }, []);
 
   // Clear duplicate errors when typing
@@ -156,33 +164,48 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
     <section id="watch-and-reserve" className="py-16 sm:py-24 bg-[#141414] text-white font-['Poppins']">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
         
-        {/* Launch Countdown Banner: Clean & Minimal */}
-        <div className="text-center space-y-3">
-          <h3 className="text-2xl sm:text-3xl font-bold text-white">
-            Deliveries Begin {LAUNCH_CONFIG.displayDate}
-          </h3>
-          <div className="flex justify-center items-center gap-2 sm:gap-6 text-center pt-2 max-w-full">
-            <div>
-              <div className="text-xl sm:text-4xl font-bold text-[#FF4C00]">{String(countdown.days).padStart(2, '0')}</div>
-              <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Days</div>
-            </div>
-            <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
-            <div>
-              <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.hours).padStart(2, '0')}</div>
-              <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Hours</div>
-            </div>
-            <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
-            <div>
-              <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.minutes).padStart(2, '0')}</div>
-              <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Mins</div>
-            </div>
-            <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
-            <div>
-              <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.seconds).padStart(2, '0')}</div>
-              <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Secs</div>
+        {/* Launch Countdown Banner: Clean & Minimal (Visible when launching date is active, removed when officially launched) */}
+        {LAUNCH_CONFIG.isEnabled ? (
+          <div className="text-center space-y-3">
+            <h3 className="text-2xl sm:text-3xl font-bold text-white">
+              Deliveries Begin {LAUNCH_CONFIG.displayDate}
+            </h3>
+            <div className="flex justify-center items-center gap-2 sm:gap-6 text-center pt-2 max-w-full">
+              <div>
+                <div className="text-xl sm:text-4xl font-bold text-[#FF4C00]">{String(countdown.days).padStart(2, '0')}</div>
+                <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Days</div>
+              </div>
+              <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
+              <div>
+                <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.hours).padStart(2, '0')}</div>
+                <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Hours</div>
+              </div>
+              <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
+              <div>
+                <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.minutes).padStart(2, '0')}</div>
+                <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Mins</div>
+              </div>
+              <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
+              <div>
+                <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.seconds).padStart(2, '0')}</div>
+                <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Secs</div>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <span>Now Officially Live & Delivering Daily Across Lagos Offices</span>
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-black text-white">
+              Fresh Nigerian Lunches Dropped Straight to Your Workstation
+            </h3>
+            <p className="text-xs sm:text-sm text-zinc-400 max-w-lg mx-auto">
+              Our kitchen delivers Monday through Friday between 11:00 AM and 12:00 PM. Choose your workdays below.
+            </p>
+          </div>
+        )}
 
         {/* Video Teaser: Watch Before You Reserve */}
         <div className="bg-[#1F1F1F] rounded-3xl p-5 sm:p-10 border border-zinc-800 shadow-xl space-y-6">

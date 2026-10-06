@@ -213,5 +213,9 @@
       "rating": 5,
       "featured": true
     }
-  ]
+  ],
+  "launchSettings": {
+    "launchDate": "2026-11-02",
+    "isEnabled": true
+  }
 }

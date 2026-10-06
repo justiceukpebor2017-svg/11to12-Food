@@ -19,10 +19,13 @@ import {
   Sparkles,
   Ticket,
   AlertCircle,
+  Trash2,
 } from 'lucide-react';
 import { InvoiceSlipModal } from '../marketing/InvoiceSlipModal';
 import { getStructuredMealForDate } from '../../data/menuRotation';
-import { subscribeToOrders } from '../../services/firebase';
+import { subscribeToOrders, deleteOrderFromFirestore } from '../../services/firebase';
+import { liveSync } from '../../services/liveSyncService';
+import { LAUNCH_CONFIG, subscribeLaunchConfig } from '../../config/launchConfig';
 
 interface OrdersManagerProps {
   orders: OrderSubmission[];
@@ -33,6 +36,7 @@ interface OrdersManagerProps {
   onConfirmCreditRedemption?: (redemptionId: string) => void;
   customers?: CustomerRecord[];
   onUpdateCustomer?: (customer: CustomerRecord) => void;
+  onDeleteOrder?: (orderId: string) => void;
   selectedDate?: Date;
   onSelectDate?: (date: Date) => void;
 }
@@ -46,17 +50,28 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
   onConfirmCreditRedemption,
   customers = [],
   onUpdateCustomer,
+  onDeleteOrder,
   selectedDate: propSelectedDate,
   onSelectDate,
 }) => {
   const [activeTab, setActiveTab] = useState<'daily' | 'submissions'>('submissions');
-  const [internalDate, setInternalDate] = useState<Date>(new Date(2026, 8, 22)); // Tuesday Sept 22, 2026
+  const [internalDate, setInternalDate] = useState<Date>(
+    () => new Date(LAUNCH_CONFIG.year, LAUNCH_CONFIG.monthIndex, LAUNCH_CONFIG.day)
+  );
   const selectedDate = propSelectedDate || internalDate;
   const setSelectedDate = onSelectDate || setInternalDate;
+
+  useEffect(() => {
+    const unsub = subscribeLaunchConfig((cfg) => {
+      setInternalDate(new Date(cfg.year, cfg.monthIndex, cfg.day));
+    });
+    return () => unsub();
+  }, []);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Pending Verification' | 'Confirmed'>('All');
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<OrderSubmission | null>(null);
+  const [orderToDelete, setOrderToDelete] = useState<OrderSubmission | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Real-time onSnapshot camera stream for Orders
@@ -801,6 +816,17 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                                 <span>{(sub.isTopUp || isOrderCustomerLinked(sub)) ? `Confirm & Add ${sub.totalDays} Days` : 'Confirm Payment'}</span>
                               </button>
                             )}
+
+                            {/* Delete / Discard Unconfirmed or Unpaid Invoice */}
+                            <button
+                              type="button"
+                              onClick={() => setOrderToDelete(sub)}
+                              className="px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 transition cursor-pointer flex items-center space-x-1 font-bold text-xs shadow-2xs"
+                              title="Delete this order / pending invoice so unpaid requests do not pile up"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -811,6 +837,63 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* Delete Order / Invoice Confirmation Modal */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-['Poppins']">
+          <div className="relative w-full max-w-md bg-white text-zinc-900 rounded-3xl border border-zinc-200 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center space-x-3 text-red-600">
+              <div className="p-3 bg-red-50 rounded-2xl">
+                <Trash2 className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-black">Delete Pending Invoice?</h3>
+                <span className="text-xs font-bold text-red-600">Ref: {orderToDelete.id}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-600 leading-relaxed">
+              Are you sure you want to permanently delete the invoice for <strong>{orderToDelete.fullName}</strong> ({orderToDelete.company}) of <strong>₦{(orderToDelete.finalTotalNGN || 0).toLocaleString()}</strong>?
+            </p>
+            <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200 text-[11px] text-zinc-500 space-y-1">
+              <div><strong>Status:</strong> {orderToDelete.paymentStatus}</div>
+              <div><strong>Selected Meals:</strong> {orderToDelete.totalDays || 0} workdays</div>
+              <p className="text-amber-800 font-medium pt-1">
+                This removes this unconfirmed invoice so that pending invoices do not pile up on your dashboard.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setOrderToDelete(null)}
+                className="px-4 py-2.5 rounded-full border border-zinc-300 text-zinc-700 hover:bg-zinc-100 font-bold text-xs cursor-pointer transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const targetId = orderToDelete.id;
+                  if (onDeleteOrder) {
+                    onDeleteOrder(targetId);
+                  }
+                  deleteOrderFromFirestore(targetId).catch(() => {});
+                  liveSync.deleteOrder(targetId).catch(() => {});
+                  setLiveOrders((prev) => prev.filter((o) => o.id !== targetId));
+                  setToastMessage(`✓ Deleted pending invoice ${targetId} for ${orderToDelete.fullName}`);
+                  setOrderToDelete(null);
+                  setTimeout(() => setToastMessage(null), 3500);
+                }}
+                className="px-5 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer transition flex items-center space-x-1.5 shadow-md active:scale-95"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Yes, Delete Pending Invoice</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

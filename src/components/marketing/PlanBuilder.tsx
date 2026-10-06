@@ -8,7 +8,7 @@ import {
   PER_DAY_FEE,
 } from '../../types';
 import { getStructuredMealForDate } from '../../data/menuRotation';
-import { LAUNCH_CONFIG, isDateBeforeLaunch } from '../../config/launchConfig';
+import { LAUNCH_CONFIG, isDateBeforeLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 import {
   ChevronLeft,
   ChevronRight,
@@ -34,9 +34,17 @@ interface PlanBuilderProps {
 }
 
 export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout }) => {
-  // Anchored to official Launch Date (November 2, 2026)
+  // Anchored to official Launch Date
   const [currentYear, setCurrentYear] = useState(LAUNCH_CONFIG.year);
   const [currentMonth, setCurrentMonth] = useState(LAUNCH_CONFIG.monthIndex);
+
+  useEffect(() => {
+    const unsub = subscribeLaunchConfig((cfg) => {
+      setCurrentYear(cfg.year);
+      setCurrentMonth(cfg.monthIndex);
+    });
+    return () => unsub();
+  }, []);
 
   // Map of dateStr -> SelectedLunchDay
   const [selectedDaysMap, setSelectedDaysMap] = useState<Record<string, SelectedLunchDay>>({});
@@ -65,9 +73,11 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
   // 6-month quick navigation tabs starting from launch date
   const sixMonthsCycle = useMemo(() => {
+    const startYear = LAUNCH_CONFIG.isEnabled ? LAUNCH_CONFIG.year : new Date().getFullYear();
+    const startMonth = LAUNCH_CONFIG.isEnabled ? LAUNCH_CONFIG.monthIndex : new Date().getMonth();
     const tabs = [];
     for (let i = 0; i < 6; i++) {
-      const d = new Date(LAUNCH_CONFIG.year, LAUNCH_CONFIG.monthIndex + i, 1);
+      const d = new Date(startYear, startMonth + i, 1);
       tabs.push({
         year: d.getFullYear(),
         month: d.getMonth(),
@@ -75,7 +85,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       });
     }
     return tabs;
-  }, []);
+  }, [currentYear, currentMonth]);
 
   const prevMonth = () => {
     if (currentMonth === 0) {
@@ -590,7 +600,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
           </div>
 
           {/* Pre-launch alert banner */}
-          {isCurrentMonthPreLaunch && (
+          {LAUNCH_CONFIG.isEnabled && isCurrentMonthPreLaunch && (
             <div className="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 text-[#FF4C00] shrink-0" />
               <span>

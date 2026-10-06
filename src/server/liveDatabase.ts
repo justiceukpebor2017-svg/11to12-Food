@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Response } from 'express';
-import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem } from '../types';
+import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem, LaunchSettings } from '../types';
 import { getStandardPhoneKey, normalizeEmail } from '../utils/phoneUtils';
 
 export interface LiveDatabaseSchema {
@@ -11,6 +11,7 @@ export interface LiveDatabaseSchema {
   creditRedemptions: CreditRedemptionOrder[];
   announcements: AdminAnnouncement[];
   testimonials: TestimonialItem[];
+  launchSettings: LaunchSettings;
 }
 
 const DEFAULT_TESTIMONIALS: TestimonialItem[] = [
@@ -116,6 +117,10 @@ let dbState: LiveDatabaseSchema = {
   creditRedemptions: [],
   announcements: [],
   testimonials: [...DEFAULT_TESTIMONIALS],
+  launchSettings: {
+    launchDate: '2026-11-02',
+    isEnabled: true,
+  },
 };
 
 // Connected SSE clients for instantaneous real-time push to all devices
@@ -143,6 +148,9 @@ export function initLiveDatabase(): void {
         testimonials: Array.isArray(parsed.testimonials) && parsed.testimonials.length > 0
           ? parsed.testimonials
           : [...DEFAULT_TESTIMONIALS],
+        launchSettings: parsed.launchSettings && typeof parsed.launchSettings.launchDate === 'string'
+          ? parsed.launchSettings
+          : { launchDate: '2026-11-02', isEnabled: true },
       };
       console.log(`[LiveDB] Loaded ${dbState.waitlistLeads.length} waitlist leads, ${dbState.customers.length} customers from disk.`);
     } else {
@@ -451,6 +459,40 @@ export function confirmOrderPaymentInDb(orderId: string): { order?: OrderSubmiss
   saveLiveDatabase();
   broadcastLiveUpdate('ORDER_PAYMENT_CONFIRMED', { order, customer: updatedCustomer });
   return { order, customer: updatedCustomer };
+}
+
+/**
+ * Deletes an order submission completely from the database
+ */
+export function deleteOrderSubmissionInDb(orderId: string): boolean {
+  const initialLen = dbState.submittedOrders.length;
+  dbState.submittedOrders = dbState.submittedOrders.filter((o) => o.id !== orderId);
+  if (dbState.submittedOrders.length < initialLen) {
+    saveLiveDatabase();
+    broadcastLiveUpdate('ORDER_DELETED', { id: orderId });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Gets launch settings
+ */
+export function getLaunchSettingsInDb(): LaunchSettings {
+  return dbState.launchSettings || { launchDate: '2026-11-02', isEnabled: true };
+}
+
+/**
+ * Updates launch settings and broadcasts to all clients
+ */
+export function updateLaunchSettingsInDb(patch: Partial<LaunchSettings>): LaunchSettings {
+  dbState.launchSettings = {
+    ...getLaunchSettingsInDb(),
+    ...patch,
+  };
+  saveLiveDatabase();
+  broadcastLiveUpdate('LAUNCH_SETTINGS_UPDATED', dbState.launchSettings);
+  return dbState.launchSettings;
 }
 
 /**

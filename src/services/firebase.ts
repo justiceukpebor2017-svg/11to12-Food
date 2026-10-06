@@ -467,6 +467,56 @@ export async function deleteCustomerFromFirestore(customerId: string): Promise<v
 }
 
 /**
+ * Delete Order from Firestore
+ */
+export async function deleteOrderFromFirestore(orderId: string): Promise<void> {
+  try {
+    const orderRef = doc(db, 'orders', orderId);
+    await deleteDoc(orderRef);
+    console.log('[Firebase] Order successfully deleted from Firestore:', orderId);
+  } catch (e) {
+    handleFirestoreError(e, OperationType.DELETE, `orders/${orderId}`);
+  }
+}
+
+/**
+ * Save Launch Settings to Firestore
+ */
+export async function saveLaunchSettingsToFirestore(settings: { launchDate: string; isEnabled: boolean }): Promise<void> {
+  try {
+    const settingsRef = doc(db, 'settings', 'launch');
+    await setDoc(settingsRef, sanitizeForFirestore(settings), { merge: true });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.UPDATE, 'settings/launch');
+  }
+}
+
+/**
+ * Subscribe to Launch Settings from Firestore
+ */
+export function subscribeToLaunchSettings(
+  callback: (settings: { launchDate: string; isEnabled: boolean }) => void
+): () => void {
+  return onSnapshot(
+    doc(db, 'settings', 'launch'),
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && typeof data.launchDate === 'string') {
+          callback({
+            launchDate: data.launchDate,
+            isEnabled: typeof data.isEnabled === 'boolean' ? data.isEnabled : true,
+          });
+        }
+      }
+    },
+    (err) => {
+      console.warn('[Firebase onSnapshot launch settings error]:', err);
+    }
+  );
+}
+
+/**
  * Save Order to Firestore (Sanitizes undefined fields and sets pending emailStatus for instant admin notification)
  */
 export async function saveOrderToFirestore(order: any): Promise<void> {

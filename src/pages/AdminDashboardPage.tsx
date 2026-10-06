@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   MenuItem,
   UserProfile,
@@ -11,6 +11,7 @@ import {
   WaitlistLead,
   CreditRedemptionOrder,
   TestimonialItem,
+  LaunchSettings,
 } from '../types';
 import { AdminSidebar, AdminTab } from '../components/admin/AdminSidebar';
 import { TodayOperationsView } from '../components/admin/TodayOperationsView';
@@ -23,7 +24,8 @@ import { PaymentsManager } from '../components/admin/PaymentsManager';
 import { CreditsSkipsManager } from '../components/admin/CreditsSkipsManager';
 import { HomepageSyncManager } from '../components/admin/HomepageSyncManager';
 import { TestimonialsManager } from '../components/admin/TestimonialsManager';
-import { Menu, X, ArrowLeft } from 'lucide-react';
+import { Menu, X, ArrowLeft, Rocket } from 'lucide-react';
+import { LAUNCH_CONFIG, subscribeLaunchConfig } from '../config/launchConfig';
 
 interface AdminDashboardPageProps {
   menuItems: MenuItem[];
@@ -44,6 +46,7 @@ interface AdminDashboardPageProps {
   onAddCustomer?: (customer: CustomerRecord) => void;
   onUpdateCustomer?: (customer: CustomerRecord) => void;
   onDeleteCustomer?: (customerId: string) => void;
+  onDeleteOrder?: (orderId: string) => void;
   onSimulateUserActivation?: (customer: CustomerRecord) => void;
   onNavigateToSubscriber?: () => void;
   onConfirmOrderPayment?: (orderId: string) => void;
@@ -63,6 +66,8 @@ interface AdminDashboardPageProps {
   onAddTestimonial?: (item: Omit<TestimonialItem, 'id'>) => Promise<TestimonialItem | void>;
   onUpdateTestimonial?: (id: string, patch: Partial<TestimonialItem>) => Promise<TestimonialItem | null | void>;
   onDeleteTestimonial?: (id: string) => Promise<boolean | void>;
+  launchSettings?: LaunchSettings;
+  onUpdateLaunchSettings?: (settings: Partial<LaunchSettings>) => void;
 }
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
@@ -74,6 +79,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onAddCustomer,
   onUpdateCustomer,
   onDeleteCustomer,
+  onDeleteOrder,
   onSimulateUserActivation,
   onNavigateToSubscriber,
   userProfile,
@@ -90,10 +96,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onAddTestimonial = async () => {},
   onUpdateTestimonial = async () => null,
   onDeleteTestimonial = async () => {},
+  launchSettings,
+  onUpdateLaunchSettings,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('operations-today');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [adminDate, setAdminDate] = useState<Date>(new Date(2026, 8, 22)); // Tuesday Sept 22, 2026
+  const [adminDate, setAdminDate] = useState<Date>(
+    () => new Date(LAUNCH_CONFIG.year, LAUNCH_CONFIG.monthIndex, LAUNCH_CONFIG.day)
+  );
+
+  useEffect(() => {
+    const unsub = subscribeLaunchConfig((cfg) => {
+      setAdminDate(new Date(cfg.year, cfg.monthIndex, cfg.day));
+    });
+    return () => unsub();
+  }, []);
 
   const pendingOrdersCount = submittedOrders.filter(
     (o) => o.paymentStatus === 'Pending Verification'
@@ -171,6 +188,37 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       {/* Main Content Viewport */}
       <main className="flex-1 p-4 sm:p-8 lg:p-10 max-w-7xl mx-auto w-full overflow-y-auto">
         
+        {/* Quick Launch Status Bar */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white rounded-2xl border border-zinc-200 shadow-2xs text-xs">
+          <div className="flex items-center space-x-2.5">
+            <span className="p-1.5 rounded-lg bg-orange-100 text-[#FF4C00]">
+              <Rocket className="w-4 h-4" />
+            </span>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider block">
+                Deliveries Launching Status
+              </span>
+              <span className="font-bold text-zinc-900">
+                {LAUNCH_CONFIG.isEnabled ? (
+                  <>🚀 Scheduled: <strong className="text-[#FF4C00]">{LAUNCH_CONFIG.displayDate}</strong> (Live on Homepage)</>
+                ) : (
+                  <span className="text-emerald-700 font-black">✓ Officially Launched • All Calendars Live (Launch date removed)</span>
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('homepage-sync')}
+              className="px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-[11px] transition cursor-pointer shadow-2xs"
+            >
+              {LAUNCH_CONFIG.isEnabled ? 'Edit or Remove Launch Date' : 'Set Launch Date'}
+            </button>
+          </div>
+        </div>
+
         {/* Operations Today (Home / Mission Control) */}
         {activeTab === 'operations-today' && (
           <TodayOperationsView
@@ -190,6 +238,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             onAddCustomer={onAddCustomer}
             onUpdateCustomer={onUpdateCustomer}
             onDeleteCustomer={onDeleteCustomer}
+            onDeleteOrder={onDeleteOrder}
             onSimulateUserActivation={onSimulateUserActivation}
             onNavigateToSubscriber={onNavigateToSubscriber}
             currentUserProfile={userProfile}
@@ -229,6 +278,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             onConfirmCreditRedemption={onConfirmCreditRedemption}
             customers={customers}
             onUpdateCustomer={onUpdateCustomer}
+            onDeleteOrder={onDeleteOrder}
             selectedDate={adminDate}
             onSelectDate={setAdminDate}
           />
@@ -251,15 +301,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             submittedOrders={submittedOrders}
             customers={customers}
             onConfirmOrderPayment={onConfirmOrderPayment}
+            onDeleteOrder={onDeleteOrder}
           />
         )}
 
         {/* Credits & Skips */}
         {activeTab === 'credits-skips' && <CreditsSkipsManager />}
 
-        {/* Homepage Sync */}
+        {/* Homepage Sync & Launch Settings */}
         {activeTab === 'homepage-sync' && (
-          <HomepageSyncManager onNavigateHome={onNavigateToHome} />
+          <HomepageSyncManager
+            onNavigateHome={onNavigateToHome}
+            launchSettings={launchSettings}
+            onUpdateLaunchSettings={onUpdateLaunchSettings}
+          />
         )}
 
         {/* Website Testimonials (Social Proof / Reviews Control) */}

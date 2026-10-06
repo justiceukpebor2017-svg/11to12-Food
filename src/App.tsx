@@ -16,6 +16,7 @@ import {
   CreditRedemptionOrder,
   SwallowType,
   TestimonialItem,
+  LaunchSettings,
 } from './types';
 import {
   INITIAL_MENU_ITEMS,
@@ -54,9 +55,13 @@ import {
   saveCustomerToFirestore,
   deleteCustomerFromFirestore,
   deleteWaitlistLeadFromFirestore,
+  deleteOrderFromFirestore,
+  subscribeToLaunchSettings,
+  saveLaunchSettingsToFirestore,
   saveOrderToFirestore,
   logoutSubscriberAccount,
 } from './services/firebase';
+import { getLaunchSettings, updateLaunchConfig, subscribeLaunchConfig } from './config/launchConfig';
 
 // Storage Keys to safeguard existing real dashboard users across updates and refreshes
 const APP_STORAGE_KEYS = {
@@ -176,6 +181,27 @@ export default function App() {
     return liveSync.getState().testimonials || [];
   });
 
+  // Central Launch Settings State
+  const [launchSettings, setLaunchSettings] = useState<LaunchSettings>(() => getLaunchSettings());
+
+  useEffect(() => {
+    const unsub = subscribeLaunchConfig((cfg) => {
+      setLaunchSettings({
+        launchDate: cfg.dateString,
+        isEnabled: cfg.isEnabled,
+      });
+    });
+    const unsubFirestore = subscribeToLaunchSettings((settings) => {
+      if (settings && settings.launchDate) {
+        updateLaunchConfig(settings);
+      }
+    });
+    return () => {
+      unsub();
+      unsubFirestore();
+    };
+  }, []);
+
   // Automatic persistent background synchronization
   useEffect(() => {
     try {
@@ -246,6 +272,10 @@ export default function App() {
       }
       if (liveState.testimonials && Array.isArray(liveState.testimonials)) {
         setLiveTestimonials(liveState.testimonials);
+      }
+      if (liveState.launchSettings) {
+        setLaunchSettings(liveState.launchSettings);
+        updateLaunchConfig(liveState.launchSettings);
       }
     });
 
@@ -788,6 +818,18 @@ export default function App() {
     await deleteWaitlistLeadFromFirestore(leadId).catch(() => {});
   };
 
+  const handleDeleteOrder = async (orderId: string) => {
+    setSubmittedOrders((prev) => prev.filter((o) => o.id !== orderId));
+    await liveSync.deleteOrder(orderId);
+    await deleteOrderFromFirestore(orderId).catch(() => {});
+  };
+
+  const handleUpdateLaunchSettings = async (patch: Partial<LaunchSettings>) => {
+    const updated = await liveSync.updateLaunchSettings(patch);
+    await saveLaunchSettingsToFirestore(updated).catch(() => {});
+    setLaunchSettings(updated);
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1A1A] font-['Poppins'] antialiased selection:bg-[#FF4C00] selection:text-white">
       
@@ -918,7 +960,10 @@ export default function App() {
           onAddCustomer={handleAddCustomer}
           onUpdateCustomer={handleUpdateCustomer}
           onDeleteCustomer={handleDeleteCustomer}
+          onDeleteOrder={handleDeleteOrder}
           onDeleteWaitlistLead={handleDeleteWaitlistLead}
+          launchSettings={launchSettings}
+          onUpdateLaunchSettings={handleUpdateLaunchSettings}
           onSimulateUserActivation={handleSimulateUserLogin}
           onNavigateToSubscriber={() => setViewMode('subscriber')}
           userProfile={userProfile}

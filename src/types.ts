@@ -357,3 +357,8 @@ export interface TestimonialItem {
   rating?: number;
   featured?: boolean;
 }
+
+export interface LaunchSettings {
+  launchDate: string; // 'YYYY-MM-DD'
+  isEnabled: boolean; // true = launch countdown & pre-launch calendar gating active; false = officially launched (launch date removed from homepage)
+}

@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { StructuredMeal, SelectedLunchDay, SwallowType, calculateMealPrice, calculateOrderSummary } from '../../types';
 import { getStructuredMealForDate } from '../../data/menuRotation';
 import { ChevronLeft, ChevronRight, Check, Sparkles, RotateCcw, Calendar, Utensils } from 'lucide-react';
+import { LAUNCH_CONFIG, subscribeLaunchConfig } from '../../config/launchConfig';
 
 interface CustomerMealCalendarPickerProps {
   selectedDays: SelectedLunchDay[];
@@ -14,10 +15,16 @@ export const CustomerMealCalendarPicker: React.FC<CustomerMealCalendarPickerProp
   onChange,
   maxDaysTarget,
 }) => {
-  const today = new Date();
-  // Default to October 2026 or current month
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(9); // October (0-indexed: 9)
+  const [currentYear, setCurrentYear] = useState(LAUNCH_CONFIG.year);
+  const [currentMonth, setCurrentMonth] = useState(LAUNCH_CONFIG.monthIndex);
+
+  useEffect(() => {
+    const unsub = subscribeLaunchConfig((cfg) => {
+      setCurrentYear(cfg.year);
+      setCurrentMonth(cfg.monthIndex);
+    });
+    return () => unsub();
+  }, []);
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',

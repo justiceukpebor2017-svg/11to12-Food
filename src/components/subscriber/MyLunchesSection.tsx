@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -39,6 +39,7 @@ import {
 import { CreditUsageModal } from './CreditUsageModal';
 import { InvoiceSlipModal } from '../marketing/InvoiceSlipModal';
 import { downloadInvoiceDocument } from '../../utils/invoiceDownload';
+import { LAUNCH_CONFIG, subscribeLaunchConfig } from '../../config/launchConfig';
 
 export interface CalendarDayPlan {
   dateStr: string; // "2026-10-06"
@@ -166,10 +167,23 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
   const currentHour = new Date().getHours();
   const isAfter5PM = currentHour >= 17;
 
-  // Month navigation: dynamically start at the real current month
-  const now = new Date();
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(now.getMonth());
-  const [currentYear, setCurrentYear] = useState(now.getFullYear());
+  // Month navigation: dynamically start at launch date or current month
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(
+    LAUNCH_CONFIG.isEnabled ? LAUNCH_CONFIG.monthIndex : new Date().getMonth()
+  );
+  const [currentYear, setCurrentYear] = useState(
+    LAUNCH_CONFIG.isEnabled ? LAUNCH_CONFIG.year : new Date().getFullYear()
+  );
+
+  useEffect(() => {
+    const unsub = subscribeLaunchConfig((cfg) => {
+      if (cfg.isEnabled) {
+        setCurrentMonthIndex(cfg.monthIndex);
+        setCurrentYear(cfg.year);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',

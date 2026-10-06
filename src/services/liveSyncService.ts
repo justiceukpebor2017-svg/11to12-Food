@@ -1,7 +1,8 @@
-import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem } from '../types';
+import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem, LaunchSettings } from '../types';
 import { getStandardPhoneKey, normalizeEmail } from '../utils/phoneUtils';
 import { db, handleFirestoreError, OperationType, testFirestoreConnection } from './firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { getLaunchSettings, updateLaunchConfig } from '../config/launchConfig';
 
 export interface PulseStats {
   waitlistCount: number;
@@ -17,6 +18,7 @@ export interface LiveSyncState {
   creditRedemptions: CreditRedemptionOrder[];
   announcements: AdminAnnouncement[];
   testimonials: TestimonialItem[];
+  launchSettings: LaunchSettings;
   stats: PulseStats;
 }
 
@@ -64,6 +66,7 @@ class LiveSyncService {
     creditRedemptions: [],
     announcements: [],
     testimonials: [],
+    launchSettings: getLaunchSettings(),
     stats: {
       waitlistCount: 0,
       confirmedSubscribersCount: 0,
@@ -196,6 +199,11 @@ class LiveSyncService {
           c.id === data.payload.customer.id ? data.payload.customer : c
         );
       }
+    } else if (data.type === 'ORDER_DELETED' && data.payload) {
+      this.state.submittedOrders = this.state.submittedOrders.filter((o) => o.id !== data.payload.id);
+    } else if (data.type === 'LAUNCH_SETTINGS_UPDATED' && data.payload) {
+      this.state.launchSettings = data.payload;
+      updateLaunchConfig(data.payload);
     }
 
     this.notify();
@@ -213,6 +221,10 @@ class LiveSyncService {
           this.state.creditRedemptions = json.db.creditRedemptions || [];
           this.state.announcements = json.db.announcements || [];
           this.state.testimonials = json.db.testimonials || [];
+          if (json.db.launchSettings) {
+            this.state.launchSettings = json.db.launchSettings;
+            updateLaunchConfig(json.db.launchSettings);
+          }
         }
         if (json?.stats) {
           this.state.stats = json.stats;
@@ -640,6 +652,65 @@ class LiveSyncService {
       console.error('[LiveSync] confirmOrderPayment error:', e);
     }
     return false;
+  }
+
+  /**
+   * Completely removes an order submission/invoice from central database and broadcasts across all devices
+   */
+  public async deleteOrder(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(apiUrl(`/api/orders/${encodeURIComponent(id)}`), {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        this.state.submittedOrders = this.state.submittedOrders.filter((o) => o.id !== id);
+        this.notify();
+        return true;
+      }
+    } catch (e) {
+      console.warn('[LiveSync] Network deleteOrder error, falling back locally:', e);
+    }
+
+    this.state.submittedOrders = this.state.submittedOrders.filter((o) => o.id !== id);
+    this.notify();
+    return true;
+  }
+
+  /**
+   * Returns current launch settings
+   */
+  public getLaunchSettings(): LaunchSettings {
+    return this.state.launchSettings || getLaunchSettings();
+  }
+
+  /**
+   * Updates launch settings, broadcasts to all clients, and persists
+   */
+  public async updateLaunchSettings(settings: Partial<LaunchSettings>): Promise<LaunchSettings> {
+    updateLaunchConfig(settings);
+    this.state.launchSettings = getLaunchSettings();
+    this.notify();
+
+    try {
+      const res = await fetch(apiUrl('/api/launch-settings'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      if (res.ok) {
+        const data = await safeParseJson(res);
+        if (data?.launchSettings) {
+          this.state.launchSettings = data.launchSettings;
+          updateLaunchConfig(data.launchSettings);
+          this.notify();
+          return data.launchSettings;
+        }
+      }
+    } catch (e) {
+      console.warn('[LiveSync] updateLaunchSettings network error:', e);
+    }
+
+    return this.state.launchSettings;
   }
 }
 

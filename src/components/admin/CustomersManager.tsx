@@ -35,7 +35,8 @@ import { OrderSubmission, UserProfile, MenuItem, TimeWindow, CustomerRecord, Sel
 import { CustomerMealCalendarPicker } from './CustomerMealCalendarPicker';
 import { generateDefaultPassword } from '../../utils/credentialUtils';
 import { CustomerCredentialsModal } from './CustomerCredentialsModal';
-import { saveCustomerToFirestore, deleteCustomerFromFirestore, subscribeToCustomers } from '../../services/firebase';
+import { saveCustomerToFirestore, deleteCustomerFromFirestore, deleteOrderFromFirestore, subscribeToCustomers } from '../../services/firebase';
+import { liveSync } from '../../services/liveSyncService';
 
 interface CustomersManagerProps {
   submittedOrders: OrderSubmission[];
@@ -44,6 +45,7 @@ interface CustomersManagerProps {
   onAddCustomer?: (customer: CustomerRecord) => void;
   onUpdateCustomer?: (customer: CustomerRecord) => void;
   onDeleteCustomer?: (customerId: string) => void;
+  onDeleteOrder?: (orderId: string) => void;
   onSimulateUserActivation?: (customer: CustomerRecord) => void;
   currentUserProfile?: UserProfile;
   onUpdateCurrentUserProfile?: (updated: UserProfile) => void;
@@ -61,6 +63,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   onAddCustomer: externalOnAddCustomer,
   onUpdateCustomer: externalOnUpdateCustomer,
   onDeleteCustomer,
+  onDeleteOrder,
   onSimulateUserActivation,
   currentUserProfile,
   onUpdateCurrentUserProfile,
@@ -103,6 +106,9 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   // Delete Customer state
   const [customerToDelete, setCustomerToDelete] = useState<CustomerRecord | null>(null);
 
+  // Delete Order / Invoice state
+  const [orderToDelete, setOrderToDelete] = useState<OrderSubmission | null>(null);
+
   const handleConfirmDeleteCustomer = () => {
     if (!customerToDelete) return;
     const targetId = customerToDelete.id;
@@ -111,12 +117,36 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
     }
     // Delete directly from Firestore collection so all devices reflect the deletion in real-time
     deleteCustomerFromFirestore(targetId).catch(() => {});
+    liveSync.deleteCustomer(targetId).catch(() => {});
     setInternalCustomers((prev) => prev.filter((c) => c.id !== targetId));
     setLiveFirestoreCustomers((prev) => prev.filter((c) => c.id !== targetId));
     if (selectedCustomer?.id === targetId) {
       setSelectedCustomer(null);
     }
+
+    // Also clear associated order/invoice so unconfirmed pending invoices don't pile up!
+    if (customerToDelete.orderRef) {
+      if (onDeleteOrder) {
+        onDeleteOrder(customerToDelete.orderRef);
+      }
+      deleteOrderFromFirestore(customerToDelete.orderRef).catch(() => {});
+      liveSync.deleteOrder(customerToDelete.orderRef).catch(() => {});
+    }
+
+    showToast(`✓ Removed customer ${customerToDelete.fullName} and cleared any pending invoice.`);
     setCustomerToDelete(null);
+  };
+
+  const handleConfirmDeleteOrder = () => {
+    if (!orderToDelete) return;
+    const targetId = orderToDelete.id;
+    if (onDeleteOrder) {
+      onDeleteOrder(targetId);
+    }
+    deleteOrderFromFirestore(targetId).catch(() => {});
+    liveSync.deleteOrder(targetId).catch(() => {});
+    showToast(`✓ Deleted pending invoice ${targetId} for ${orderToDelete.fullName}`);
+    setOrderToDelete(null);
   };
 
   // Add / Onboard Customer Modal State
@@ -564,14 +594,22 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                   </div>
                 </div>
 
-                <div className="mt-4 pt-2">
+                <div className="mt-4 pt-2 flex items-center space-x-2">
                   <button
                     type="button"
                     onClick={() => handleSyncFromInvoice(ord)}
-                    className="w-full py-2.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                    className="flex-1 py-2.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-[#FF4C00]" />
-                    <span>Sync & Onboard from Invoice</span>
+                    <span>Sync & Onboard</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderToDelete(ord)}
+                    className="p-2.5 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 transition cursor-pointer flex items-center justify-center shadow-2xs"
+                    title="Delete / discard this unconfirmed pending invoice so it does not pile up"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -1463,6 +1501,11 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
               <p>
                 Are you sure you want to remove <strong>{customerToDelete.fullName}</strong> ({customerToDelete.email}) from the dashboard?
               </p>
+              {customerToDelete.paymentStatus !== 'Paid' && (
+                <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] font-medium">
+                  ⏳ <strong>Pending Invoice Notice:</strong> This customer has an unconfirmed payment / pending invoice. Removing them will delete this customer and clear their pending invoice (Ref: {customerToDelete.orderRef || customerToDelete.id}) so unpaid invoices do not pile up.
+                </div>
+              )}
               <p className="text-red-600 font-semibold text-[11px]">
                 ⚠️ This will permanently remove their subscriber account, active lunch plan, login credentials, and calendar selections across all devices.
               </p>
@@ -1483,6 +1526,55 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Yes, Delete User Completely</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE PENDING HOMEPAGE ORDER / INVOICE CONFIRMATION MODAL */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-['Poppins']">
+          <div className="relative w-full max-w-md bg-white rounded-3xl border border-red-200 shadow-2xl p-6 text-left animate-in fade-in zoom-in duration-150 space-y-4">
+            <div className="flex items-center space-x-3 text-red-600">
+              <div className="p-3 bg-red-100 rounded-2xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-black">Delete Pending Invoice?</h3>
+                <span className="text-xs font-bold text-red-600">Ref: {orderToDelete.id}</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 text-xs text-zinc-700 space-y-2">
+              <p>
+                Are you sure you want to delete pending homepage invoice <strong>{orderToDelete.id}</strong> for <strong>{orderToDelete.fullName}</strong> ({orderToDelete.company})?
+              </p>
+              <div className="text-[11px] text-zinc-500 pt-1 space-y-0.5">
+                <div>• Amount: <strong>₦{(orderToDelete.finalTotalNGN || 0).toLocaleString()}</strong></div>
+                <div>• Meal Workdays: <strong>{orderToDelete.totalDays || 0} days</strong></div>
+                <div>• Payment Status: <strong>{orderToDelete.paymentStatus}</strong></div>
+              </div>
+              <p className="text-amber-800 font-semibold text-[11px] pt-1">
+                This removes this unconfirmed invoice so that unpaid requests do not pile up on the dashboard.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setOrderToDelete(null)}
+                className="px-4 py-2.5 rounded-full border border-zinc-300 text-zinc-700 hover:bg-zinc-100 font-bold text-xs cursor-pointer transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteOrder}
+                className="px-5 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer transition flex items-center space-x-1.5 shadow-md active:scale-95"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Yes, Delete Pending Invoice</span>
               </button>
             </div>
           </div>

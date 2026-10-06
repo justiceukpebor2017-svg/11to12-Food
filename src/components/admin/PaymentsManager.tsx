@@ -9,6 +9,7 @@ import {
   DollarSign,
   Download,
   Building,
+  Trash2,
 } from 'lucide-react';
 import { OrderSubmission, CustomerRecord } from '../../types';
 import { computeFinancialLedger } from '../../utils/finance';
@@ -17,6 +18,7 @@ interface PaymentsManagerProps {
   submittedOrders: OrderSubmission[];
   customers?: CustomerRecord[];
   onConfirmOrderPayment: (orderId: string) => void;
+  onDeleteOrder?: (orderId: string) => void;
 }
 
 interface TransactionItem {
@@ -34,6 +36,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   submittedOrders,
   customers = [],
   onConfirmOrderPayment,
+  onDeleteOrder,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeStatus, setActiveStatus] = useState<string>('All');
@@ -250,20 +253,36 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         {isPending ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (tx.reference.startsWith('ORD-')) {
-                                onConfirmOrderPayment(tx.reference);
-                              }
-                              setInitialTransactions((prev) =>
-                                prev.map((t) => (t.id === tx.id ? { ...t, status: 'Paid' } : t))
-                              );
-                            }}
-                            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                          >
-                            Verify Transfer Proof
-                          </button>
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (tx.reference.startsWith('ORD-')) {
+                                  onConfirmOrderPayment(tx.reference);
+                                }
+                                setInitialTransactions((prev) =>
+                                  prev.map((t) => (t.id === tx.id ? { ...t, status: 'Paid' } : t))
+                                );
+                              }}
+                              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                            >
+                              Verify Transfer Proof
+                            </button>
+                            {onDeleteOrder && tx.reference.startsWith('ORD-') && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Delete pending payment transaction ${tx.reference} for ${tx.customerName}?`)) {
+                                    onDeleteOrder(tx.reference);
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 transition cursor-pointer"
+                                title="Delete pending invoice transaction"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-zinc-400 text-xs font-semibold">
                             Reconciled ✓

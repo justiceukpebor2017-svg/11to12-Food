@@ -1,20 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MenuItem } from '../../types';
 import { getStructuredMealForDate } from '../../data/menuRotation';
 import { ChevronLeft, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
-import { LAUNCH_CONFIG, isDateBeforeLaunch } from '../../config/launchConfig';
+import { LAUNCH_CONFIG, isDateBeforeLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 
 interface InteractiveCalendarProps {
   menuItems?: MenuItem[];
 }
 
 export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
-  // Anchored to official launch date (November 2, 2026)
+  // Anchored to official launch date
   const [currentYear, setCurrentYear] = useState(LAUNCH_CONFIG.year);
   const [currentMonth, setCurrentMonth] = useState(LAUNCH_CONFIG.monthIndex);
   const [selectedDate, setSelectedDate] = useState<Date>(
     new Date(LAUNCH_CONFIG.year, LAUNCH_CONFIG.monthIndex, LAUNCH_CONFIG.day)
   );
+
+  useEffect(() => {
+    const unsub = subscribeLaunchConfig((cfg) => {
+      setCurrentYear(cfg.year);
+      setCurrentMonth(cfg.monthIndex);
+      setSelectedDate(new Date(cfg.year, cfg.monthIndex, cfg.day));
+    });
+    return () => unsub();
+  }, []);
 
   const selectedMeal = getStructuredMealForDate(selectedDate) || {
     id: 'default',
@@ -167,7 +176,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
             </div>
 
             {/* Pre-launch alert banner if navigating back into past months */}
-            {isCurrentMonthPreLaunch && (
+            {LAUNCH_CONFIG.isEnabled && isCurrentMonthPreLaunch && (
               <div className="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 text-[#FF4C00] shrink-0" />
                 <span>

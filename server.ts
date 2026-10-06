@@ -21,6 +21,9 @@ import {
   findDuplicateInWaitlist,
   findDuplicateInCustomers,
   deleteCustomerRecord,
+  deleteOrderSubmissionInDb,
+  getLaunchSettingsInDb,
+  updateLaunchSettingsInDb,
   getTestimonialsList,
   addTestimonialRecord,
   updateTestimonialRecord,
@@ -367,6 +370,21 @@ app.post('/api/orders/:id/confirm-payment', (req, res) => {
     return res.status(404).json({ error: 'Order not found' });
   }
   return res.json(result);
+});
+
+app.delete('/api/orders/:id', (req, res) => {
+  const deleted = deleteOrderSubmissionInDb(req.params.id);
+  return res.json({ success: true, id: req.params.id, deleted });
+});
+
+// Launch Settings Endpoints
+app.get('/api/launch-settings', (_req, res) => {
+  return res.json({ launchSettings: getLaunchSettingsInDb() });
+});
+
+app.post('/api/launch-settings', (req, res) => {
+  const updated = updateLaunchSettingsInDb(req.body);
+  return res.json({ launchSettings: updated });
 });
 
 // Credit Redemptions
