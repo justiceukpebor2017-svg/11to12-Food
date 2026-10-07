@@ -92,10 +92,21 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
     return () => unsubscribe();
   }, []);
 
-  // When live onSnapshot feed is active, it is the authoritative real-time camera view
-  const customersList = hasReceivedLiveFeed
-    ? liveFirestoreCustomers
-    : (externalCustomers ?? internalCustomers);
+  const customersList = React.useMemo(() => {
+    const map = new Map<string, CustomerRecord>();
+    (externalCustomers || []).forEach((c) => {
+      if (c && c.id) map.set(c.id, c);
+    });
+    (liveFirestoreCustomers || []).forEach((c) => {
+      if (c && c.id) map.set(c.id, c);
+    });
+    (internalCustomers || []).forEach((c) => {
+      if (c && c.id && !map.has(c.id)) map.set(c.id, c);
+    });
+    return Array.from(map.values()).sort((a, b) => {
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
+  }, [externalCustomers, liveFirestoreCustomers, internalCustomers]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Paused' | 'Pending Activation'>('All');
@@ -103,11 +114,8 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   // Selected Customer for Detailed Profile Modal
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null);
 
-  // Delete Customer state
+  // Delete Customer state (strictly single user deletion)
   const [customerToDelete, setCustomerToDelete] = useState<CustomerRecord | null>(null);
-
-  // Delete Order / Invoice state
-  const [orderToDelete, setOrderToDelete] = useState<OrderSubmission | null>(null);
 
   const handleConfirmDeleteCustomer = () => {
     if (!customerToDelete) return;
@@ -115,7 +123,6 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
     if (onDeleteCustomer) {
       onDeleteCustomer(targetId);
     }
-    // Delete directly from Firestore collection so all devices reflect the deletion in real-time
     deleteCustomerFromFirestore(targetId).catch(() => {});
     liveSync.deleteCustomer(targetId).catch(() => {});
     setInternalCustomers((prev) => prev.filter((c) => c.id !== targetId));
@@ -124,29 +131,8 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
       setSelectedCustomer(null);
     }
 
-    // Also clear associated order/invoice so unconfirmed pending invoices don't pile up!
-    if (customerToDelete.orderRef) {
-      if (onDeleteOrder) {
-        onDeleteOrder(customerToDelete.orderRef);
-      }
-      deleteOrderFromFirestore(customerToDelete.orderRef).catch(() => {});
-      liveSync.deleteOrder(customerToDelete.orderRef).catch(() => {});
-    }
-
-    showToast(`✓ Removed customer ${customerToDelete.fullName} and cleared any pending invoice.`);
+    showToast(`✓ Removed customer ${customerToDelete.fullName}`);
     setCustomerToDelete(null);
-  };
-
-  const handleConfirmDeleteOrder = () => {
-    if (!orderToDelete) return;
-    const targetId = orderToDelete.id;
-    if (onDeleteOrder) {
-      onDeleteOrder(targetId);
-    }
-    deleteOrderFromFirestore(targetId).catch(() => {});
-    liveSync.deleteOrder(targetId).catch(() => {});
-    showToast(`✓ Deleted pending invoice ${targetId} for ${orderToDelete.fullName}`);
-    setOrderToDelete(null);
   };
 
   // Add / Onboard Customer Modal State
@@ -493,16 +479,6 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
     return matchesSearch && matchesStatus;
   });
 
-  const pendingHomepageOrders = submittedOrders.filter((ord) => {
-    if (!ord || ord.paymentStatus !== 'Pending Verification') return false;
-    const ordEmail = (ord.email || '').trim().toLowerCase();
-    return !customersList.some(
-      (c) =>
-        (ord.id && c.orderRef === ord.id) ||
-        Boolean(ordEmail && (c.email || '').trim().toLowerCase() === ordEmail)
-    );
-  });
-
   return (
     <div className="space-y-6 font-['Poppins']">
       
@@ -545,114 +521,6 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
           >
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>+ Onboard New Customer</span>
-          </button>
-        </div>
-      </div>
-
-      {/* PENDING HOMEPAGE INVOICES (Section 1 Sync) */}
-      {pendingHomepageOrders.length > 0 && (
-        <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-white rounded-3xl border border-[#FF4C00]/30 p-5 sm:p-6 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#FF4C00] text-white flex items-center justify-center font-bold text-xs">
-                {pendingHomepageOrders.length}
-              </div>
-              <div>
-                <h3 className="text-base font-black text-zinc-900">
-                  Pending Homepage Orders & Invoices
-                </h3>
-                <p className="text-xs text-zinc-500">
-                  These customers selected their meal days on the homepage and completed payment. Sync to create their profile and issue their default login credentials.
-                </p>
-              </div>
-            </div>
-            <span className="text-xs font-bold text-[#FF4C00] bg-white px-3 py-1 rounded-full border border-[#FF4C00]/20 self-start sm:self-auto">
-              Ready for Verification
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {pendingHomepageOrders.map((ord) => (
-              <div
-                key={ord.id}
-                className="bg-white rounded-2xl border border-zinc-200 p-4 shadow-xs flex flex-col justify-between hover:border-[#FF4C00] transition"
-              >
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="font-bold text-[#FF4C00]">{ord.id}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                      {ord.paymentStatus}
-                    </span>
-                  </div>
-                  <h4 className="text-sm font-black text-zinc-900">{ord.fullName}</h4>
-                  <p className="text-xs text-zinc-600 font-medium">{ord.company}</p>
-                  <p className="text-[11px] text-zinc-400 truncate mt-1">{ord.officeAddress}</p>
-
-                  <div className="mt-2 pt-2 border-t border-zinc-100 flex items-center justify-between text-xs font-semibold">
-                    <span className="text-zinc-600">{ord.totalDays || 0} Days Selected</span>
-                    <span className="font-black text-zinc-900">₦{(ord.finalTotalNGN || 0).toLocaleString()}</span>
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-2 flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => handleSyncFromInvoice(ord)}
-                    className="flex-1 py-2.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-[#FF4C00]" />
-                    <span>Sync & Onboard</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOrderToDelete(ord)}
-                    className="p-2.5 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 transition cursor-pointer flex items-center justify-center shadow-2xs"
-                    title="Delete / discard this unconfirmed pending invoice so it does not pile up"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* QUICK AUTO-FILL FROM WISHLIST MEMBER CODE */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 border border-orange-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-left">
-        <div>
-          <span className="text-[11px] font-black uppercase tracking-wider text-orange-900 flex items-center space-x-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-[#FF4C00]" />
-            <span>Auto-Fill Customer from Wishlist Member Code</span>
-          </span>
-          <p className="text-[11px] text-zinc-600 mt-0.5">
-            Copy a user's member code on the waitlist/wishlist and paste it here to automatically fill their contact details and onboard them without retyping!
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <div className="relative flex-1 sm:w-56">
-            <input
-              type="text"
-              placeholder="e.g. DD-12345"
-              value={memberCodeInput}
-              onChange={(e) => setMemberCodeInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleAutoFillFromMemberCode();
-                }
-              }}
-              className="w-full px-3 py-2 bg-white border border-orange-300 rounded-xl text-xs font-mono font-bold text-zinc-900 uppercase focus:outline-hidden focus:border-[#FF4C00]"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => handleAutoFillFromMemberCode()}
-            className="px-4 py-2 bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center space-x-1.5 shadow-xs whitespace-nowrap"
-          >
-            <span>Auto-Fill Details</span>
-            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -1526,55 +1394,6 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Yes, Delete User Completely</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* DELETE PENDING HOMEPAGE ORDER / INVOICE CONFIRMATION MODAL */}
-      {orderToDelete && (
-        <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs font-['Poppins']">
-          <div className="relative w-full max-w-md bg-white rounded-3xl border border-red-200 shadow-2xl p-6 text-left animate-in fade-in zoom-in duration-150 space-y-4">
-            <div className="flex items-center space-x-3 text-red-600">
-              <div className="p-3 bg-red-100 rounded-2xl">
-                <Trash2 className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-black text-black">Delete Pending Invoice?</h3>
-                <span className="text-xs font-bold text-red-600">Ref: {orderToDelete.id}</span>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 text-xs text-zinc-700 space-y-2">
-              <p>
-                Are you sure you want to delete pending homepage invoice <strong>{orderToDelete.id}</strong> for <strong>{orderToDelete.fullName}</strong> ({orderToDelete.company})?
-              </p>
-              <div className="text-[11px] text-zinc-500 pt-1 space-y-0.5">
-                <div>• Amount: <strong>₦{(orderToDelete.finalTotalNGN || 0).toLocaleString()}</strong></div>
-                <div>• Meal Workdays: <strong>{orderToDelete.totalDays || 0} days</strong></div>
-                <div>• Payment Status: <strong>{orderToDelete.paymentStatus}</strong></div>
-              </div>
-              <p className="text-amber-800 font-semibold text-[11px] pt-1">
-                This removes this unconfirmed invoice so that unpaid requests do not pile up on the dashboard.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setOrderToDelete(null)}
-                className="px-4 py-2.5 rounded-full border border-zinc-300 text-zinc-700 hover:bg-zinc-100 font-bold text-xs cursor-pointer transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDeleteOrder}
-                className="px-5 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer transition flex items-center space-x-1.5 shadow-md active:scale-95"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Yes, Delete Pending Invoice</span>
               </button>
             </div>
           </div>

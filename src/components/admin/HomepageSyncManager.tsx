@@ -124,6 +124,26 @@ export const HomepageSyncManager: React.FC<HomepageSyncProps> = ({
     setTimeout(() => setIsSaved(false), 5000);
   };
 
+  const handleUpdateLaunchDateDirect = async (dateStr: string) => {
+    setLaunchDateInput(dateStr);
+    setIsSavingLaunch(true);
+    const updated: LaunchSettings = {
+      launchDate: dateStr,
+      isEnabled: isLaunchDateEnabled,
+    };
+    updateLaunchConfig(updated);
+    if (onUpdateLaunchSettings) {
+      onUpdateLaunchSettings(updated);
+    }
+    await liveSync.updateLaunchSettings(updated);
+    await saveLaunchSettingsToFirestore(updated).catch(() => {});
+    setIsSavingLaunch(false);
+    const p = computePreview(dateStr);
+    setSavedMessage(`✓ Launching date automatically saved as ${p.formatted} and synced across all browsers!`);
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 5000);
+  };
+
   const handleToggleLaunchEnabled = async (enabled: boolean) => {
     setIsLaunchDateEnabled(enabled);
     const updated: LaunchSettings = {
@@ -254,28 +274,33 @@ export const HomepageSyncManager: React.FC<HomepageSyncProps> = ({
             <input
               type="date"
               value={launchDateInput}
-              onChange={(e) => setLaunchDateInput(e.target.value)}
+              onChange={(e) => {
+                setLaunchDateInput(e.target.value);
+                if (e.target.value) {
+                  handleUpdateLaunchDateDirect(e.target.value);
+                }
+              }}
               className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-2.5 text-xs font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00] shadow-2xs"
             />
             <div className="flex items-center space-x-1.5 pt-1">
               <span className="text-[10px] text-zinc-400 font-semibold">Quick picks:</span>
               <button
                 type="button"
-                onClick={() => setLaunchDateInput('2026-11-02')}
-                className="text-[10px] bg-white hover:bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-md font-bold text-zinc-700 cursor-pointer"
+                onClick={() => handleUpdateLaunchDateDirect('2026-12-07')}
+                className="text-[10px] bg-orange-100 hover:bg-orange-200 border border-orange-300 px-2 py-0.5 rounded-md font-bold text-[#FF4C00] cursor-pointer"
               >
-                Nov 2, 2026
+                Dec 7, 2026 (Official)
               </button>
               <button
                 type="button"
-                onClick={() => setLaunchDateInput('2026-12-01')}
+                onClick={() => handleUpdateLaunchDateDirect('2026-12-14')}
                 className="text-[10px] bg-white hover:bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-md font-bold text-zinc-700 cursor-pointer"
               >
-                Dec 1, 2026
+                Dec 14, 2026
               </button>
               <button
                 type="button"
-                onClick={() => setLaunchDateInput('2027-01-04')}
+                onClick={() => handleUpdateLaunchDateDirect('2027-01-04')}
                 className="text-[10px] bg-white hover:bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-md font-bold text-zinc-700 cursor-pointer"
               >
                 Jan 4, 2027

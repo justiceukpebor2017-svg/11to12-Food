@@ -82,6 +82,15 @@
         "featured": { "type": "boolean" }
       },
       "required": ["id", "name", "text"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "App settings including delivery launching date and calendar master configuration",
+      "type": "object",
+      "properties": {
+        "launchDate": { "type": "string", "maxLength": 30 },
+        "isEnabled": { "type": "boolean" }
+      }
     }
   },
   "firestore": {
@@ -100,6 +109,10 @@
     "/testimonials/{testimonialId}": {
       "schema": { "$ref": "#/entities/Testimonial" },
       "description": "Collection of website testimonials and corporate reviews"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Setting" },
+      "description": "App configuration settings including master launch date"
     }
   }
 }

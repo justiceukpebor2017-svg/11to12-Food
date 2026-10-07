@@ -89,6 +89,18 @@ class LiveSyncService {
   private init() {
     testFirestoreConnection().catch(() => {});
     this.fetchBootstrap();
+    // Fetch launch settings immediately to guarantee instant cross-browser synchronization
+    fetch(apiUrl('/api/launch-settings'))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json?.launchSettings) {
+          this.state.launchSettings = json.launchSettings;
+          updateLaunchConfig(json.launchSettings);
+          this.notify();
+        }
+      })
+      .catch(() => {});
+
     this.connectSSE();
 
     // Guaranteed multi-device real-time sync auto-saving & refreshing every 5 seconds
@@ -148,6 +160,13 @@ class LiveSyncService {
       this.state.submittedOrders = data.db.submittedOrders || [];
       this.state.creditRedemptions = data.db.creditRedemptions || [];
       this.state.announcements = data.db.announcements || [];
+      if (data.db.testimonials && Array.isArray(data.db.testimonials)) {
+        this.state.testimonials = data.db.testimonials;
+      }
+      if (data.db.launchSettings) {
+        this.state.launchSettings = data.db.launchSettings;
+        updateLaunchConfig(data.db.launchSettings);
+      }
       this.notify();
       return;
     }

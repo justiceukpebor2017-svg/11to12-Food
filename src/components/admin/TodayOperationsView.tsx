@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   Utensils,
@@ -13,10 +13,14 @@ import {
   ShieldCheck,
   Plus,
   ShoppingBag,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { OrderSubmission, CustomerRecord, WaitlistLead } from '../../types';
 import { AdminTab } from './AdminSidebar';
 import { computeFinancialLedger } from '../../utils/finance';
+
+const DISMISSED_NOTIFICATIONS_STORAGE_KEY = '11to12_dismissed_admin_notifications';
 
 interface TodayOperationsViewProps {
   onNavigateTab: (tab: AdminTab) => void;
@@ -31,6 +35,37 @@ export const TodayOperationsView: React.FC<TodayOperationsViewProps> = ({
   customers = [],
   waitlistLeads = [],
 }) => {
+  // Persistent dismissed notification IDs
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const stored = localStorage.getItem(DISMISSED_NOTIFICATIONS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
+    } catch {}
+    return new Set();
+  });
+
+  const handleDismissNotification = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDismissedNotificationIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        localStorage.setItem(DISMISSED_NOTIFICATIONS_STORAGE_KEY, JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleNotificationClick = (id: string, targetTab: AdminTab) => {
+    // Delete notification permanently so it never returns
+    handleDismissNotification(id);
+    onNavigateTab(targetTab);
+  };
+
   // Derive all operational metrics purely from live state
   const activeSubscribersCount = customers.filter((c) => c.status === 'Active').length;
   const waitlistCount = waitlistLeads.length;
@@ -38,7 +73,7 @@ export const TodayOperationsView: React.FC<TodayOperationsViewProps> = ({
   // Calculate unified live financials matching Revenue Collected across ledger
   const financials = computeFinancialLedger(submittedOrders, customers);
   const pendingOrders = submittedOrders.filter(
-    (o) => o.paymentStatus === 'Pending Verification'
+    (o) => o.paymentStatus === 'Pending Verification' && !dismissedNotificationIds.has(`notif-order-${o.id}`)
   );
 
   // Today's date (formatted)
@@ -314,32 +349,44 @@ export const TodayOperationsView: React.FC<TodayOperationsViewProps> = ({
                 pendingOrders.map((ord) => {
                   const ordEmail = (ord.email || '').trim().toLowerCase();
                   const isTopUp = ord.isTopUp || Boolean(ordEmail && customers.some((c) => (c.email || '').trim().toLowerCase() === ordEmail));
+                  const notifId = `notif-order-${ord.id}`;
                   return (
                     <div
                       key={ord.id}
-                      onClick={() => onNavigateTab(isTopUp ? 'orders' : 'customers')}
-                      className={`p-3 rounded-xl bg-zinc-900 border transition cursor-pointer flex items-start space-x-2.5 ${
+                      onClick={() => handleNotificationClick(notifId, 'orders')}
+                      className={`group p-3 rounded-xl bg-zinc-900 border transition cursor-pointer flex items-start justify-between space-x-2.5 ${
                         isTopUp ? 'border-[#FF4C00]/60 hover:border-[#FF4C00]' : 'border-amber-600/40 hover:border-amber-500'
                       }`}
+                      title="Click to view in Orders nav and clear notification permanently"
                     >
-                      <Clock className={`w-4 h-4 mt-0.5 shrink-0 ${isTopUp ? 'text-[#FF4C00]' : 'text-amber-500'}`} />
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-bold text-white block">
-                            {isTopUp ? `🔔 Paid Top-Up: ${ord.fullName}` : `Pending Verification: ${ord.fullName}`}
-                          </span>
-                          {isTopUp && (
-                            <span className="px-1.5 py-0.2 rounded bg-[#FF4C00] text-white text-[9px] font-black uppercase">
-                              +{ord.totalDays} Days
+                      <div className="flex items-start space-x-2.5">
+                        <Clock className={`w-4 h-4 mt-0.5 shrink-0 ${isTopUp ? 'text-[#FF4C00]' : 'text-amber-500'}`} />
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-white block">
+                              {isTopUp ? `🔔 Paid Top-Up: ${ord.fullName}` : `Pending Verification: ${ord.fullName}`}
                             </span>
-                          )}
+                            {isTopUp && (
+                              <span className="px-1.5 py-0.2 rounded bg-[#FF4C00] text-white text-[9px] font-black uppercase">
+                                +{ord.totalDays} Days
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-zinc-400 block mt-0.5">
+                            {isTopUp
+                              ? `${ord.company} • ₦${(ord.finalTotalNGN || 0).toLocaleString()}. Click to verify & add days to calendar.`
+                              : `${ord.company} • ₦${(ord.finalTotalNGN || 0).toLocaleString()} (${ord.totalDays || 0} days). Click to view in Orders nav.`}
+                          </span>
                         </div>
-                        <span className="text-[11px] text-zinc-400 block mt-0.5">
-                          {isTopUp
-                            ? `${ord.company} • ₦${(ord.finalTotalNGN || 0).toLocaleString()}. Click to verify & add days to calendar.`
-                            : `${ord.company} • ₦${(ord.finalTotalNGN || 0).toLocaleString()} (${ord.totalDays || 0} days). Click to sync.`}
-                        </span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDismissNotification(notifId, e)}
+                        className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition cursor-pointer shrink-0 opacity-70 group-hover:opacity-100"
+                        title="Dismiss and delete notification forever"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   );
                 })

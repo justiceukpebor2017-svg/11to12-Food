@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="100%" height="100%">
+  <defs>
+    <!-- Screen content clip path -->
+    <clipPath id="phone-screen-clip">
+      <rect x="674" y="380" width="572" height="700" rx="56" ry="56" />
+    </clipPath>
+    <!-- Phone body clip path -->
+    <clipPath id="phone-outer-clip">
+      <rect x="660" y="360" width="600" height="720" rx="66" ry="66" />
+    </clipPath>
+    <!-- Soft dropshadow for phone -->
+    <filter id="phone-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="25" stdDeviation="35" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Clean White Background -->
+  <rect width="1920" height="1080" fill="#FFFFFF"/>
+
+  <!-- Bold Orange Typography -->
+  <!-- Top: SUBSCRIBE -->
+  <text x="960" y="195" text-anchor="middle" font-family="'Poppins', 'Montserrat', 'Arial Black', sans-serif" font-weight="900" font-size="124" fill="#FF4400" letter-spacing="3">SUBSCRIBE</text>
+
+  <!-- Left: HOW TO -->
+  <text x="270" y="620" text-anchor="middle" font-family="'Poppins', 'Montserrat', 'Arial Black', sans-serif" font-weight="900" font-size="124" fill="#FF4400" letter-spacing="1">HOW TO</text>
+
+  <!-- Right: ON 11TO12 -->
+  <text x="1650" y="620" text-anchor="middle" font-family="'Poppins', 'Montserrat', 'Arial Black', sans-serif" font-weight="900" font-size="124" fill="#FF4400" letter-spacing="1">ON 11TO12</text>
+
+  <!-- Arch Rings Behind Phone -->
+  <!-- Outer Arch: Bright Orange -->
+  <path d="M 520,1080 L 520,530 C 520,290 710,190 960,190 C 1210,190 1400,290 1400,530 L 1400,1080" fill="none" stroke="#FF4C00" stroke-width="70" stroke-linecap="round"/>
+  <!-- Middle Arch: Hot Pink / Magenta -->
+  <path d="M 570,1080 L 570,545 C 570,330 740,245 960,245 C 1180,245 1350,330 1350,545 L 1350,1080" fill="none" stroke="#E10098" stroke-width="38" stroke-linecap="round"/>
+  <!-- Inner Arch: Vibrant Purple -->
+  <path d="M 605,1080 L 605,555 C 605,360 760,285 960,285 C 1160,285 1315,360 1315,555 L 1315,1080" fill="none" stroke="#7913A8" stroke-width="32" stroke-linecap="round"/>
+
+  <!-- Phone Shadow & Outer Frame -->
+  <g filter="url(#phone-shadow)">
+    <!-- Phone Bezel / Rim -->
+    <rect x="660" y="360" width="600" height="720" rx="66" fill="#1C1C1E" stroke="#2C2C2E" stroke-width="6"/>
+  </g>
+
+  <!-- Phone Screen with 11 to 12 Web App UI -->
+  <g clip-path="url(#phone-screen-clip)">
+    <!-- Orange Brand Background -->
+    <rect x="674" y="380" width="572" height="700" fill="#FF4C00"/>
+
+    <!-- Status Bar (Time, Icons) -->
+    <text x="735" y="420" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-weight="600" font-size="18" fill="#FFFFFF">21:16</text>
+    <!-- Dynamic Island / Notch -->
+    <rect x="900" y="398" width="120" height="28" rx="14" fill="#000000"/>
+    <!-- Cellular, Wifi, Battery -->
+    <g fill="#FFFFFF" transform="translate(1160, 406) scale(0.9)">
+      <path d="M 30,12 L 30,3 A 2,2 0 0,1 34,3 L 34,12 Z M 24,12 L 24,6 A 2,2 0 0,1 28,6 L 28,12 Z M 18,12 L 18,9 A 2,2 0 0,1 22,9 L 22,12 Z"/>
+      <rect x="42" y="3" width="22" height="11" rx="3" fill="none" stroke="#FFFFFF" stroke-width="2"/>
+      <rect x="44" y="5" width="15" height="7" rx="1.5" fill="#FFFFFF"/>
+    </g>
+
+    <!-- App Header: Brand logo + Log In button -->
+    <g transform="translate(710, 445)">
+      <!-- 11to12 logo badge -->
+      <rect x="0" y="0" width="34" height="34" rx="8" fill="#FFFFFF" fill-opacity="0.15"/>
+      <text x="17" y="23" text-anchor="middle" font-family="'Poppins', sans-serif" font-weight="900" font-size="14" fill="#FFFFFF">11:12</text>
+      <!-- Log In Button -->
+      <g transform="translate(425, 0)">
+        <rect x="0" y="0" width="85" height="34" rx="17" fill="#FFFFFF" fill-opacity="0.2"/>
+        <text x="42" y="22" text-anchor="middle" font-family="'Poppins', sans-serif" font-weight="700" font-size="13" fill="#FFFFFF">→ Log In</text>
+      </g>
+    </g>
+
+    <!-- Nav Bar Links -->
+    <g transform="translate(710, 505)" font-family="'Poppins', sans-serif" font-size="12" font-weight="600" fill="#FFFFFF" fill-opacity="0.9">
+      <text x="50" y="0" text-anchor="middle">How It Works</text>
+      <text x="180" y="0" text-anchor="middle">Menu</text>
+      <text x="310" y="0" text-anchor="middle">Build Plan</text>
+      <text x="440" y="0" text-anchor="middle">FAQ</text>
+    </g>
+
+    <!-- Main Headline: "Lunch that's [Edible]" -->
+    <g transform="translate(710, 575)">
+      <text x="0" y="0" font-family="'Poppins', sans-serif" font-weight="900" font-size="34" fill="#FFFFFF">Lunch that's</text>
+      <!-- Pill around Edible -->
+      <rect x="230" y="-36" width="145" height="48" rx="24" fill="#FFFFFF"/>
+      <text x="302" y="-3" text-anchor="middle" font-family="'Playfair Display', 'Brush Script MT', serif" font-style="italic" font-weight="700" font-size="32" fill="#1A1A1A">Edible</text>
+    </g>
+
+    <!-- Descriptive text -->
+    <text x="710" y="625" font-family="'Poppins', sans-serif" font-size="14" fill="#FFFFFF" fill-opacity="0.95" font-weight="400">
+      <tspan x="710" dy="0">Between back-to-back meetings, Lagos</tspan>
+      <tspan x="710" dy="22">traffic, and late office hours, finding time for a</tspan>
+      <tspan x="710" dy="22">proper meal feels impossible. That's why 11 to</tspan>
+      <tspan x="710" dy="22">12 was created for 9 to 5ers.</tspan>
+    </text>
+
+    <!-- CTAs: Feed Me & Watch & Reserve -->
+    <g transform="translate(710, 750)">
+      <rect x="0" y="0" width="130" height="42" rx="21" fill="#FFFFFF"/>
+      <text x="65" y="26" text-anchor="middle" font-family="'Poppins', sans-serif" font-weight="900" font-size="14" fill="#FF4C00">Feed Me</text>
+      <text x="180" y="26" font-family="'Poppins', sans-serif" font-weight="600" font-size="13" fill="#FFFFFF">Watch &amp; Reserve ↓</text>
+    </g>
+
+    <!-- Food Image Box at bottom of phone -->
+    <g transform="translate(695, 825)">
+      <rect x="0" y="0" width="530" height="260" rx="28" fill="#1C1C1E"/>
+      <!-- Steaming white rice bowl photo mockup -->
+      <ellipse cx="265" cy="130" rx="210" ry="100" fill="#382C1E"/>
+      <ellipse cx="265" cy="120" rx="190" ry="85" fill="#EAD9C6"/>
+      <ellipse cx="265" cy="115" rx="175" ry="75" fill="#FFFDF8"/>
+      <!-- Rice grain textures -->
+      <g fill="#DCD3C7" opacity="0.6">
+        <circle cx="210" cy="110" r="4"/><circle cx="250" cy="95" r="5"/><circle cx="290" cy="115" r="4"/>
+        <circle cx="330" cy="100" r="4"/><circle cx="220" cy="130" r="5"/><circle cx="270" cy="135" r="4"/>
+      </g>
+      <!-- Green garnish -->
+      <g fill="#2E7D32">
+        <circle cx="255" cy="105" r="3"/><circle cx="260" cy="118" r="4"/><circle cx="280" cy="110" r="3"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Hand Holding Phone (Silhouette & Realistic Shading) -->
+  <g>
+    <!-- Left Hand Base & Palm -->
+    <path d="M 520,1080 C 510,950 540,820 620,740 C 650,710 685,730 690,780 C 695,830 680,950 670,1080 Z" fill="#4A3022" opacity="0.95"/>
+    <!-- Fingers Wrapping Edge of Phone -->
+    <!-- Index / Middle Finger -->
+    <path d="M 540,780 C 530,730 550,690 600,670 C 640,655 675,675 680,720 C 685,765 650,810 600,820 Z" fill="#5A3A29"/>
+    <!-- Thumb Over Front Screen Edge -->
+    <path d="M 540,720 C 520,680 540,630 600,600 C 650,575 685,595 700,640 C 715,690 680,750 620,760 Z" fill="#6B4530"/>
+    <!-- Finger Knuckle Highlights -->
+    <ellipse cx="610" cy="690" rx="35" ry="25" fill="#7D5239" opacity="0.7"/>
+    <!-- Lower Hand Grip on Right Bottom -->
+    <path d="M 1240,820 C 1270,810 1310,830 1330,870 C 1360,930 1340,1010 1300,1080 L 1230,1080 C 1245,1000 1250,910 1240,820 Z" fill="#4A3022" opacity="0.9"/>
+  </g>
+</svg>

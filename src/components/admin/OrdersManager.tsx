@@ -76,19 +76,28 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
 
   // Real-time onSnapshot camera stream for Orders
   const [liveOrders, setLiveOrders] = useState<OrderSubmission[]>([]);
-  const [hasLiveOrders, setHasLiveOrders] = useState(false);
 
   useEffect(() => {
     const unsub = subscribeToOrders((live) => {
-      if (live && Array.isArray(live) && live.length > 0) {
+      if (live && Array.isArray(live)) {
         setLiveOrders(live as OrderSubmission[]);
-        setHasLiveOrders(true);
       }
     });
     return () => unsub();
   }, []);
 
-  const ordersList = hasLiveOrders ? liveOrders : orders;
+  const ordersList = React.useMemo(() => {
+    const map = new Map<string, OrderSubmission>();
+    (orders || []).forEach((o) => {
+      if (o && o.id) map.set(o.id, o);
+    });
+    (liveOrders || []).forEach((o) => {
+      if (o && o.id) map.set(o.id, o);
+    });
+    return Array.from(map.values()).sort((a, b) => {
+      return new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime();
+    });
+  }, [orders, liveOrders]);
 
   const currentMeal = getStructuredMealForDate(selectedDate);
 

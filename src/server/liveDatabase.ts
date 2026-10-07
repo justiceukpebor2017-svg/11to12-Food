@@ -118,7 +118,7 @@ let dbState: LiveDatabaseSchema = {
   announcements: [],
   testimonials: [...DEFAULT_TESTIMONIALS],
   launchSettings: {
-    launchDate: '2026-11-02',
+    launchDate: '2026-12-07',
     isEnabled: true,
   },
 };
@@ -150,7 +150,7 @@ export function initLiveDatabase(): void {
           : [...DEFAULT_TESTIMONIALS],
         launchSettings: parsed.launchSettings && typeof parsed.launchSettings.launchDate === 'string'
           ? parsed.launchSettings
-          : { launchDate: '2026-11-02', isEnabled: true },
+          : { launchDate: '2026-12-07', isEnabled: true },
       };
       console.log(`[LiveDB] Loaded ${dbState.waitlistLeads.length} waitlist leads, ${dbState.customers.length} customers from disk.`);
     } else {
@@ -399,17 +399,16 @@ export function updateCustomerRecord(id: string, patch: Partial<CustomerRecord>)
 }
 
 /**
- * Deletes a customer record completely from the database
+ * Deletes a customer record completely from the database (strictly single ID)
  */
 export function deleteCustomerRecord(id: string): boolean {
-  const normId = id.trim().toLowerCase();
+  const targetId = String(id).trim();
+  if (!targetId) return false;
   const initialLength = dbState.customers.length;
-  dbState.customers = dbState.customers.filter(
-    (c) => c.id !== id && normalizeEmail(c.email) !== normId && c.id.toLowerCase() !== normId
-  );
+  dbState.customers = dbState.customers.filter((c) => c.id !== targetId);
   if (dbState.customers.length < initialLength) {
     saveLiveDatabase();
-    broadcastLiveUpdate('CUSTOMER_DELETED', { id });
+    broadcastLiveUpdate('CUSTOMER_DELETED', { id: targetId });
     return true;
   }
   return false;
@@ -479,7 +478,7 @@ export function deleteOrderSubmissionInDb(orderId: string): boolean {
  * Gets launch settings
  */
 export function getLaunchSettingsInDb(): LaunchSettings {
-  return dbState.launchSettings || { launchDate: '2026-11-02', isEnabled: true };
+  return dbState.launchSettings || { launchDate: '2026-12-07', isEnabled: true };
 }
 
 /**

@@ -24,8 +24,10 @@ import { PaymentsManager } from '../components/admin/PaymentsManager';
 import { CreditsSkipsManager } from '../components/admin/CreditsSkipsManager';
 import { HomepageSyncManager } from '../components/admin/HomepageSyncManager';
 import { TestimonialsManager } from '../components/admin/TestimonialsManager';
-import { Menu, X, ArrowLeft, Rocket } from 'lucide-react';
+import { Menu, X, ArrowLeft, Rocket, Bell, Trash2 } from 'lucide-react';
 import { LAUNCH_CONFIG, subscribeLaunchConfig } from '../config/launchConfig';
+
+const DISMISSED_NOTIFS_KEY = '11to12_dismissed_admin_notifications';
 
 interface AdminDashboardPageProps {
   menuItems: MenuItem[];
@@ -101,6 +103,73 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('operations-today');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [dismissedNotifIds, setDismissedNotifIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const stored = localStorage.getItem(DISMISSED_NOTIFS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
+    } catch {}
+    return new Set();
+  });
+
+  const dismissNotification = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDismissedNotifIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        localStorage.setItem(DISMISSED_NOTIFS_KEY, JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleNotificationClick = (id: string, targetTab: AdminTab) => {
+    dismissNotification(id);
+    setActiveTab(targetTab);
+    setShowNotifications(false);
+  };
+
+  // Compile active un-dismissed notifications
+  const activeNotifications = React.useMemo(() => {
+    const list: Array<{ id: string; title: string; subtitle: string; tab: AdminTab; type: string; time?: string }> = [];
+
+    // Pending orders from website
+    (submittedOrders || [])
+      .filter((o) => o.paymentStatus === 'Pending Verification' && !dismissedNotifIds.has(`order-${o.id}`))
+      .forEach((o) => {
+        list.push({
+          id: `order-${o.id}`,
+          title: `New Order: ${o.fullName}`,
+          subtitle: `${o.totalDays} Workdays (₦${(o.finalTotalNGN || 0).toLocaleString()}) • Click to open Order nav`,
+          tab: 'orders',
+          type: 'order',
+          time: o.submittedAt,
+        });
+      });
+
+    // Recent waitlist leads
+    (waitlistLeads || [])
+      .filter((l) => l.status === 'Waitlisted' && !dismissedNotifIds.has(`lead-${l.id}`))
+      .slice(0, 10)
+      .forEach((l) => {
+        list.push({
+          id: `lead-${l.id}`,
+          title: `Wishlist Lead: ${l.name}`,
+          subtitle: `${l.workplace} • Code: ${l.memberCode || 'DD-WAITLIST'}`,
+          tab: 'waitlist',
+          type: 'waitlist',
+          time: l.createdAt,
+        });
+      });
+
+    return list;
+  }, [submittedOrders, waitlistLeads, dismissedNotifIds]);
+
   const [adminDate, setAdminDate] = useState<Date>(
     () => new Date(LAUNCH_CONFIG.year, LAUNCH_CONFIG.monthIndex, LAUNCH_CONFIG.day)
   );
@@ -208,7 +277,71 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 relative">
+            {/* Notification Bell with Badge */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition cursor-pointer relative"
+                title="Notifications"
+              >
+                <Bell className="w-4 h-4 text-zinc-700" />
+                {activeNotifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-[#FF4C00] text-white text-[9px] font-black animate-pulse">
+                    {activeNotifications.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Dropdown Menu */}
+              {showNotifications && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl border border-zinc-200 shadow-2xl z-50 p-3 space-y-2 text-left font-['Poppins']">
+                  <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+                    <div className="flex items-center space-x-1.5">
+                      <Bell className="w-4 h-4 text-[#FF4C00]" />
+                      <span className="font-bold text-xs text-zinc-900">Admin Notifications</span>
+                    </div>
+                    <span className="text-[10px] text-zinc-400">
+                      {activeNotifications.length} unread • Click to clear
+                    </span>
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto divide-y divide-zinc-100">
+                    {activeNotifications.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-zinc-400">
+                        No new notifications. All cleared!
+                      </div>
+                    ) : (
+                      activeNotifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          onClick={() => handleNotificationClick(notif.id, notif.tab)}
+                          className="py-2.5 px-2 hover:bg-zinc-50 rounded-xl transition cursor-pointer flex items-start justify-between space-x-2 group"
+                        >
+                          <div>
+                            <div className="font-bold text-xs text-zinc-900">{notif.title}</div>
+                            <div className="text-[11px] text-zinc-500 mt-0.5">{notif.subtitle}</div>
+                            <span className="text-[9px] text-[#FF4C00] font-semibold block mt-0.5">
+                              Click to view in {notif.tab} & delete forever
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => dismissNotification(notif.id, e)}
+                            className="p-1 rounded-md text-zinc-400 hover:text-red-600 hover:bg-red-50 transition opacity-60 group-hover:opacity-100"
+                            title="Delete notification permanently"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={() => setActiveTab('homepage-sync')}

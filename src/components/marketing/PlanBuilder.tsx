@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Loader2,
   Utensils,
+  Soup,
 } from 'lucide-react';
 
 interface MealPopupState {
@@ -34,6 +35,22 @@ interface PlanBuilderProps {
 }
 
 export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout }) => {
+  // Mobile device viewport detection for mobile-specific Friday swallow popup
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Anchored to official Launch Date
   const [currentYear, setCurrentYear] = useState(LAUNCH_CONFIG.year);
   const [currentMonth, setCurrentMonth] = useState(LAUNCH_CONFIG.monthIndex);
@@ -48,6 +65,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
   // Map of dateStr -> SelectedLunchDay
   const [selectedDaysMap, setSelectedDaysMap] = useState<Record<string, SelectedLunchDay>>({});
+
+  // Mobile Friday Swallow Popup modal state
+  const [mobileSwallowModal, setMobileSwallowModal] = useState<{
+    meal: StructuredMeal;
+    dateFormatted: string;
+    isAlreadySelected: boolean;
+  } | null>(null);
+  const [chosenSwallow, setChosenSwallow] = useState<SwallowType>('Semo');
 
   // 2-Second Top Floating Meal Preview Popup state
   const [activeMealPopup, setActiveMealPopup] = useState<MealPopupState | null>(null);
@@ -192,9 +217,107 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     };
   }, []);
 
+  // Helper to determine if meal is Friday or Swallow meal
+  const isFridayOrSwallowMeal = (meal: StructuredMeal) => {
+    return (
+      meal.day === 'Friday' ||
+      meal.mealCategory === 'Swallow' ||
+      Boolean(meal.swallowOptions && meal.swallowOptions.length > 0) ||
+      (meal.mealName || '').toLowerCase().includes('swallow') ||
+      (meal.mealName || '').toLowerCase().includes('egusi')
+    );
+  };
+
+  const handleOpenMobileSwallowModal = (meal: StructuredMeal, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const dateObj = new Date(meal.dateStr + 'T12:00:00');
+    const formattedDate = dateObj.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
+    const currentSelected = selectedDaysMap[meal.dateStr];
+    setChosenSwallow(currentSelected?.selectedSwallow || 'Semo');
+    setMobileSwallowModal({
+      meal,
+      dateFormatted: formattedDate,
+      isAlreadySelected: Boolean(currentSelected),
+    });
+  };
+
+  const handleConfirmMobileSwallow = () => {
+    if (!mobileSwallowModal) return;
+    const { meal, dateFormatted } = mobileSwallowModal;
+
+    setSelectedDaysMap((prev) => ({
+      ...prev,
+      [meal.dateStr]: {
+        dateStr: meal.dateStr,
+        meal,
+        selectedSwallow: chosenSwallow,
+      },
+    }));
+
+    setValidationError(null);
+
+    // Show floating top popup displaying confirmed swallow
+    if (popupTimeoutRef.current) {
+      clearTimeout(popupTimeoutRef.current);
+    }
+    setActiveMealPopup({
+      meal: {
+        ...meal,
+        mealName: `${meal.mealName.split('(')[0].trim()} (${chosenSwallow})`,
+      },
+      action: 'added',
+      formattedDate: dateFormatted,
+    });
+    popupTimeoutRef.current = window.setTimeout(() => {
+      setActiveMealPopup(null);
+    }, 2500);
+
+    // Reset calculation if active
+    if (showOrderBill || calculatedSummary) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      setShowOrderBill(false);
+      setCalculatedSummary(null);
+      setIsAnimationRunning(false);
+      setIsRevealComplete(false);
+      setIsCalculating(false);
+    }
+
+    setMobileSwallowModal(null);
+  };
+
+  const handleRemoveMobileSwallowDay = () => {
+    if (!mobileSwallowModal) return;
+    const { meal } = mobileSwallowModal;
+    setSelectedDaysMap((prev) => {
+      const copy = { ...prev };
+      delete copy[meal.dateStr];
+      return copy;
+    });
+    setMobileSwallowModal(null);
+  };
+
   // Toggle selection for a workday meal
   const toggleSelectMeal = (meal: StructuredMeal) => {
     if (meal.isHoliday || meal.isNoDelivery) return;
+
+    // Check if on mobile version of the website and user selects Friday / swallow meal
+    const onMobile = isMobile || (typeof window !== 'undefined' && window.innerWidth < 768);
+    const isSwallowOrFriday = isFridayOrSwallowMeal(meal);
+
+    if (onMobile && isSwallowOrFriday) {
+      const isCurrentlySelected = Boolean(selectedDaysMap[meal.dateStr]);
+      if (!isCurrentlySelected) {
+        // Trigger popup to allow user pick a swallow then confirm
+        handleOpenMobileSwallowModal(meal);
+        return;
+      }
+    }
 
     const isCurrentlySelected = Boolean(selectedDaysMap[meal.dateStr]);
     const action: 'added' | 'removed' = isCurrentlySelected ? 'removed' : 'added';
@@ -207,7 +330,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         copy[meal.dateStr] = {
           dateStr: meal.dateStr,
           meal,
-          selectedSwallow: meal.mealCategory === 'Swallow' ? 'Semo' : undefined,
+          selectedSwallow: isSwallowOrFriday ? 'Semo' : undefined,
         };
       }
       return copy;
@@ -621,7 +744,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
           </div>
 
           {/* Calendar Days Grid */}
-          <div className="grid grid-cols-7 gap-1 sm:gap-3">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2.5">
             {calendarDays.map((cell, idx) => {
               const meal = cell.meal;
               const isSelected = Boolean(selectedDaysMap[cell.dateStr]);
@@ -633,16 +756,16 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 return (
                   <div
                     key={idx}
-                    className="min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2.5 rounded-2xl bg-zinc-100/40 border border-zinc-200/50 flex flex-col justify-between opacity-30 select-none cursor-not-allowed overflow-hidden"
+                    className="min-h-[78px] sm:min-h-[110px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl bg-zinc-100/40 border border-zinc-200/50 flex flex-col justify-between opacity-30 select-none cursor-not-allowed overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-zinc-400">{cell.dayNumber}</span>
+                      <span className="text-[10px] sm:text-xs font-semibold text-zinc-400">{cell.dayNumber}</span>
                       <span className="text-[7px] sm:text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200 px-1 py-0.5 rounded truncate">
                         <span className="hidden sm:inline">Pre-Launch</span>
                         <span className="sm:hidden">Pre</span>
                       </span>
                     </div>
-                    <span className="text-[9px] sm:text-[10px] text-zinc-400 italic text-center py-1 sm:py-2">Locked</span>
+                    <span className="text-[8px] sm:text-[10px] text-zinc-400 italic text-center py-1">Locked</span>
                   </div>
                 );
               }
@@ -652,13 +775,13 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 return (
                   <div
                     key={idx}
-                    className="min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2.5 rounded-2xl bg-zinc-50/70 border border-zinc-150 flex flex-col justify-between opacity-50 select-none cursor-not-allowed overflow-hidden"
+                    className="min-h-[78px] sm:min-h-[110px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl bg-zinc-50/70 border border-zinc-150 flex flex-col justify-between opacity-50 select-none cursor-not-allowed overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-zinc-400">{cell.dayNumber}</span>
+                      <span className="text-[10px] sm:text-xs font-semibold text-zinc-400">{cell.dayNumber}</span>
                       <span className="text-[7px] sm:text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200/60 px-1 py-0.5 rounded">Off</span>
                     </div>
-                    <span className="text-[8px] sm:text-[10px] text-zinc-400 font-medium italic text-center py-1 sm:py-2 leading-tight">
+                    <span className="text-[7px] sm:text-[10px] text-zinc-400 font-medium italic text-center py-1 leading-tight">
                       <span className="hidden sm:inline">Strictly No Meals (Closed)</span>
                       <span className="sm:hidden">Closed</span>
                     </span>
@@ -671,15 +794,15 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 return (
                   <div
                     key={idx}
-                    className="min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2.5 rounded-2xl bg-amber-50/50 border border-amber-200/60 flex flex-col justify-between select-none overflow-hidden"
+                    className="min-h-[78px] sm:min-h-[110px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl bg-amber-50/50 border border-amber-200/60 flex flex-col justify-between select-none overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-amber-700">{cell.dayNumber}</span>
-                      <span className="text-[8px] sm:text-[9px] font-semibold text-amber-600 uppercase bg-amber-100 px-1 py-0.5 rounded truncate">
+                      <span className="text-[10px] sm:text-xs font-bold text-amber-700">{cell.dayNumber}</span>
+                      <span className="text-[7px] sm:text-[8px] font-semibold text-amber-600 uppercase bg-amber-100 px-1 py-0.5 rounded truncate">
                         Holiday
                       </span>
                     </div>
-                    <span className="text-[9px] sm:text-[10px] font-semibold text-amber-800 line-clamp-2 leading-tight break-words">
+                    <span className="text-[8px] sm:text-[10px] font-semibold text-amber-800 line-clamp-2 leading-tight break-words">
                       {cell.meal?.holidayName || 'Holiday'}
                     </span>
                   </div>
@@ -691,9 +814,9 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 return (
                   <div
                     key={idx}
-                    className="min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2 rounded-2xl bg-zinc-50/40 border border-zinc-100 opacity-40 select-none"
+                    className="min-h-[78px] sm:min-h-[110px] p-1 sm:p-2 rounded-xl sm:rounded-2xl bg-zinc-50/40 border border-zinc-100 opacity-40 select-none"
                   >
-                    <span className="text-xs font-semibold text-zinc-300">{cell.dayNumber}</span>
+                    <span className="text-[10px] sm:text-xs font-semibold text-zinc-300">{cell.dayNumber}</span>
                   </div>
                 );
               }
@@ -703,7 +826,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 <div
                   key={cell.dateStr}
                   onClick={() => toggleSelectMeal(meal)}
-                  className={`min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group relative text-left overflow-hidden ${
+                  className={`min-h-[78px] sm:min-h-[110px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group relative text-left overflow-hidden ${
                     isSelected
                       ? 'bg-[#FF4C00] text-white border-[#FF4C00] shadow-md scale-[1.01]'
                       : 'bg-white text-zinc-800 border-zinc-200 hover:border-[#FF4C00]/60 hover:bg-[#FAF7F2]'
@@ -712,7 +835,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   {/* Top: Day number & selection badge */}
                   <div className="flex items-center justify-between">
                     <span
-                      className={`text-xs sm:text-sm font-bold ${
+                      className={`text-[10px] sm:text-sm font-bold ${
                         isSelected ? 'text-white' : 'text-zinc-900 group-hover:text-[#FF4C00]'
                       }`}
                     >
@@ -724,16 +847,16 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                         <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[3]" />
                       </span>
                     ) : (
-                      <span className="text-[8px] sm:text-[9px] font-semibold text-zinc-400 group-hover:text-zinc-600 truncate">
+                      <span className="text-[7px] sm:text-[9px] font-semibold text-zinc-400 group-hover:text-zinc-600 truncate">
                         {meal.day.substring(0, 3)}
                       </span>
                     )}
                   </div>
 
-                  {/* Middle: Meal Name (ONLY Food Title, no extra description) */}
-                  <div className="my-0.5 sm:my-1 min-w-0">
+                  {/* Middle: Meal Name (ONLY Food Title, fits in container) */}
+                  <div className="my-0.5 min-w-0">
                     <p
-                      className={`text-[9px] sm:text-xs font-bold leading-tight line-clamp-2 break-words ${
+                      className={`text-[8px] sm:text-xs font-bold leading-tight line-clamp-2 break-words ${
                         isSelected ? 'text-white' : 'text-zinc-800'
                       }`}
                     >
@@ -749,15 +872,13 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                         <div
                           onClick={(e) => {
                             e.stopPropagation();
-                            const nextSwallow: SwallowType =
-                              selectedSwallow === 'Semo' ? 'Eba' : selectedSwallow === 'Eba' ? 'Fufu' : 'Semo';
-                            handleSelectSwallow(cell.dateStr, nextSwallow, e);
+                            handleOpenMobileSwallowModal(meal, e);
                           }}
-                          className="sm:hidden mt-0.5 pt-0.5 border-t border-white/30 flex items-center justify-between text-[8px] font-black uppercase text-white cursor-pointer"
+                          className="sm:hidden mt-0.5 pt-0.5 border-t border-white/30 flex items-center justify-between text-[7px] font-black uppercase text-white cursor-pointer px-0.5"
                           title="Tap to change swallow"
                         >
                           <span className="truncate">{selectedSwallow}</span>
-                          <span className="text-[8px] opacity-80">↻</span>
+                          <span className="text-[7px] opacity-80 shrink-0 ml-0.5">↻</span>
                         </div>
 
                         {/* Desktop Swallow Buttons */}
@@ -1011,6 +1132,108 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
           </div>
         )}
+
+      {/* MOBILE-ONLY FRIDAY SWALLOW SELECTION & CONFIRMATION POPUP */}
+      {mobileSwallowModal && (
+        <div className="fixed inset-0 z-80 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs font-['Poppins'] animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white text-zinc-900 rounded-3xl border border-zinc-200 shadow-2xl p-5 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto animate-in slide-in-from-bottom-6 duration-200">
+            
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-zinc-100 pb-3">
+              <div>
+                <span className="inline-flex items-center space-x-1 text-[10px] font-black uppercase tracking-widest text-[#FF4C00] bg-orange-50 border border-orange-200 px-2.5 py-0.5 rounded-full mb-1">
+                  <Soup className="w-3 h-3" />
+                  <span>Friday Desk Drop Swallow</span>
+                </span>
+                <h3 className="text-lg font-black text-black leading-tight">
+                  Pick Your Friday Swallow
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {mobileSwallowModal.dateFormatted} • {mobileSwallowModal.meal.mealName}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMobileSwallowModal(null)}
+                className="p-2 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-black transition cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Options List */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-700 block">
+                Select Swallow:
+              </label>
+
+              {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => {
+                const isSelected = chosenSwallow === swallow;
+                return (
+                  <button
+                    key={swallow}
+                    type="button"
+                    onClick={() => setChosenSwallow(swallow)}
+                    className={`w-full px-4 py-3 rounded-2xl border text-left transition flex items-center justify-between cursor-pointer ${
+                      isSelected
+                        ? 'border-[#FF4C00] bg-orange-50 text-[#FF4C00] font-bold shadow-xs'
+                        : 'border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-800 font-semibold'
+                    }`}
+                  >
+                    <span className="text-sm">{swallow}</span>
+                    <div
+                      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                        isSelected
+                          ? 'border-[#FF4C00] bg-[#FF4C00] text-white'
+                          : 'border-zinc-300 bg-white'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Actions: Confirm and continue */}
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={handleConfirmMobileSwallow}
+                className="w-full py-3 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Confirm {chosenSwallow}</span>
+              </button>
+
+              <div className="flex items-center justify-between text-xs pt-1 px-1">
+                {mobileSwallowModal.isAlreadySelected ? (
+                  <button
+                    type="button"
+                    onClick={handleRemoveMobileSwallowDay}
+                    className="text-red-600 font-semibold hover:underline cursor-pointer"
+                  >
+                    Remove Day
+                  </button>
+                ) : (
+                  <span />
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setMobileSwallowModal(null)}
+                  className="text-zinc-500 font-semibold hover:text-black cursor-pointer ml-auto"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       </div>
     </section>

@@ -23,12 +23,12 @@ export const HeroTypewriter: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
           
           {/* Left Column */}
-          <div className="lg:col-span-7 space-y-5 sm:space-y-6 max-w-full">
-            <h1 className="text-3xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.15] text-white break-words">
+          <div className="lg:col-span-7 space-y-4 sm:space-y-6 max-w-full">
+            <h1 className="text-2xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.2] text-white break-words">
               Lunch that’s <br className="hidden sm:inline" />
-              <span className="relative inline-block text-black bg-white px-3 sm:px-4 py-1 rounded-2xl font-serif-custom shadow-md transform -rotate-1 mt-1 sm:mt-2 max-w-full">
+              <span className="relative inline-block text-black bg-white px-3 sm:px-4 py-0.5 sm:py-1 rounded-2xl font-serif-custom shadow-md transform -rotate-1 mt-1 sm:mt-2 max-w-full">
                 <span
-                  className={`inline-block break-words transition-all duration-200 transform ${
+                  className={`inline-block break-words text-xl sm:text-4xl lg:text-6xl transition-all duration-200 transform ${
                     isFading ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0'
                   }`}
                 >

@@ -11,6 +11,7 @@ export const WatchBeforeYouReserveModal: React.FC<WatchBeforeYouReserveModalProp
   onWatched,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [thumbSrc, setThumbSrc] = useState('/play.png');
 
   if (!isOpen) return null;
 
@@ -35,11 +36,15 @@ export const WatchBeforeYouReserveModal: React.FC<WatchBeforeYouReserveModalProp
 
         {/* Video Box */}
         <div className="p-4 sm:p-6 space-y-5">
-          <div className="relative aspect-video rounded-2xl overflow-hidden bg-black group shadow-2xl border border-zinc-800">
+          <div className="relative aspect-video rounded-2xl overflow-hidden bg-white group shadow-2xl border border-zinc-800">
             <img
-              src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=1200"
-              alt="11 to 12 Desk Drop Preview"
-              className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? 'scale-105 opacity-90' : 'opacity-70 group-hover:scale-105'}`}
+              src={thumbSrc}
+              onError={() => setThumbSrc('/play.svg')}
+              alt="How to Subscribe on 11 to 12 Video Overview"
+              referrerPolicy="no-referrer"
+              className={`w-full h-full object-cover transition-all duration-700 ${
+                isPlaying ? 'scale-105 opacity-90' : 'opacity-100 group-hover:scale-102'
+              }`}
             />
 
             {/* Video overlay controls */}

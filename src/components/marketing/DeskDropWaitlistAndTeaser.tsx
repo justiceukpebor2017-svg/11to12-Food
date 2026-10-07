@@ -27,6 +27,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
   onJoinWaitlist,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [thumbSrc, setThumbSrc] = useState('/play.png');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -219,11 +220,13 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
           </div>
 
           {/* Video Preview Box */}
-          <div className="relative aspect-video rounded-2xl overflow-hidden bg-black group shadow-lg">
+          <div className="relative aspect-video rounded-2xl overflow-hidden bg-white group shadow-lg border border-zinc-800">
             <img
-              src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=1200"
-              alt="11 to 12 Desk Drop Preview"
-              className="w-full h-full object-cover opacity-75 group-hover:scale-105 transition-transform duration-500"
+              src={thumbSrc}
+              onError={() => setThumbSrc('/play.svg')}
+              alt="How to Subscribe on 11 to 12 Video Overview"
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500"
             />
             <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center space-y-3">
               <button

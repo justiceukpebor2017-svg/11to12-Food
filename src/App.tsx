@@ -551,39 +551,15 @@ export default function App() {
   };
 
   const handleOrderSubmitted = async (order: OrderSubmission) => {
-    setSubmittedOrders((prev) => [order, ...prev]);
-
-    // Create a real customer record from the paid/submitted plan
-    const initialDefaultPassword = generateDefaultPassword();
-    const newCustomer: CustomerRecord = {
-      id: `cust-${Date.now()}`,
-      fullName: order.fullName,
-      email: order.email,
-      phone: order.phone,
-      company: order.company,
-      officeAddress: order.officeAddress,
-      floorSuite: order.floorSuite || '',
-      deliveryArea: order.deliveryArea || 'Victoria Island',
-      notes: '',
-      status: 'Pending Activation',
-      paymentStatus: 'Pending Verification',
-      planName: `${order.totalDays} Workday Lunch Plan`,
-      totalDays: order.totalDays,
-      creditsBalance: 0,
-      selectedDays: order.selectedDays,
-      subtotalNGN: order.subtotalNGN,
-      discountNGN: order.discountNGN,
-      finalTotalNGN: order.finalTotalNGN,
-      orderRef: order.id,
-      memberCode: order.memberCode,
-      createdAt: order.submittedAt,
-      isPasswordSet: true,
-      defaultPassword: initialDefaultPassword,
-      password: initialDefaultPassword,
-      isDefaultPassword: true,
-      mustChangePassword: true,
-    };
-    setCustomers((prev) => [newCustomer, ...prev]);
+    // Paid order request goes under the Order nav ONLY (Pending Invoices).
+    // It will be moved to Customer nav automatically only once confirmed by admin.
+    setSubmittedOrders((prev) => {
+      const exists = prev.some((o) => o.id === order.id);
+      if (exists) {
+        return prev.map((o) => (o.id === order.id ? order : o));
+      }
+      return [order, ...prev];
+    });
 
     // Save to central live database and Firestore, and broadcast across all devices
     try {
@@ -591,12 +567,6 @@ export default function App() {
     } catch (e) {
       console.warn('liveSync submitOrder notice:', e);
     }
-    try {
-      await liveSync.registerCustomer(newCustomer);
-    } catch (e) {
-      console.warn('liveSync registerCustomer notice:', e);
-    }
-    await saveCustomerToFirestore(newCustomer).catch(() => {});
     await saveOrderToFirestore(order).catch(() => {});
 
     // Deduplicate: If this person was in the waitlist (by unique code or email), remove from waitlist so admin has 0 duplicates
@@ -607,22 +577,6 @@ export default function App() {
         return !(matchesCode || matchesEmail);
       })
     );
-
-    // Save customer details to prepare their account with pending verification
-    setUserProfile((prev) => ({
-      ...prev,
-      id: newCustomer.id,
-      name: order.fullName,
-      email: order.email,
-      phone: order.phone,
-      company: order.company,
-      address: order.officeAddress,
-      planName: `${order.totalDays} Workday Lunch Plan`,
-      subscriptionStatus: 'Pending Activation',
-      paymentStatus: 'Pending Verification',
-      selectedDays: order.selectedDays,
-      totalSubscribedDays: order.totalDays,
-    }));
   };
 
   // Top-Up Order submission from active subscriber dashboard
@@ -703,9 +657,10 @@ export default function App() {
         }));
       }
     } else {
-      // If customer was not yet recorded, register them as an active customer
+      // If customer was not yet recorded, register them as an active customer in Customers nav
+      const defaultPassword = generateDefaultPassword();
       const newCustomer: CustomerRecord = {
-        id: `cust-${Date.now()}`,
+        id: `cust-${order.id || Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
         fullName: order.fullName,
         email: order.email,
         phone: order.phone,
@@ -724,21 +679,23 @@ export default function App() {
         finalTotalNGN: order.finalTotalNGN,
         orderRef: order.id,
         memberCode: order.memberCode,
-        createdAt: order.submittedAt,
+        createdAt: order.submittedAt || new Date().toISOString(),
         isPasswordSet: true,
-        defaultPassword: generateDefaultPassword(),
-        password: generateDefaultPassword(),
+        defaultPassword: defaultPassword,
+        password: defaultPassword,
         isDefaultPassword: true,
         mustChangePassword: true,
       };
       setCustomers((prev) => [newCustomer, ...prev]);
+      liveSync.registerCustomer(newCustomer).catch(() => {});
+      saveCustomerToFirestore(newCustomer).catch(() => {});
     }
 
     // 3. Post confirmation announcement
     const confirmedAnnouncement: AdminAnnouncement = {
       id: `ann-${Date.now()}`,
-      title: `✅ Top-Up Days Confirmed: ${order.fullName}`,
-      message: `Payment confirmed for ${order.fullName}. Added ${order.totalDays} meal days to their active desk drop calendar and synced with kitchen production.`,
+      title: `✅ Payment Confirmed: ${order.fullName}`,
+      message: `Payment confirmed for ${order.fullName}. Moved to Customer nav with login credentials generated, and meals synced with kitchen production.`,
       type: 'info',
       active: true,
       postedAt: new Date().toISOString(),
@@ -971,12 +928,7 @@ export default function App() {
           todayMeal={canonicalTodayMeal}
           tomorrowMeal={canonicalTomorrowMeal}
           timeWindow={timeWindow}
-          onConfirmOrderPayment={(orderId) => {
-            setSubmittedOrders((prev) =>
-              prev.map((o) => (o.id === orderId ? { ...o, paymentStatus: 'Confirmed' } : o))
-            );
-            liveSync.confirmOrderPayment(orderId);
-          }}
+          onConfirmOrderPayment={handleConfirmTopUpOrder}
           onNavigateToHome={() => setViewMode('marketing')}
           onAddAnnouncement={handleAddAnnouncement}
           onDeleteAnnouncement={handleDeleteAnnouncement}

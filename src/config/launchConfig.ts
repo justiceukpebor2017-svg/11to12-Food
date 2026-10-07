@@ -2,7 +2,7 @@
 // Central source of truth for deliveries launch, countdown, and calendar gating
 import { LaunchSettings } from '../types';
 
-export const DEFAULT_LAUNCH_DATE = '2026-11-02';
+export const DEFAULT_LAUNCH_DATE = '2026-12-07';
 
 function getOrdinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd'];
@@ -13,8 +13,8 @@ function getOrdinal(n: number): string {
 function parseDateDetails(dateStr: string) {
   const parts = (dateStr || DEFAULT_LAUNCH_DATE).split('-');
   const y = parseInt(parts[0], 10) || 2026;
-  const m = parseInt(parts[1], 10) || 11;
-  const d = parseInt(parts[2], 10) || 2;
+  const m = parseInt(parts[1], 10) || 12;
+  const d = parseInt(parts[2], 10) || 7;
   const monthIndex = m - 1;
   const dateObj = new Date(y, monthIndex, d, 11, 0, 0);
 
@@ -46,6 +46,15 @@ function getInitialSettings(): LaunchSettings {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed.launchDate === 'string') {
+          // If stored launchDate is the legacy date (e.g. 2026-11-02), cleanly migrate to official December 7 launch date
+          if (parsed.launchDate === '2026-11-02') {
+            const migrated = {
+              launchDate: DEFAULT_LAUNCH_DATE,
+              isEnabled: typeof parsed.isEnabled === 'boolean' ? parsed.isEnabled : true,
+            };
+            localStorage.setItem('11to12_launch_settings', JSON.stringify(migrated));
+            return migrated;
+          }
           return {
             launchDate: parsed.launchDate,
             isEnabled: typeof parsed.isEnabled === 'boolean' ? parsed.isEnabled : true,
