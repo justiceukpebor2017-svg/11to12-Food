@@ -681,7 +681,7 @@ export const CreditUsageModal: React.FC<CreditUsageModalProps> = ({
             </div>
 
             <div className="space-y-2">
-              {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
+              {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((swallow) => (
                 <button
                   key={swallow}
                   type="button"

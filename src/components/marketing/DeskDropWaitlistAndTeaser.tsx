@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, CheckCircle2, ArrowDown, Utensils, Users, Sparkles, CheckCircle, Copy, Check, Ticket, ArrowRight, AlertTriangle, Loader2 } from 'lucide-react';
+import { CheckCircle2, Utensils, Users, Sparkles, CheckCircle, Copy, Check, Ticket, ArrowRight, AlertTriangle, Loader2 } from 'lucide-react';
 import { WaitlistLead, CustomerRecord } from '../../types';
 import { LAUNCH_CONFIG, getTimeUntilLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
@@ -26,8 +26,6 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
   existingCustomers = [],
   onJoinWaitlist,
 }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [thumbSrc, setThumbSrc] = useState('/play.png');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -156,13 +154,8 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const scrollToReserve = () => {
-    const el = document.getElementById('reserve-form');
-    if (el) el.scrollIntoView({ behavior: 'smooth' });
-  };
-
   return (
-    <section id="watch-and-reserve" className="py-16 sm:py-24 bg-[#141414] text-white font-['Poppins']">
+    <section id="reserve-desk" className="py-16 sm:py-24 bg-[#141414] text-white font-['Poppins']">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
         
         {/* Launch Countdown Banner: Clean & Minimal (Visible when launching date is active, removed when officially launched) */}
@@ -207,60 +200,6 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
             </p>
           </div>
         )}
-
-        {/* Video Teaser: Watch Before You Reserve */}
-        <div className="bg-[#1F1F1F] rounded-3xl p-5 sm:p-10 border border-zinc-800 shadow-xl space-y-6">
-          <div className="text-center space-y-1">
-            <h2 className="text-2xl sm:text-4xl font-bold text-white break-words">
-              Watch Before You Reserve
-            </h2>
-            <p className="text-sm sm:text-base text-zinc-400 font-normal break-words">
-              See how 11 to 12 Desk Drop works in 60 seconds.
-            </p>
-          </div>
-
-          {/* Video Preview Box */}
-          <div className="relative aspect-video rounded-2xl overflow-hidden bg-white group shadow-lg border border-zinc-800">
-            <img
-              src={thumbSrc}
-              onError={() => setThumbSrc('/play.svg')}
-              alt="How to Subscribe on 11 to 12 Video Overview"
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500"
-            />
-            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center space-y-3">
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#FF4C00] hover:bg-white text-white hover:text-[#FF4C00] flex items-center justify-center transition-all transform hover:scale-110 shadow-2xl cursor-pointer"
-                aria-label="Play Video"
-              >
-                <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-current ml-1" />
-              </button>
-              <span className="text-xs text-white/90 font-medium tracking-wide">
-                60-Second Overview
-              </span>
-            </div>
-          </div>
-
-          {/* Quick Navigation Links */}
-          <div className="flex flex-wrap items-center justify-center gap-4 text-xs sm:text-sm font-semibold text-zinc-300 pt-2">
-            <button
-              onClick={scrollToReserve}
-              className="text-[#FF4C00] hover:underline cursor-pointer flex items-center space-x-1"
-            >
-              <span>Skip to Waitlist</span>
-              <ArrowDown className="w-3.5 h-3.5" />
-            </button>
-            <span className="text-zinc-600">•</span>
-            <button
-              onClick={scrollToMenu}
-              className="text-white hover:text-[#FF4C00] transition cursor-pointer flex items-center space-x-1"
-            >
-              <Utensils className="w-3.5 h-3.5 text-[#FF4C00]" />
-              <span>Already joined? See this week's kitchen menu</span>
-            </button>
-          </div>
-        </div>
 
         {/* Reserve Your Desk Drop Form */}
         <div id="reserve-form" className="bg-[#1F1F1F] rounded-3xl p-6 sm:p-10 border border-zinc-800 shadow-xl">

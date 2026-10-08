@@ -13,7 +13,7 @@ export const CreditRedemption: React.FC<CreditRedemptionProps> = ({ creditsBalan
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const futureWorkdays = [
-    { dateStr: '2026-08-07', label: 'THURSDAY (AUG 7) • Pounded Yam & Egusi' },
+    { dateStr: '2026-08-07', label: 'THURSDAY (AUG 7) • Semo & Egusi' },
     { dateStr: '2026-08-08', label: 'FRIDAY (AUG 8) • Seafood Special' },
     { dateStr: '2026-08-10', label: 'MONDAY (AUG 10) • Party Jollof' },
     { dateStr: '2026-08-11', label: 'TUESDAY (AUG 11) • Ewa Aganyin' },

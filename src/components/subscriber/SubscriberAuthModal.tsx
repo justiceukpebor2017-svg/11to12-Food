@@ -85,12 +85,45 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       return;
     }
 
+    // Pre-check registered customer with default password in active customers list
+    const registeredCustomer = customers.find(
+      (c) => c.email && c.email.trim().toLowerCase() === cleanEmail
+    );
+    if (
+      registeredCustomer &&
+      ((registeredCustomer.defaultPassword && cleanPass === registeredCustomer.defaultPassword.trim()) ||
+       (registeredCustomer.password && cleanPass === registeredCustomer.password.trim()))
+    ) {
+      const isDefault =
+        Boolean(registeredCustomer.mustChangePassword) ||
+        registeredCustomer.isDefaultPassword === true ||
+        !registeredCustomer.isPasswordSet ||
+        Boolean(registeredCustomer.defaultPassword && cleanPass === registeredCustomer.defaultPassword.trim()) ||
+        Boolean(registeredCustomer.password && registeredCustomer.defaultPassword && registeredCustomer.password === registeredCustomer.defaultPassword);
+
+      if (isDefault) {
+        setMatchedCustomer(registeredCustomer);
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setMode('first_login_change_password');
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
       // 1. Authenticate with real Firebase Authentication backend
       const { user, customer } = await loginSubscriberAccount(cleanEmail, cleanPass);
 
       if (customer) {
-        if (customer.mustChangePassword) {
+        const isUsingDefault =
+          Boolean(customer.mustChangePassword) ||
+          customer.isDefaultPassword === true ||
+          !customer.isPasswordSet ||
+          Boolean(customer.defaultPassword && cleanPass === customer.defaultPassword.trim()) ||
+          Boolean(customer.password && customer.defaultPassword && customer.password === customer.defaultPassword);
+
+        if (isUsingDefault) {
           setMatchedCustomer(customer);
           setNewPassword('');
           setConfirmNewPassword('');
@@ -142,6 +175,22 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
         ((legacyCustomer.password && cleanPass === legacyCustomer.password.trim()) ||
          (legacyCustomer.defaultPassword && cleanPass === legacyCustomer.defaultPassword.trim()))
       ) {
+        const isUsingDefault =
+          Boolean(legacyCustomer.mustChangePassword) ||
+          legacyCustomer.isDefaultPassword === true ||
+          !legacyCustomer.isPasswordSet ||
+          Boolean(legacyCustomer.defaultPassword && cleanPass === legacyCustomer.defaultPassword.trim()) ||
+          Boolean(legacyCustomer.password && legacyCustomer.defaultPassword && legacyCustomer.password === legacyCustomer.defaultPassword);
+
+        if (isUsingDefault) {
+          setMatchedCustomer(legacyCustomer);
+          setNewPassword('');
+          setConfirmNewPassword('');
+          setMode('first_login_change_password');
+          setIsLoading(false);
+          return;
+        }
+
         onLoginSuccess(legacyCustomer);
         setIsLoading(false);
         onClose();

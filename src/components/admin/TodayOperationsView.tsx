@@ -353,7 +353,7 @@ export const TodayOperationsView: React.FC<TodayOperationsViewProps> = ({
                   return (
                     <div
                       key={ord.id}
-                      onClick={() => handleNotificationClick(notifId, 'orders')}
+                      onClick={() => handleNotificationClick(notifId, 'pending-payments')}
                       className={`group p-3 rounded-xl bg-zinc-900 border transition cursor-pointer flex items-start justify-between space-x-2.5 ${
                         isTopUp ? 'border-[#FF4C00]/60 hover:border-[#FF4C00]' : 'border-amber-600/40 hover:border-amber-500'
                       }`}

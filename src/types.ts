@@ -12,7 +12,8 @@ export type MealCategory =
   | 'Swallow'
   | 'Rice + Soup';
 
-export type SwallowType = 'Semo' | 'Eba' | 'Fufu';
+export type SwallowType = 'Eba' | 'Semo' | 'Fufu';
+export const CANONICAL_SWALLOW_OPTIONS: SwallowType[] = ['Eba', 'Semo', 'Fufu'];
 
 export interface StructuredMeal {
   id: string;
@@ -46,9 +47,12 @@ export interface SelectedLunchDay {
 
 // Official Settlement Bank Details
 export const OFFICIAL_BANK_DETAILS = {
-  accountName: '11 TO 12 FOODS LTD 11 TO 12 FOODS FLW',
-  bankName: 'Flutterwave MFB (Formerly OK MFB)',
-  accountNumber: '9838242145',
+  accountName: '11 TO 12 FOODS LTD',
+  bankName: 'Wema Bank',
+  accountNumber: '7353969118',
+  secondaryBankName: 'Flutterwave MFB',
+  secondaryAccountNumber: '9596073284',
+  secondaryAccountName: '11 TO 12 FOODS LTD',
   status: 'Active',
 };
 
@@ -127,6 +131,7 @@ export interface OrderSubmission {
   phone: string;
   company: string;
   officeAddress: string;
+  secondAddress?: string;
   floorSuite?: string;
   deliveryArea?: string;
   selectedDays: SelectedLunchDay[];
@@ -137,6 +142,7 @@ export interface OrderSubmission {
   finalTotalNGN: number;
   submittedAt: string;
   paymentStatus: 'Pending Verification' | 'Confirmed';
+  paymentProofUrl?: string;
   memberCode?: string;
   isTopUp?: boolean;
 }
@@ -198,11 +204,13 @@ export interface CustomerRecord {
   phone: string;
   company: string;
   officeAddress: string;
+  secondAddress?: string;
   floorSuite?: string;
   deliveryArea?: string;
   notes?: string;
   status: 'Active' | 'Paused' | 'Pending Activation' | 'Expired';
   paymentStatus: 'Paid' | 'Pending Verification';
+  paymentProofUrl?: string;
   planName: string;
   totalDays: number;
   remainingMeals?: number;
@@ -217,6 +225,7 @@ export interface CustomerRecord {
   orderRef?: string;
   memberCode?: string;
   createdAt: string;
+  confirmedAt?: string;
   isPasswordSet: boolean;
   password?: string;
   defaultPassword?: string;
@@ -234,11 +243,14 @@ export interface UserProfile {
   occupation: string;
   company: string;
   address: string;
+  secondAddress?: string;
   floorSuite?: string;
   deliveryArea: string;
   creditsBalance: number;
   remainingMeals?: number;
   skippedDates?: string[];
+  orderTotalNGN?: number;
+  orderRef?: string;
   spicePreference?: 'Mild' | 'Medium' | 'Hot' | 'Pepper Dem';
   proteinsPreferred: string[];
   dislikes: string[];

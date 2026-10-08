@@ -439,7 +439,7 @@ export function parseStructuredMeal(
     isHoliday,
     holidayName,
     isNoDelivery: isHoliday,
-    swallowOptions: mealCategory === 'Swallow' ? ['Semo', 'Eba', 'Fufu'] : undefined,
+    swallowOptions: mealCategory === 'Swallow' ? ['Eba', 'Semo', 'Fufu'] : undefined,
     imageUrl,
     ingredients,
   };

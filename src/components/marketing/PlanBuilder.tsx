@@ -671,7 +671,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         </div>
 
         {/* Calendar View Container */}
-        <div className="bg-white border border-zinc-200 rounded-3xl p-5 sm:p-8 shadow-sm">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-3 sm:p-8 shadow-sm">
           
           {/* Month Navigation & Action Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-zinc-100">
@@ -886,7 +886,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                           onClick={(e) => e.stopPropagation()}
                           className="hidden sm:flex mt-1 pt-1 border-t border-white/30 items-center space-x-1"
                         >
-                          {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
+                          {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((swallow) => (
                             <button
                               key={swallow}
                               type="button"
@@ -1169,7 +1169,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 Select Swallow:
               </label>
 
-              {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => {
+              {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((swallow) => {
                 const isSelected = chosenSwallow === swallow;
                 return (
                   <button

@@ -694,7 +694,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                           <span className="text-[#FF4C00] font-black">{day.selectedSwallow || 'Semo'}</span>
                         </div>
                         <div className="grid grid-cols-3 gap-0.5 sm:gap-1">
-                          {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
+                          {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((swallow) => (
                             <button
                               key={swallow}
                               type="button"
@@ -808,7 +808,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                         <div className="flex items-center space-x-2 mt-2" onClick={(e) => e.stopPropagation()}>
                           <span className="text-[10px] font-bold text-zinc-500">Swallow choice:</span>
                           <div className="flex gap-1">
-                            {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
+                            {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((swallow) => (
                               <button
                                 key={swallow}
                                 type="button"
@@ -1090,20 +1090,20 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                         Official Bank Transfer Details
                       </span>
                       <p className="text-xs font-black text-zinc-900">
-                        Flutterwave MFB (Formerly OK MFB) • <span className="text-[#FF4C00]">9838242145</span>
+                        Wema Bank • <span className="text-[#FF4C00]">7353969118</span> | Flutterwave • <span className="text-zinc-700">9596073284</span>
                       </p>
-                      <p className="text-[11px] text-zinc-500">Account Name: 11 TO 12 FOODS LTD 11 TO 12 FOODS FLW</p>
+                      <p className="text-[11px] text-zinc-500">Account Name: 11 TO 12 FOODS LTD</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard.writeText('9838242145');
+                        navigator.clipboard.writeText('7353969118');
                         setCopiedBankAcc(true);
                         setTimeout(() => setCopiedBankAcc(false), 2000);
                       }}
                       className="px-3.5 py-1.5 rounded-full border border-zinc-200 hover:border-black text-xs font-bold text-black transition cursor-pointer self-start sm:self-auto"
                     >
-                      {copiedBankAcc ? '✓ Copied' : 'Copy Account'}
+                      {copiedBankAcc ? '✓ Copied' : 'Copy Wema'}
                     </button>
                   </div>
 
@@ -1238,7 +1238,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                   Every Friday features hot local soups. Please select your swallow to lock in this day:
                 </p>
                 <div className="grid grid-cols-3 gap-2">
-                  {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((sw) => (
+                  {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((sw) => (
                     <button
                       key={sw}
                       type="button"
@@ -1631,7 +1631,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                     Friday Soup Swallow Selection:
                   </span>
                   <div className="grid grid-cols-3 gap-2">
-                    {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((sw) => (
+                    {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((sw) => (
                       <button
                         key={sw}
                         type="button"

@@ -26,7 +26,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   waitlistLeads = [],
   customers = [],
 }) => {
-  const [copied, setCopied] = useState(false);
+  const [copiedBank, setCopiedBank] = useState<'wema' | 'flw' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -38,6 +38,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [phone, setPhone] = useState('');
   const [company, setCompany] = useState('');
   const [officeAddress, setOfficeAddress] = useState('');
+  const [secondAddress, setSecondAddress] = useState('');
 
   // Member Code State
   const [memberCodeInput, setMemberCodeInput] = useState('');
@@ -106,6 +107,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     phone: phone || '+234 800 000 0000',
     company: company || 'Corporate Office',
     officeAddress: officeAddress || 'Desk Drop Location',
+    secondAddress: secondAddress || undefined,
     selectedDays,
     totalDays: summary.totalDays,
     subtotalNGN: summary.subtotalNGN,
@@ -116,10 +118,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     memberCode: appliedMemberCode || undefined,
   };
 
-  const handleCopyAccount = () => {
-    navigator.clipboard.writeText('9838242145');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  const handleCopyAccount = (acct: string, bank: 'wema' | 'flw') => {
+    navigator.clipboard.writeText(acct);
+    setCopiedBank(bank);
+    setTimeout(() => setCopiedBank(null), 2500);
   };
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
@@ -134,6 +136,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       phone: phone.trim() || '+234 800 000 0000',
       company: company.trim() || 'Corporate Office',
       officeAddress: officeAddress.trim() || 'Desk Drop Location',
+      secondAddress: secondAddress.trim() || undefined,
       selectedDays,
       totalDays: summary.totalDays,
       subtotalNGN: summary.subtotalNGN,
@@ -302,49 +305,94 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
 
-              {/* Official Bank Account Card */}
-              <div className="p-5 rounded-2xl bg-black text-white border border-zinc-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#FF4C00]">
-                    Official Bank Account
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyAccount}
-                    className="px-3 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold flex items-center space-x-1.5 transition cursor-pointer"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="text-emerald-400">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copy Account</span>
-                      </>
-                    )}
-                  </button>
+              {/* Official Payment Accounts (Wema Bank & Flutterwave MFB) */}
+              <div className="space-y-3">
+                {/* Wema Bank Account Card */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-zinc-950 text-white border border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#FF4C00]">
+                      Primary Account • Wema Bank
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyAccount('7353969118', 'wema')}
+                      className="px-3 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold flex items-center space-x-1.5 transition cursor-pointer"
+                    >
+                      {copiedBank === 'wema' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <span className="text-[10px] text-zinc-400 font-medium block">Account Number</span>
+                      <span className="text-xl sm:text-2xl font-black tracking-wider text-[#FF4C00] select-all">
+                        7353969118
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-zinc-400 font-medium block">Bank Name</span>
+                      <span className="text-base sm:text-lg font-extrabold text-white">
+                        Wema Bank
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-zinc-800 text-[10px] text-zinc-400">
+                    Account Name: <strong className="text-white">11 TO 12 FOODS LTD</strong>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <span className="text-[10px] text-zinc-400 font-medium block">Account Number</span>
-                    <span className="text-xl sm:text-2xl font-black tracking-wider text-white select-all">
-                      9838242145
+                {/* Flutterwave MFB Account Card */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-zinc-900 text-white border border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                      Alternative Account • Flutterwave MFB
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyAccount('9596073284', 'flw')}
+                      className="px-3 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold flex items-center space-x-1.5 transition cursor-pointer"
+                    >
+                      {copiedBank === 'flw' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-zinc-400 font-medium block">Bank Name</span>
-                    <span className="text-base sm:text-lg font-extrabold text-white">
-                      Flutterwave MFB
-                    </span>
-                    <span className="text-[10px] text-zinc-400 block font-normal">(Formerly OK MFB)</span>
-                  </div>
-                </div>
 
-                <div className="pt-2 border-t border-zinc-800 text-[11px] text-zinc-400">
-                  Account Name: <strong className="text-white">11 TO 12 FOODS LTD 11 TO 12 FOODS FLW</strong>
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <span className="text-[10px] text-zinc-400 font-medium block">Account Number</span>
+                      <span className="text-xl sm:text-2xl font-black tracking-wider text-white select-all">
+                        9596073284
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-zinc-400 font-medium block">Bank Name</span>
+                      <span className="text-base sm:text-lg font-extrabold text-white">
+                        Flutterwave MFB
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-zinc-800 text-[10px] text-zinc-400">
+                    Account Name: <strong className="text-white">11 TO 12 FOODS LTD</strong>
+                  </div>
                 </div>
               </div>
 
@@ -485,9 +533,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       value={officeAddress}
                       onChange={(e) => setOfficeAddress(e.target.value)}
                       className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
-                      placeholder="Your office desk floor"
+                      placeholder="Primary workstation desk & floor"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1">
+                    Second Delivery Address <span className="text-zinc-400 font-normal">(Optional backup desk or office)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={secondAddress}
+                    onChange={(e) => setSecondAddress(e.target.value)}
+                    className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
+                    placeholder="Alternate floor or secondary reception"
+                  />
                 </div>
               </div>
 

@@ -39,7 +39,7 @@ import { Testimonials } from './components/ui/testimonials-columns-1';
 import { FaqSection } from './components/marketing/FaqSection';
 import { Footer } from './components/Footer';
 import { CheckoutModal } from './components/marketing/CheckoutModal';
-import { WatchBeforeYouReserveModal } from './components/marketing/WatchBeforeYouReserveModal';
+import { GuidedWalkthroughControls, WalkthroughStep } from './components/marketing/GuidedWalkthroughControls';
 import { SubscriberAuthModal } from './components/subscriber/SubscriberAuthModal';
 import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
@@ -76,8 +76,10 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('marketing');
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('morning');
   const [showSubscriberAuthModal, setShowSubscriberAuthModal] = useState(false);
-  // "Watch Before You Reserve" on Initial Load with Background Blur EVERY time the site is loaded or refreshed (never bypassed across refreshes)
-  const [hasWatchedTeaser, setHasWatchedTeaser] = useState<boolean>(false);
+  
+  // Guided Website Walkthrough State: Shown on every load of the website as requested
+  const [isWalkthroughActive, setIsWalkthroughActive] = useState<boolean>(true);
+  const [walkthroughStep, setWalkthroughStep] = useState<WalkthroughStep>(1);
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
@@ -503,15 +505,20 @@ export default function App() {
       occupation: 'Corporate Professional',
       company: customer.company,
       address: customer.officeAddress,
+      secondAddress: customer.secondAddress,
       floorSuite: customer.floorSuite,
       deliveryArea: customer.deliveryArea || 'Victoria Island',
       creditsBalance: customer.creditsBalance || 0,
+      skippedDates: customer.skippedDates || [],
+      orderTotalNGN: customer.finalTotalNGN,
+      orderRef: customer.orderRef || customer.id,
       spicePreference: 'Medium',
       proteinsPreferred: ['Spiced Grilled Chicken', 'Assorted Goat Meat'],
       dislikes: customer.notes ? [customer.notes] : [],
       standardLunchTime: '11:45 AM',
       eatLocation: 'Work',
       subscriptionStatus: 'Active',
+      paymentStatus: 'Paid',
       planName: customer.planName,
       nextBillingDate: 'Nov 1, 2026',
       totalMealsReceived: 0,
@@ -666,6 +673,7 @@ export default function App() {
         phone: order.phone,
         company: order.company,
         officeAddress: order.officeAddress,
+        secondAddress: order.secondAddress || '',
         floorSuite: order.floorSuite || '',
         deliveryArea: order.deliveryArea || 'Victoria Island',
         status: 'Active',
@@ -705,6 +713,35 @@ export default function App() {
 
   const handleUpdateProfile = (updated: UserProfile) => {
     setUserProfile(updated);
+
+    // Synchronize into customer record for Admin Dashboard in real time
+    setCustomers((prev) => {
+      const idx = prev.findIndex(
+        (c) =>
+          c.id === updated.id ||
+          Boolean(c.email && updated.email && c.email.toLowerCase() === updated.email.toLowerCase())
+      );
+      if (idx >= 0) {
+        const copy = [...prev];
+        const updatedCust: CustomerRecord = {
+          ...copy[idx],
+          fullName: updated.name,
+          phone: updated.phone,
+          company: updated.company,
+          officeAddress: updated.address,
+          secondAddress: updated.secondAddress,
+          creditsBalance: updated.creditsBalance,
+          skippedDates: updated.skippedDates || [],
+          selectedDays: updated.selectedDays || copy[idx].selectedDays,
+          totalDays: updated.selectedDays?.length || copy[idx].totalDays,
+        };
+        copy[idx] = updatedCust;
+        liveSync.updateCustomer(updatedCust.id, updatedCust).catch(() => {});
+        saveCustomerToFirestore(updatedCust).catch(() => {});
+        return copy;
+      }
+      return prev;
+    });
   };
 
   const handleAddRating = (rating: MealRating) => {
@@ -787,12 +824,54 @@ export default function App() {
     setLaunchSettings(updated);
   };
 
+  // Guided Walkthrough Handlers
+  const handleWalkthroughSkip = () => {
+    setIsWalkthroughActive(false);
+  };
+
+  const handleWalkthroughNext = () => {
+    if (walkthroughStep === 1) {
+      setWalkthroughStep(2);
+      const menuEl = document.getElementById('menu');
+      if (menuEl) {
+        menuEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else if (walkthroughStep === 2) {
+      setWalkthroughStep(3);
+      const planEl = document.getElementById('pricing');
+      if (planEl) {
+        planEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
+  const handleWalkthroughFinish = () => {
+    setIsWalkthroughActive(false);
+    const planEl = document.getElementById('pricing');
+    if (planEl) {
+      planEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // On initial mount if walkthrough active, smoothly focus step 1: Reserve Your Desk
+  useEffect(() => {
+    if (viewMode === 'marketing' && isWalkthroughActive && walkthroughStep === 1) {
+      const timer = setTimeout(() => {
+        const reserveEl = document.getElementById('reserve-form');
+        if (reserveEl) {
+          reserveEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [viewMode, isWalkthroughActive, walkthroughStep]);
+
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1A1A] font-['Poppins'] antialiased selection:bg-[#FF4C00] selection:text-white">
       
       {/* Universal Clean Header with Brand Logo & Log In (Shown on Marketing View) */}
       {viewMode === 'marketing' && (
-        <div className={!hasWatchedTeaser ? "filter blur-md pointer-events-none select-none transition-all duration-700" : "transition-all duration-500"}>
+        <div className={isWalkthroughActive ? "transition-all duration-500 opacity-60 filter blur-[1.5px]" : "transition-all duration-300"}>
           <Header
             currentTab={viewMode}
             setCurrentTab={setViewMode}
@@ -807,56 +886,95 @@ export default function App() {
       {/* VIEW MODE 1: MARKETING PAGE */}
       {viewMode === 'marketing' && (
         <>
-          {/* Watch Before You Reserve Focused Spotlight on Website Load & Every Refresh */}
-          <WatchBeforeYouReserveModal
-            isOpen={!hasWatchedTeaser}
-            onWatched={() => {
-              setHasWatchedTeaser(true);
-            }}
-          />
+          {/* Guided Website Walkthrough Floating Controls */}
+          {isWalkthroughActive && (
+            <GuidedWalkthroughControls
+              currentStep={walkthroughStep}
+              onNext={handleWalkthroughNext}
+              onSkip={handleWalkthroughSkip}
+              onFinish={handleWalkthroughFinish}
+            />
+          )}
 
-          <main className={!hasWatchedTeaser ? "filter blur-md pointer-events-none select-none transition-all duration-700" : "transition-all duration-500"}>
+          <main className="relative">
             
             {/* 1. Hero Section */}
-            <HeroTypewriter />
+            <div className={isWalkthroughActive ? "transition-all duration-500 filter blur-sm opacity-40 select-none pointer-events-none" : "transition-all duration-300"}>
+              <HeroTypewriter />
+            </div>
 
-            {/* 2. Watch Before You Reserve & Reserve Your Desk Drop */}
-            <DeskDropWaitlistAndTeaser
-              waitlistCount={waitlistCount}
-              confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
-              existingWaitlist={waitlistLeads}
-              existingCustomers={customers}
-              onJoinWaitlist={async (leadData) => {
-                const res = await liveSync.joinWaitlist(leadData);
-                if (res.success && res.lead) {
-                  // Save lead directly to Firestore collection
-                  await saveWaitlistLeadToFirestore(res.lead);
-                  setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
-                }
-                return res;
-              }}
-            />
+            {/* 2. Reserve Your Desk (Guided Step 1 Highlighted) */}
+            <div
+              className={`transition-all duration-500 ${
+                isWalkthroughActive
+                  ? walkthroughStep === 1
+                    ? 'relative z-30 ring-4 ring-[#FF4C00] shadow-2xl rounded-3xl scale-[1.01]'
+                    : 'filter blur-sm opacity-40 select-none pointer-events-none'
+                  : ''
+              }`}
+            >
+              <DeskDropWaitlistAndTeaser
+                waitlistCount={waitlistCount}
+                confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
+                existingWaitlist={waitlistLeads}
+                existingCustomers={customers}
+                onJoinWaitlist={async (leadData) => {
+                  const res = await liveSync.joinWaitlist(leadData);
+                  if (res.success && res.lead) {
+                    await saveWaitlistLeadToFirestore(res.lead);
+                    setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
+                  }
+                  return res;
+                }}
+              />
+            </div>
 
             {/* 3. Escape Your Lunch Rut (Process Grid) */}
-            <ProcessGrid />
+            <div className={isWalkthroughActive ? "transition-all duration-500 filter blur-sm opacity-40 select-none pointer-events-none" : "transition-all duration-300"}>
+              <ProcessGrid />
+            </div>
 
-            {/* 4. What is the kitchen cooking this week? (6-Month Menu Calendar - No prices shown) */}
-            <InteractiveCalendar menuItems={menuItems} />
+            {/* 4. What is the kitchen cooking? (Guided Step 2 Highlighted) */}
+            <div
+              className={`transition-all duration-500 ${
+                isWalkthroughActive
+                  ? walkthroughStep === 2
+                    ? 'relative z-30 ring-4 ring-[#FF4C00] shadow-2xl rounded-3xl scale-[1.01]'
+                    : 'filter blur-sm opacity-40 select-none pointer-events-none'
+                  : ''
+              }`}
+            >
+              <InteractiveCalendar menuItems={menuItems} />
+            </div>
 
-            {/* 5. Build Your Lunch Plan (Calendar Style, >8 days rule, 20th day free, Calculate Order trigger) */}
-            <PlanBuilder onProceedToCheckout={handleProceedToCheckout} />
+            {/* 5. Build Your Lunch Plan (Guided Step 3 Highlighted) */}
+            <div
+              className={`transition-all duration-500 ${
+                isWalkthroughActive
+                  ? walkthroughStep === 3
+                    ? 'relative z-30 ring-4 ring-[#FF4C00] shadow-2xl rounded-3xl scale-[1.01]'
+                    : 'filter blur-sm opacity-40 select-none pointer-events-none'
+                  : ''
+              }`}
+            >
+              <PlanBuilder onProceedToCheckout={handleProceedToCheckout} />
+            </div>
 
             {/* 6. People Tolerate Us (Testimonials - Animated 3-Column Display with Initials, No Images) */}
-            <Testimonials
-              testimonials={liveTestimonials}
-              title="What Lagos Office Teams Say"
-              subtitle="Piping-hot Nigerian corporate lunches delivered directly to workstations between 11:00 AM and 12:00 PM."
-            />
+            <div className={isWalkthroughActive ? "transition-all duration-500 filter blur-sm opacity-40 select-none pointer-events-none" : "transition-all duration-300"}>
+              <Testimonials
+                testimonials={liveTestimonials}
+                title="What Lagos Office Teams Say"
+                subtitle="Piping-hot Nigerian corporate lunches delivered directly to workstations between 11:00 AM and 12:00 PM."
+              />
+            </div>
 
             {/* 7. Your Burning Questions, Answered (FAQ) */}
-            <FaqSection />
+            <div className={isWalkthroughActive ? "transition-all duration-500 filter blur-sm opacity-40 select-none pointer-events-none" : "transition-all duration-300"}>
+              <FaqSection />
+            </div>
 
-            {/* Payout & Registration Modal (Official Flutterwave MFB Account, Copy Account, Proof Instructions) */}
+            {/* Payout & Registration Modal (Official Flutterwave MFB & Wema Account, Copy Account, Proof Instructions) */}
             <CheckoutModal
               isOpen={isCheckoutOpen}
               onClose={() => setIsCheckoutOpen(false)}
@@ -887,6 +1005,7 @@ export default function App() {
           onAddCreditRedemption={handleAddCreditRedemption}
           onMoveCreditDate={handleMoveCreditDate}
           onTopUpOrderSubmitted={handleTopUpOrderSubmitted}
+          submittedOrders={submittedOrders}
           onChangePassword={(newPass) => {
             const cust = customers.find((c) => c.id === userProfile.id || c.email === userProfile.email);
             if (cust) {

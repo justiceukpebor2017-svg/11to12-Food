@@ -251,7 +251,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
             {selectedMeal.swallowOptions && (
               <div className="mt-3 flex items-center space-x-2 text-xs">
                 <span className="font-semibold text-zinc-700">Swallow Options:</span>
-                <span className="text-[#FF4C00] font-bold">Semo / Eba / Fufu</span>
+                <span className="text-[#FF4C00] font-bold">Eba / Semo / Fufu</span>
               </div>
             )}
 

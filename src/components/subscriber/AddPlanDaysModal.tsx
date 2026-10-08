@@ -79,8 +79,8 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
     paymentStatus: 'Pending Verification',
   };
 
-  const handleCopyAccount = () => {
-    navigator.clipboard.writeText('9838242145');
+  const handleCopyAccount = (acct: string = '7353969118') => {
+    navigator.clipboard.writeText(acct);
     setCopiedBank(true);
     setTimeout(() => setCopiedBank(false), 2000);
   };
@@ -189,7 +189,7 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
                 </div>
               </div>
 
-              {/* Official Flutterwave Bank Account Box */}
+              {/* Official Payment Bank Accounts */}
               <div className="p-4 rounded-2xl bg-zinc-950 text-white border border-zinc-800 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4C00]">
@@ -198,32 +198,42 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
                   <span className="text-[10px] text-zinc-400">Ref: {invoiceRef}</span>
                 </div>
 
-                <div className="flex items-baseline justify-between pt-1">
-                  <div>
-                    <span className="text-xs text-zinc-400 block">Account Number</span>
-                    <span className="text-xl font-black text-white tracking-wider select-all">
-                      9838242145
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-[#FF4C00] font-bold">Wema Bank (Primary)</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAccount('7353969118')}
+                        className="text-[10px] text-zinc-300 hover:text-white"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <span className="text-base font-black text-white select-all block mt-0.5">
+                      7353969118
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyAccount}
-                    className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white transition flex items-center space-x-1 cursor-pointer"
-                  >
-                    {copiedBank ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedBank ? 'Copied!' : 'Copy'}</span>
-                  </button>
+
+                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-emerald-400 font-bold">Flutterwave MFB</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAccount('9596073284')}
+                        className="text-[10px] text-zinc-300 hover:text-white"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <span className="text-base font-black text-white select-all block mt-0.5">
+                      9596073284
+                    </span>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-zinc-800 text-zinc-400">
-                  <div>
-                    <span className="text-[10px] block">Bank Name:</span>
-                    <span className="font-bold text-zinc-200">Flutterwave MFB (Formerly OK MFB)</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] block">Account Name:</span>
-                    <span className="font-bold text-zinc-200">11 TO 12 FOODS LTD 11 TO 12 FOODS FLW</span>
-                  </div>
+                <div className="text-[10px] text-zinc-400 pt-1 border-t border-zinc-800">
+                  Account Name: <strong className="text-white">11 TO 12 FOODS LTD</strong>
                 </div>
               </div>
 

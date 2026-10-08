@@ -361,7 +361,7 @@ export const WeeklyMenuManager: React.FC = () => {
                     {meal.swallowOptions && (
                       <div className="mt-2 text-xs">
                         <span className="font-semibold text-zinc-600">Swallow Options: </span>
-                        <span className="text-[#FF4C00] font-bold">Semo / Eba / Fufu</span>
+                        <span className="text-[#FF4C00] font-bold">Eba / Semo / Fufu</span>
                       </div>
                     )}
 

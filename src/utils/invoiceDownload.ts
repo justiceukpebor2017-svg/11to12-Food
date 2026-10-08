@@ -246,17 +246,21 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
 
       <div class="box box-dark">
         <span class="box-title">Remittance Bank Details</span>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span style="color: #aaa;">Bank Name:</span>
-          <strong style="color: #fff;">Flutterwave MFB (Formerly OK MFB)</strong>
+        <div style="margin-bottom: 6px;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px;">
+            <span style="color: #ff4c00; font-weight: 700;">Wema Bank (Primary):</span>
+            <strong style="font-size: 14px; color: #fff; letter-spacing: 0.5px;">7353969118</strong>
+          </div>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span style="color: #aaa;">Account Number:</span>
-          <strong style="font-size: 16px; color: #ff4c00; letter-spacing: 1px;">9838242145</strong>
+        <div style="margin-bottom: 6px;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px;">
+            <span style="color: #4ade80; font-weight: 700;">Flutterwave MFB:</span>
+            <strong style="font-size: 14px; color: #fff; letter-spacing: 0.5px;">9596073284</strong>
+          </div>
         </div>
-        <div style="display: flex; justify-content: space-between; border-top: 1px solid #333; padding-top: 4px;">
+        <div style="display: flex; justify-content: space-between; border-top: 1px solid #333; padding-top: 4px; font-size: 11px;">
           <span style="color: #aaa;">Account Name:</span>
-          <strong style="color: #eee;">11 TO 12 FOODS LTD 11 TO 12 FOODS FLW</strong>
+          <strong style="color: #eee;">11 TO 12 FOODS LTD</strong>
         </div>
       </div>
     </div>
@@ -300,7 +304,7 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
 
     <div style="margin-top: 20px; font-size: 12px; color: #666; line-height: 1.5; background: #faf7f2; padding: 14px; border-radius: 12px; border: 1px solid #ede8e0;">
       <strong style="color: #111;">Payment Instructions:</strong><br />
-      1. Make transfer of <strong>₦${(order.finalTotalNGN || 0).toLocaleString()}</strong> to Flutterwave MFB (Formerly OK MFB) (Acct: <strong>9838242145</strong>, 11 TO 12 FOODS LTD 11 TO 12 FOODS FLW).<br />
+      1. Transfer <strong>₦${(order.finalTotalNGN || 0).toLocaleString()}</strong> to <strong>Wema Bank (7353969118)</strong> or <strong>Flutterwave MFB (9596073284)</strong> (Account Name: 11 TO 12 FOODS LTD).<br />
       2. Send your transfer receipt with this Invoice Reference <strong>${order.id}</strong> to WhatsApp: <strong>${CONTACT_CONFIG.whatsappDisplay}</strong> or email: <strong>confirm@11to12.food</strong>.<br />
       3. Your desk-drop lunches will commence promptly at 11:00 AM on your scheduled dates!
     </div>

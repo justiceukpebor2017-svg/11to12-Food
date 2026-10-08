@@ -182,7 +182,7 @@ export const ThisWeekPreview: React.FC<ThisWeekPreviewProps> = ({
                   Choose Preferred Swallow:
                 </span>
                 <div className="grid grid-cols-3 gap-2">
-                  {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
+                  {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((swallow) => (
                     <button
                       key={swallow}
                       type="button"

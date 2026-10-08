@@ -354,12 +354,12 @@ export const CustomerMealCalendarPicker: React.FC<CustomerMealCalendarPickerProp
                         Swallow Choice:
                       </label>
                       <select
-                        value={selectedItem?.selectedSwallow || 'Semo'}
+                        value={selectedItem?.selectedSwallow || 'Eba'}
                         onChange={(e) => handleSwallowChange(cell.dateStr, e.target.value as SwallowType, e)}
                         className="w-full text-[10px] font-bold bg-white border border-[#FF4C00]/40 rounded px-1 py-0.5 text-zinc-800 focus:outline-hidden"
                       >
-                        <option value="Semo">Semo</option>
                         <option value="Eba">Eba</option>
+                        <option value="Semo">Semo</option>
                         <option value="Fufu">Fufu</option>
                       </select>
                     </div>
