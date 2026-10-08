@@ -46,6 +46,16 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { generateDefaultPassword } from './utils/credentialUtils';
 import { liveSync } from './services/liveSyncService';
 import {
+  initGoogleAnalytics,
+  trackPageView,
+  trackEvent,
+  trackWaitlistJoined,
+  trackBeginCheckout,
+  trackOrderSubmitted,
+  trackWalkthroughStep,
+  trackWalkthroughSkip,
+} from './utils/analytics';
+import {
   db,
   auth,
   collection,
@@ -82,6 +92,21 @@ export default function App() {
   const [walkthroughStep, setWalkthroughStep] = useState<WalkthroughStep>(1);
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
+
+  // Initialize Google Analytics on mount
+  useEffect(() => {
+    initGoogleAnalytics();
+  }, []);
+
+  // Track page views on tab/viewMode changes
+  useEffect(() => {
+    const titles: Record<ViewMode, string> = {
+      marketing: '11 to 12 - Lagos Office Food Subscription',
+      subscriber: 'Subscriber Portal - 11 to 12',
+      admin: 'Admin Operations Control - 11 to 12',
+    };
+    trackPageView(titles[viewMode] || '11 to 12 Food', `/${viewMode}`);
+  }, [viewMode]);
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     if (typeof window === 'undefined') return INITIAL_USER_PROFILE;
     try {
@@ -555,9 +580,11 @@ export default function App() {
     setSelectedLunchDays(selectedDays);
     setCalculatedOrderSummary(summary);
     setIsCheckoutOpen(true);
+    trackBeginCheckout(summary.totalDays, summary.finalTotalNGN);
   };
 
   const handleOrderSubmitted = async (order: OrderSubmission) => {
+    trackOrderSubmitted(order);
     // Paid order request goes under the Order nav ONLY (Pending Invoices).
     // It will be moved to Customer nav automatically only once confirmed by admin.
     setSubmittedOrders((prev) => {
@@ -588,6 +615,7 @@ export default function App() {
 
   // Top-Up Order submission from active subscriber dashboard
   const handleTopUpOrderSubmitted = (order: OrderSubmission) => {
+    trackOrderSubmitted(order);
     setSubmittedOrders((prev) => [order, ...prev]);
     liveSync.submitOrder(order);
     saveOrderToFirestore(order).catch((err) => console.error(err));
