@@ -242,7 +242,7 @@ export const TodayLunchHeroCard: React.FC<TodayLunchHeroCardProps> = ({
               </div>
             )}
 
-            {/* Meal Title & Ingredients */}
+            {/* Meal Title */}
             <div>
               <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">
                 Today's Lunch
@@ -250,23 +250,6 @@ export const TodayLunchHeroCard: React.FC<TodayLunchHeroCardProps> = ({
               <h2 className="text-2xl sm:text-3xl font-black text-black tracking-tight leading-tight">
                 {mealTitle}
               </h2>
-
-              {/* What's In It Section */}
-              <div className="mt-3">
-                <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">
-                  What's in it
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {ingredients.slice(0, 4).map((ing, i) => (
-                    <span
-                      key={i}
-                      className="px-3 py-1 rounded-xl bg-[#FAF7F2] border border-zinc-200 text-xs font-semibold text-zinc-800"
-                    >
-                      • {ing}
-                    </span>
-                  ))}
-                </div>
-              </div>
             </div>
 
             {/* Delivery Info Grid */}
@@ -399,15 +382,6 @@ export const TodayLunchHeroCard: React.FC<TodayLunchHeroCardProps> = ({
             </h3>
 
             <div className="mt-4 space-y-3 text-xs">
-              <div className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-zinc-200">
-                <span className="font-bold text-zinc-600 block mb-1.5">Ingredients & Components:</span>
-                <ul className="list-disc list-inside space-y-1 text-zinc-800 font-medium">
-                  {ingredients.map((ing, idx) => (
-                    <li key={idx}>{ing}</li>
-                  ))}
-                </ul>
-              </div>
-
               <div className="p-3.5 rounded-2xl bg-orange-50/60 border border-orange-200/80">
                 <span className="font-bold text-[#FF4C00] block mb-1">Heat-Retaining Desk Packaging:</span>
                 <p className="text-zinc-700 leading-relaxed">

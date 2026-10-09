@@ -34,7 +34,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
   {
     id: 'm-mon',
     day: 'Mon',
-    dateStr: '2026-08-04', // Today/this week monday-saturday
+    dateStr: '2026-12-07', // Launch Week Monday Dec 7
     title: 'Party Jollof Rice with Grilled Peppered Chicken',
     description: 'Smoky firewood-flavored party Jollof served with fried plantain (dodo), seasoned coleslaw, and juicy jumbo grilled chicken.',
     category: 'Rice & Grains',
@@ -52,7 +52,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
   {
     id: 'm-tue',
     day: 'Tue',
-    dateStr: '2026-08-05',
+    dateStr: '2026-12-08',
     title: 'Ewa Aganyin with Fried Plantain & Assorted Beef Sauce',
     description: 'Silky smooth slow-cooked brown beans mashed to perfection, drenched in dark caramelized chili Aganyin oil and soft fried dodo.',
     category: 'Beans & Delicacies',
@@ -70,7 +70,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
   {
     id: 'm-wed',
     day: 'Wed',
-    dateStr: '2026-08-06',
+    dateStr: '2026-12-09',
     title: 'Ofada Rice with Ayamase Green Sauce & Goat Meat',
     description: 'Aromatic unpolished Ofada rice wrapped in banana leaf, smothered in spicy bleached palm oil green pepper sauce with boiled egg & goat meat.',
     category: 'Rice & Grains',
@@ -88,7 +88,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
   {
     id: 'm-thu',
     day: 'Thu',
-    dateStr: '2026-08-07',
+    dateStr: '2026-12-10',
     title: 'Semo with Egusi Soup & Smoked Turkey',
     description: 'Hot smooth Semo served alongside rich melon seed Egusi soup loaded with stockfish, bitterleaf, and succulent smoked turkey.',
     category: 'Swallow & Soup',
@@ -106,7 +106,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
   {
     id: 'm-fri',
     day: 'Fri',
-    dateStr: '2026-08-08',
+    dateStr: '2026-12-11',
     title: 'Special Seafood Fried Rice with Garlic Butter Prawns',
     description: 'Friday team special! Savory wok-fried rice packed with sweet corn, carrots, liver cubes, and jumbo grilled prawns.',
     category: 'Special Feast',
@@ -124,7 +124,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
   {
     id: 'm-sat',
     day: 'Sat',
-    dateStr: '2026-08-09',
+    dateStr: '2026-12-12',
     title: 'Catfish Pepper Soup with Boiled White Yam',
     description: 'Weekend overtime or home chill edition. Aromatic native herbal pepper soup with fresh catfish steak and boiled soft white yam.',
     category: 'Beans & Delicacies',

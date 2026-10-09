@@ -3,6 +3,7 @@ import { getStandardPhoneKey, normalizeEmail } from '../utils/phoneUtils';
 import { db, handleFirestoreError, OperationType, testFirestoreConnection } from './firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { getLaunchSettings, updateLaunchConfig } from '../config/launchConfig';
+import { customMealOverrides, broadcastMenuUpdate } from '../data/menuRotation';
 
 export interface PulseStats {
   waitlistCount: number;
@@ -223,6 +224,20 @@ class LiveSyncService {
     } else if (data.type === 'LAUNCH_SETTINGS_UPDATED' && data.payload) {
       this.state.launchSettings = data.payload;
       updateLaunchConfig(data.payload);
+    } else if (data.type === 'MEAL_UPDATED' && data.payload) {
+      if (data.payload.dateStr && data.payload.meal) {
+        customMealOverrides[data.payload.dateStr] = data.payload.meal;
+        try {
+          localStorage.setItem('11to12_custom_meals_v2', JSON.stringify(customMealOverrides));
+        } catch {}
+        broadcastMenuUpdate();
+      }
+    } else if (data.type === 'MEALS_BATCH_UPDATED' && data.payload) {
+      Object.assign(customMealOverrides, data.payload);
+      try {
+        localStorage.setItem('11to12_custom_meals_v2', JSON.stringify(customMealOverrides));
+      } catch {}
+      broadcastMenuUpdate();
     }
 
     this.notify();
@@ -240,6 +255,13 @@ class LiveSyncService {
           this.state.creditRedemptions = json.db.creditRedemptions || [];
           this.state.announcements = json.db.announcements || [];
           this.state.testimonials = json.db.testimonials || [];
+          if (json.db.customMeals && typeof json.db.customMeals === 'object') {
+            Object.assign(customMealOverrides, json.db.customMeals);
+            try {
+              localStorage.setItem('11to12_custom_meals_v2', JSON.stringify(customMealOverrides));
+            } catch {}
+            broadcastMenuUpdate();
+          }
           if (json.db.launchSettings) {
             this.state.launchSettings = json.db.launchSettings;
             updateLaunchConfig(json.db.launchSettings);

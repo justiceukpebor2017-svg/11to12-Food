@@ -56,7 +56,7 @@ export const CreditUsageModal: React.FC<CreditUsageModalProps> = ({
     dishName: string;
     fullDateFormatted: string;
   } | null>(null);
-  const [selectedFridaySwallow, setSelectedFridaySwallow] = useState<SwallowType>('Semo');
+  const [selectedFridaySwallow, setSelectedFridaySwallow] = useState<SwallowType>('Eba');
 
   if (!isOpen) return null;
 
@@ -64,8 +64,8 @@ export const CreditUsageModal: React.FC<CreditUsageModalProps> = ({
   const totalAllocated = (Object.values(allocations) as CreditRedemptionDayItem[]).reduce((acc, item) => acc + item.portions, 0);
   const remainingToAllocate = Math.max(0, creditsToUse - totalAllocated);
 
-  // Month date calculation
-  const baseDate = new Date(2026, 9, 1); // October 2026 baseline
+  // Month date calculation: Baseline December 7, 2026 Launch
+  const baseDate = new Date(2026, 11, 7); // December 2026 baseline
   const activeViewMonthDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + monthOffset, 1);
   const activeMonthName = activeViewMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 

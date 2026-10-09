@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StructuredMeal,
   DEFAULT_CATEGORY_PRICES,
@@ -10,7 +10,9 @@ import {
   BASE_DATE,
   getStructuredMealForDate,
   updateCustomMealForDate,
+  subscribeMenuChanges,
 } from '../../../data/menuRotation';
+import { downloadMealExcelTemplate, parseAndApplyMealSpreadsheet } from '../../../utils/mealExcelService';
 import {
   UtensilsCrossed,
   DollarSign,
@@ -27,7 +29,14 @@ import {
   ChevronRight,
   Shield,
   Rocket,
+  BarChart3,
+  ExternalLink,
+  Activity,
+  Upload,
+  FileSpreadsheet,
+  Sparkles,
 } from 'lucide-react';
+import { getMeasurementId, setMeasurementId, trackEvent } from '../../../utils/analytics';
 
 interface AdminSettingsTabProps {
   launchSettings?: LaunchSettings;
@@ -51,14 +60,37 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   };
 
   // --- 1. MEAL SETTINGS STATE ---
+  const mealFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const [editingDateStr, setEditingDateStr] = useState<string | null>(null);
   const [editMealName, setEditMealName] = useState('');
   const [editMealCategory, setEditMealCategory] = useState<string>('Rice & Grains');
-  const [editIngredients, setEditIngredients] = useState<string[]>([]);
-  const [newIngredient, setNewIngredient] = useState('');
   const [editIsUnavailable, setEditIsUnavailable] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Subscribe to real-time menu updates
+  useEffect(() => {
+    const unsub = subscribeMenuChanges(() => {
+      setRefreshKey((k) => k + 1);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleMealExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const res = await parseAndApplyMealSpreadsheet(file);
+      if (res.success) {
+        showSaved(`Successfully adapted & auto-filled ${res.importedCount} dates! Distributed real-time everywhere.`);
+      } else {
+        showSaved(`Spreadsheet notice: ${res.errors.join('; ')}`);
+      }
+    } catch (err: any) {
+      showSaved(`Failed to parse file: ${err.message || 'Check template'}`);
+    }
+    if (e.target) e.target.value = '';
+  };
 
   // --- 2. PRICING STATE ---
   const [prices, setPrices] = useState({
@@ -93,6 +125,20 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   const [launchDateInput, setLaunchDateInput] = useState(launchSettings?.launchDate || '2026-12-07');
   const [isLaunchEnabled, setIsLaunchEnabled] = useState(launchSettings?.isEnabled ?? true);
 
+  // Google Analytics
+  const [gaInput, setGaInput] = useState(getMeasurementId());
+  const [gaNotice, setGaNotice] = useState<string | null>(null);
+
+  const handleSaveGa = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (gaInput.trim()) {
+      setMeasurementId(gaInput.trim());
+      trackEvent('ga_id_updated', { measurement_id: gaInput.trim() });
+      setGaNotice('Google Analytics Measurement ID updated successfully!');
+      setTimeout(() => setGaNotice(null), 3500);
+    }
+  };
+
   // Helper to get dates for selected week
   const getDaysForWeek = (weekNum: number) => {
     const days: { day: string; dateStr: string; meal: StructuredMeal | null }[] = [];
@@ -118,7 +164,6 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     setEditingDateStr(item.dateStr);
     setEditMealName(item.meal?.mealName || '');
     setEditMealCategory(item.meal?.mealCategory || 'Rice & Grains');
-    setEditIngredients(item.meal?.ingredients || []);
     setEditIsUnavailable(item.meal?.isNoDelivery || false);
   };
 
@@ -134,30 +179,17 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
         day: 'Mon',
         mealName: editMealName,
         mealCategory: editMealCategory as any,
-        baseIngredient: editMealName,
         imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800',
-        ingredients: editIngredients,
       }),
       mealName: editMealName.trim(),
       mealCategory: editMealCategory as any,
-      ingredients: editIngredients,
       isNoDelivery: editIsUnavailable,
     };
 
     updateCustomMealForDate(editingDateStr, updatedMeal);
     setRefreshKey((prev) => prev + 1);
     setEditingDateStr(null);
-    showSaved(`Meal updated for ${editingDateStr}`);
-  };
-
-  const handleAddIngredient = () => {
-    if (!newIngredient.trim()) return;
-    setEditIngredients([...editIngredients, newIngredient.trim()]);
-    setNewIngredient('');
-  };
-
-  const handleRemoveIngredient = (idx: number) => {
-    setEditIngredients(editIngredients.filter((_, i) => i !== idx));
+    showSaved(`Saved & Distributed! Updated real-time across Home page, User Dashboard, Meal Schedule & Settings.`);
   };
 
   const handleSavePricing = () => {
@@ -248,28 +280,59 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-100">
             <div>
               <h2 className="text-base font-bold text-zinc-900">Manage Meal Calendar</h2>
-              <p className="text-xs text-zinc-500">Edit dish names, categories, or mark a date unavailable</p>
+              <p className="text-xs text-zinc-500">Edit dishes, upload Excel schedule, or mark dates unavailable. All updates sync real-time.</p>
             </div>
 
-            {/* Week navigation */}
-            <div className="flex items-center space-x-2">
+            {/* Hidden Excel File Input & Buttons */}
+            <input
+              type="file"
+              ref={mealFileInputRef}
+              onChange={handleMealExcelUpload}
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+            />
+
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={() => setSelectedWeek(Math.max(1, selectedWeek - 1))}
-                disabled={selectedWeek <= 1}
-                className="p-1.5 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-100 disabled:opacity-30 cursor-pointer"
+                type="button"
+                onClick={() => mealFileInputRef.current?.click()}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-2xs"
+                title="Upload Excel (.xlsx) or CSV meal schedule"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <Upload className="w-3.5 h-3.5" />
+                <span>Upload Excel Schedule</span>
               </button>
-              <span className="text-xs font-bold text-zinc-800">
-                Week {selectedWeek} of 26
-              </span>
+
               <button
-                onClick={() => setSelectedWeek(Math.min(26, selectedWeek + 1))}
-                disabled={selectedWeek >= 26}
-                className="p-1.5 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-100 disabled:opacity-30 cursor-pointer"
+                type="button"
+                onClick={() => downloadMealExcelTemplate('xlsx')}
+                className="px-3 py-1.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 font-semibold text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-2xs"
+                title="Download template with 1 default sample row"
               >
-                <ChevronRight className="w-4 h-4" />
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Sample Template</span>
               </button>
+
+              {/* Week navigation */}
+              <div className="flex items-center space-x-1.5 pl-2 border-l border-zinc-200">
+                <button
+                  onClick={() => setSelectedWeek(Math.max(1, selectedWeek - 1))}
+                  disabled={selectedWeek <= 1}
+                  className="p-1.5 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-100 disabled:opacity-30 cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-bold text-zinc-800">
+                  Week {selectedWeek} of 26
+                </span>
+                <button
+                  onClick={() => setSelectedWeek(Math.min(26, selectedWeek + 1))}
+                  disabled={selectedWeek >= 26}
+                  className="p-1.5 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-100 disabled:opacity-30 cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -355,45 +418,6 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                 </div>
               </div>
 
-              {/* Ingredients List */}
-              <div className="space-y-2 text-xs">
-                <label className="block text-[11px] font-semibold text-zinc-700">Ingredients</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {editIngredients.map((ing, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-white border border-zinc-200 text-zinc-700 text-[11px]"
-                    >
-                      <span>{ing}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveIngredient(i)}
-                        className="text-zinc-400 hover:text-red-600 cursor-pointer"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-
-                <div className="flex items-center space-x-2 pt-1">
-                  <input
-                    type="text"
-                    value={newIngredient}
-                    onChange={(e) => setNewIngredient(e.target.value)}
-                    placeholder="Add ingredient..."
-                    className="flex-1 bg-white border border-zinc-200 rounded-xl px-3 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddIngredient}
-                    className="px-3 py-1.5 rounded-xl bg-zinc-200 hover:bg-zinc-300 text-zinc-800 text-xs font-semibold cursor-pointer"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-
               {/* Unavailable Toggle */}
               <div className="flex items-center space-x-2 pt-1">
                 <input
@@ -408,21 +432,27 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                 </label>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingDateStr(null)}
-                  className="px-3.5 py-1.5 rounded-xl border border-zinc-200 text-xs text-zinc-600 hover:bg-zinc-100 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveMealOverride}
-                  className="px-4 py-1.5 rounded-xl bg-[#FF4C00] text-white font-bold text-xs hover:bg-[#E04300] cursor-pointer shadow-xs"
-                >
-                  Save Meal
-                </button>
+              <div className="flex items-center justify-between pt-3 border-t border-zinc-200">
+                <p className="text-[11px] text-zinc-500">
+                  Clicking <strong>Save and Distribute</strong> instantly broadcasts this meal to the Home page, User Dashboard, and Meal Schedule in real-time.
+                </p>
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingDateStr(null)}
+                    className="px-3.5 py-2 rounded-xl border border-zinc-200 text-xs text-zinc-600 hover:bg-zinc-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveMealOverride}
+                    className="px-4 py-2 rounded-xl bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center space-x-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Save and Distribute</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -739,6 +769,94 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
               >
                 Save Launch Settings
               </button>
+            </div>
+          </div>
+
+          {/* Google Analytics (GA4) Tracking Card */}
+          <div className="bg-white border border-zinc-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5">
+            <div className="pb-3 border-b border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-xl bg-orange-50 text-[#FF4C00] flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-zinc-900">Google Analytics 4 (GA4)</h2>
+                  <p className="text-xs text-zinc-500">Live traffic, real-time visitors, and conversion event tracking</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Tracking Active</span>
+                </span>
+                <a
+                  href="https://analytics.google.com/analytics/web/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                >
+                  <span>Open GA4 Console</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {gaNotice && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center space-x-2 animate-fadeIn">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{gaNotice}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveGa} className="space-y-4">
+              <div className="max-w-md">
+                <label className="block text-[11px] font-semibold text-zinc-700 mb-1">
+                  Measurement ID (GA4 Property)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={gaInput}
+                    onChange={(e) => setGaInput(e.target.value)}
+                    placeholder="G-V5D8ZC0E8Z"
+                    className="flex-1 bg-white border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 font-mono focus:outline-none focus:border-[#FF4C00]"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs transition cursor-pointer"
+                  >
+                    Save ID
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-400 mt-1">
+                  Tag installed in &lt;head&gt; across all pages. Default: <code className="font-mono text-zinc-600">G-V5D8ZC0E8Z</code>
+                </p>
+              </div>
+            </form>
+
+            {/* Quick Instruction Guide */}
+            <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 text-xs space-y-2">
+              <span className="font-bold text-zinc-900 block">How to check your analytics in Google Analytics:</span>
+              <ol className="list-decimal list-inside space-y-1 text-zinc-600 text-[11px] leading-relaxed">
+                <li>
+                  Open <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer" className="text-[#FF4C00] font-semibold hover:underline">analytics.google.com</a> and sign in with your Google account.
+                </li>
+                <li>
+                  In the left navigation menu, click <strong>Reports → Realtime</strong> to watch visitors in live real-time (last 30 mins, location, device, and active pages).
+                </li>
+                <li>
+                  Navigate to <strong>Engagement → Events</strong> to inspect automated funnel conversions:
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 font-mono text-[10px] text-zinc-700">
+                    <div>• <strong className="text-zinc-900">page_view:</strong> Page and tab visits</div>
+                    <div>• <strong className="text-zinc-900">generate_lead:</strong> Waitlist sign-ups</div>
+                    <div>• <strong className="text-zinc-900">calculate_plan:</strong> Custom plan builder</div>
+                    <div>• <strong className="text-zinc-900">begin_checkout:</strong> Checkout opened</div>
+                    <div>• <strong className="text-zinc-900">purchase:</strong> Confirmed subscriptions</div>
+                    <div>• <strong className="text-zinc-900">walkthrough_progress:</strong> Guided tour</div>
+                  </div>
+                </li>
+              </ol>
             </div>
           </div>
 

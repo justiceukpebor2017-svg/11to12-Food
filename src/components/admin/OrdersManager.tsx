@@ -366,12 +366,12 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
             {/* Quick Date Switcher */}
             <div className="flex items-center space-x-1.5 overflow-x-auto w-full md:w-auto">
               {[
-                { label: 'Tue Sep 22', date: new Date(2026, 8, 22) },
-                { label: 'Wed Sep 23', date: new Date(2026, 8, 23) },
-                { label: 'Thu Sep 24', date: new Date(2026, 8, 24) },
-                { label: 'Fri Sep 25 (Swallow)', date: new Date(2026, 8, 25) },
-                { label: 'Mon Sep 28', date: new Date(2026, 8, 28) },
-                { label: 'Fri Oct 2 (Swallow)', date: new Date(2026, 9, 2) },
+                { label: 'Mon Dec 7', date: new Date(2026, 11, 7) },
+                { label: 'Tue Dec 8', date: new Date(2026, 11, 8) },
+                { label: 'Wed Dec 9', date: new Date(2026, 11, 9) },
+                { label: 'Thu Dec 10', date: new Date(2026, 11, 10) },
+                { label: 'Fri Dec 11 (Swallow)', date: new Date(2026, 11, 11) },
+                { label: 'Mon Dec 14', date: new Date(2026, 11, 14) },
               ].map((item, idx) => {
                 const isSelected =
                   selectedDate.getFullYear() === item.date.getFullYear() &&

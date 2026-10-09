@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Utensils, Calendar, ChevronLeft, ChevronRight, Check, Plus, Info, Sparkles } from 'lucide-react';
-import { getStructuredMealForDate } from '../../data/menuRotation';
+import { getStructuredMealForDate, subscribeMenuChanges } from '../../data/menuRotation';
 import { StructuredMeal } from '../../types';
 
 interface MenuExplorerSectionProps {
@@ -11,11 +11,19 @@ interface MenuExplorerSectionProps {
 export const MenuExplorerSection: React.FC<MenuExplorerSectionProps> = ({
   selectedDateStrings,
 }) => {
-  // Start from reference week in October 2026 (Oct 5th 2026 is Monday)
+  // Start from reference launch week: Monday, December 7, 2026
   const [weekOffset, setWeekOffset] = useState(0);
+  const [, setMenuUpdateVersion] = useState(0);
 
-  // Compute the Monday of the current selected week
-  const baseMonday = new Date(2026, 9, 5); // Oct 5, 2026
+  useEffect(() => {
+    const unsub = subscribeMenuChanges(() => {
+      setMenuUpdateVersion((v) => v + 1);
+    });
+    return () => unsub();
+  }, []);
+
+  // Compute the Monday of the current selected week starting Dec 7, 2026
+  const baseMonday = new Date(2026, 11, 7); // Dec 7, 2026
   const currentMonday = new Date(baseMonday);
   currentMonday.setDate(baseMonday.getDate() + weekOffset * 7);
 
@@ -124,29 +132,7 @@ export const MenuExplorerSection: React.FC<MenuExplorerSectionProps> = ({
                   <h4 className="text-sm font-black text-black mt-0.5 leading-snug">
                     {meal?.mealName || 'Chef Choice Lunch'}
                   </h4>
-
-                  {meal?.protein && (
-                    <p className="text-[11px] text-[#FF4C00] font-semibold mt-1">
-                      Protein: {meal.protein}
-                    </p>
-                  )}
                 </div>
-
-                {/* Ingredients list */}
-                {meal?.ingredients && meal.ingredients.length > 0 && (
-                  <div className="my-3 p-3 rounded-2xl bg-[#FAF7F2] border border-zinc-200 text-[11px] space-y-1">
-                    <span className="font-bold text-zinc-500 uppercase text-[9px] block">
-                      Ingredients
-                    </span>
-                    <ul className="text-zinc-700 space-y-0.5">
-                      {meal.ingredients.slice(0, 3).map((ing, i) => (
-                        <li key={i} className="line-clamp-1">
-                          • {ing}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
               </div>
 
               {/* Plan Status / View Only Notice */}

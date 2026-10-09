@@ -323,13 +323,6 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
                 <span className="text-[10px] uppercase font-bold text-[#FF4C00]">Category</span>
                 <h4 className="text-base font-bold text-zinc-900">{selectedMealModal.mealName}</h4>
               </div>
-
-              <div>
-                <span className="text-[10px] uppercase font-bold text-zinc-400 block mb-1">Ingredients:</span>
-                <p className="text-zinc-700 font-medium">
-                  {selectedMealModal.ingredients?.join(', ') || 'Fresh market ingredients'}
-                </p>
-              </div>
             </div>
 
             <div className="pt-2 flex justify-end">

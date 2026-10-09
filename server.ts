@@ -28,6 +28,9 @@ import {
   addTestimonialRecord,
   updateTestimonialRecord,
   deleteTestimonialRecord,
+  getCustomMealsInDb,
+  updateCustomMealInDb,
+  batchUpdateMealsInDb,
 } from './src/server/liveDatabase';
 import {
   notifyAdminWaitlistJoined,
@@ -337,6 +340,29 @@ app.post('/api/orders', (req, res) => {
   }
 
   return res.status(201).json(order);
+});
+
+// Custom Meal Schedule Endpoints
+app.get('/api/meals', (_req, res) => {
+  res.json({ meals: getCustomMealsInDb() });
+});
+
+app.post('/api/meals', (req, res) => {
+  const { dateStr, meal } = req.body;
+  if (!dateStr || !meal) {
+    return res.status(400).json({ error: 'dateStr and meal are required' });
+  }
+  updateCustomMealInDb(dateStr, meal);
+  return res.json({ success: true, dateStr, meal });
+});
+
+app.post('/api/meals/batch', (req, res) => {
+  const { meals } = req.body;
+  if (!meals || typeof meals !== 'object') {
+    return res.status(400).json({ error: 'meals map required' });
+  }
+  batchUpdateMealsInDb(meals);
+  return res.json({ success: true, count: Object.keys(meals).length });
 });
 
 // Admin Notification Log Endpoint

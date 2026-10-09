@@ -7,7 +7,7 @@ import {
   OrderSummary,
   PER_DAY_FEE,
 } from '../../types';
-import { getStructuredMealForDate } from '../../data/menuRotation';
+import { getStructuredMealForDate, subscribeMenuChanges } from '../../data/menuRotation';
 import { LAUNCH_CONFIG, isDateBeforeLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 import {
   ChevronLeft,
@@ -54,13 +54,20 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   // Anchored to official Launch Date
   const [currentYear, setCurrentYear] = useState(LAUNCH_CONFIG.year);
   const [currentMonth, setCurrentMonth] = useState(LAUNCH_CONFIG.monthIndex);
+  const [, setMenuUpdateVersion] = useState(0);
 
   useEffect(() => {
     const unsub = subscribeLaunchConfig((cfg) => {
       setCurrentYear(cfg.year);
       setCurrentMonth(cfg.monthIndex);
     });
-    return () => unsub();
+    const unsubMenu = subscribeMenuChanges(() => {
+      setMenuUpdateVersion((v) => v + 1);
+    });
+    return () => {
+      unsub();
+      unsubMenu();
+    };
   }, []);
 
   // Map of dateStr -> SelectedLunchDay
@@ -72,7 +79,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     dateFormatted: string;
     isAlreadySelected: boolean;
   } | null>(null);
-  const [chosenSwallow, setChosenSwallow] = useState<SwallowType>('Semo');
+  const [chosenSwallow, setChosenSwallow] = useState<SwallowType>('Eba');
 
   // 2-Second Top Floating Meal Preview Popup state
   const [activeMealPopup, setActiveMealPopup] = useState<MealPopupState | null>(null);

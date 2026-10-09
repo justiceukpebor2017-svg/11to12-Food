@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowDown } from 'lucide-react';
 
 export const HeroTypewriter: React.FC = () => {
-  const words = ['Actually good', 'Edible', 'On time', 'Firewood-smoky'];
+  const words = ['Edible', 'Actually good', 'On time', 'Firewood-smoky'];
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFading, setIsFading] = useState(false);
 
@@ -17,8 +17,16 @@ export const HeroTypewriter: React.FC = () => {
     return () => clearInterval(interval);
   }, [words.length]);
 
+  const scrollToReserve = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const el = document.getElementById('watch-and-reserve') || document.getElementById('reserve-desk') || document.getElementById('reserve-form');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
-    <section className="relative bg-[#FF4C00] text-white pt-10 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden font-['Poppins']">
+    <section className="relative bg-[#FF4D00] text-white pt-14 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden font-['Poppins']">
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
           
@@ -44,14 +52,16 @@ export const HeroTypewriter: React.FC = () => {
             <div className="pt-2 flex flex-wrap gap-3 items-center">
               <a
                 href="#watch-and-reserve"
-                className="bg-white text-black hover:bg-black hover:text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-full font-bold text-sm sm:text-base transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center space-x-2 shrink-0"
+                onClick={scrollToReserve}
+                className="bg-white text-black hover:bg-black hover:text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-full font-bold text-sm sm:text-base transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center space-x-2 shrink-0 cursor-pointer"
               >
                 <span>Feed Me</span>
               </a>
 
               <a
                 href="#watch-and-reserve"
-                className="text-xs sm:text-sm font-semibold text-white/90 hover:text-white flex items-center space-x-1.5 px-4 py-3 rounded-full hover:bg-white/10 transition-colors shrink-0"
+                onClick={scrollToReserve}
+                className="text-xs sm:text-sm font-semibold text-white/90 hover:text-white flex items-center space-x-1.5 px-4 py-3 rounded-full hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
               >
                 <span>Watch & Reserve</span>
                 <ArrowDown className="w-4 h-4" />

@@ -1,14 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   CustomerRecord,
   StructuredMeal,
 } from '../../../types';
-import { getStructuredMealForDate } from '../../../data/menuRotation';
+import { getStructuredMealForDate, subscribeMenuChanges } from '../../../data/menuRotation';
 import { exportToCsv } from '../../../utils/csvExport';
+import { downloadMealExcelTemplate, parseAndApplyMealSpreadsheet } from '../../../utils/mealExcelService';
 import {
   CalendarDays,
   Search,
   Download,
+  Upload,
+  FileSpreadsheet,
   Printer,
   ChevronLeft,
   ChevronRight,
@@ -20,6 +23,7 @@ import {
   Mail,
   User,
   Clock,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface AdminMealScheduleTabProps {
@@ -33,6 +37,17 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
   onOpenCustomerProfile,
   initialDate,
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [, setMenuUpdateVersion] = useState(0);
+
+  useEffect(() => {
+    const unsub = subscribeMenuChanges(() => {
+      setMenuUpdateVersion((v) => v + 1);
+    });
+    return () => unsub();
+  }, []);
+
   const formatYmd = (d: Date) => {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -42,17 +57,30 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
 
   const todayStr = useMemo(() => formatYmd(new Date()), []);
 
-  // Selected date defaults to initialDate or today/next weekday
+  // Selected date defaults to official launch date Dec 7, 2026 or initialDate
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     if (initialDate) return initialDate;
-    const now = new Date();
-    const day = now.getDay();
-    if (day === 0) now.setDate(now.getDate() + 1);
-    else if (day === 6) now.setDate(now.getDate() + 2);
-    return formatYmd(now);
+    return '2026-12-07';
   });
 
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const res = await parseAndApplyMealSpreadsheet(file);
+      if (res.success) {
+        setImportStatus(`Successfully adapted & auto-filled ${res.importedCount} dates! Distributed real-time everywhere.`);
+      } else {
+        setImportStatus(`Import notice: ${res.errors.join('; ')}`);
+      }
+    } catch (err: any) {
+      setImportStatus(`Failed to parse file: ${err.message || 'Check template format'}`);
+    }
+    setTimeout(() => setImportStatus(null), 5000);
+    if (e.target) e.target.value = '';
+  };
 
   // Selected Date Object
   const selectedDateObj = useMemo(() => {
@@ -182,7 +210,36 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Hidden Excel File Input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+          />
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-2xs"
+            title="Upload Excel (.xlsx) or CSV with Date and Food Title"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload Excel Schedule</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => downloadMealExcelTemplate('xlsx')}
+            className="px-3.5 py-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 font-semibold text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-2xs"
+            title="Download official Excel template with 1 default sample row"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Sample Excel Template</span>
+          </button>
+
           <button
             onClick={handleDownloadCsv}
             disabled={deliveryListForDate.length === 0}
@@ -202,6 +259,13 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
           </button>
         </div>
       </div>
+
+      {importStatus && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center space-x-2 animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{importStatus}</span>
+        </div>
+      )}
 
       {/* Date Picker Bar & Daily Stats Banner */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5">
@@ -266,18 +330,10 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
               </h2>
               {mealForDate && (
                 <p className="text-xs text-zinc-600 mt-1">
-                  Category: <strong>{mealForDate.mealCategory}</strong> • Protein: <strong>{mealForDate.protein || 'Chef Special'}</strong>
+                  Category: <strong>{mealForDate.mealCategory}</strong>
                 </p>
               )}
             </div>
-
-            {mealForDate && (
-              <div className="pt-3 border-t border-zinc-200/60 mt-3 text-[11px] text-zinc-500 flex flex-wrap items-center gap-2">
-                <span>Base: {mealForDate.baseIngredient || 'Standard'}</span>
-                <span>•</span>
-                <span>Ingredients: {mealForDate.ingredients?.join(', ') || 'Fresh daily'}</span>
-              </div>
-            )}
           </div>
 
           {/* Total Confirmed Lunches */}

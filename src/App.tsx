@@ -28,8 +28,9 @@ import {
   INITIAL_CUSTOMERS,
   INITIAL_WAITLIST_LEADS,
 } from './data/mockData';
-import { getMealForDate } from './data/menuRotation';
+import { getMealForDate, subscribeMenuChanges } from './data/menuRotation';
 import { Header } from './components/Header';
+import { HeroMapSection } from './components/marketing/HeroMapSection';
 import { HeroTypewriter } from './components/marketing/HeroTypewriter';
 import { DeskDropWaitlistAndTeaser } from './components/marketing/DeskDropWaitlistAndTeaser';
 import { ProcessGrid } from './components/marketing/ProcessGrid';
@@ -92,6 +93,15 @@ export default function App() {
   const [walkthroughStep, setWalkthroughStep] = useState<WalkthroughStep>(1);
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
+  const [, setMenuSyncVersion] = useState(0);
+
+  // Subscribe to real-time menu updates
+  useEffect(() => {
+    const unsub = subscribeMenuChanges(() => {
+      setMenuSyncVersion((v) => v + 1);
+    });
+    return () => unsub();
+  }, []);
 
   // Initialize Google Analytics on mount
   useEffect(() => {
@@ -573,8 +583,8 @@ export default function App() {
   const daysToAdd = today.getDay() === 5 ? 3 : today.getDay() === 6 ? 2 : 1;
   tomorrow.setDate(today.getDate() + daysToAdd);
 
-  const canonicalTodayMeal = getMealForDate(today) || getMealForDate(new Date(2026, 9, 5)) || menuItems[0];
-  const canonicalTomorrowMeal = getMealForDate(tomorrow) || getMealForDate(new Date(2026, 9, 6)) || menuItems[1];
+  const canonicalTodayMeal = getMealForDate(today) || getMealForDate(new Date(2026, 11, 7)) || menuItems[0];
+  const canonicalTomorrowMeal = getMealForDate(tomorrow) || getMealForDate(new Date(2026, 11, 8)) || menuItems[1];
 
   const handleProceedToCheckout = (selectedDays: SelectedLunchDay[], summary: OrderSummary) => {
     setSelectedLunchDays(selectedDays);
@@ -881,34 +891,19 @@ export default function App() {
     }
   };
 
-  // On initial mount if walkthrough active, smoothly focus step 1: Reserve Your Desk
-  useEffect(() => {
-    if (viewMode === 'marketing' && isWalkthroughActive && walkthroughStep === 1) {
-      const timer = setTimeout(() => {
-        const reserveEl = document.getElementById('reserve-form');
-        if (reserveEl) {
-          reserveEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 700);
-      return () => clearTimeout(timer);
-    }
-  }, [viewMode, isWalkthroughActive, walkthroughStep]);
-
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1A1A] font-['Poppins'] antialiased selection:bg-[#FF4C00] selection:text-white">
       
-      {/* Universal Clean Header with Brand Logo & Log In (Shown on Marketing View) */}
+      {/* Universal Clean Header with Brand Logo & Log In (Overlay on Marketing View) */}
       {viewMode === 'marketing' && (
-        <div className={isWalkthroughActive ? "transition-all duration-500 opacity-60 filter blur-[1.5px]" : "transition-all duration-300"}>
-          <Header
-            currentTab={viewMode}
-            setCurrentTab={setViewMode}
-            onOpenSubscriberLogin={() => setShowSubscriberAuthModal(true)}
-            timeWindow={timeWindow}
-            setTimeWindow={setTimeWindow}
-            creditsBalance={userProfile.creditsBalance}
-          />
-        </div>
+        <Header
+          currentTab={viewMode}
+          setCurrentTab={setViewMode}
+          onOpenSubscriberLogin={() => setShowSubscriberAuthModal(true)}
+          timeWindow={timeWindow}
+          setTimeWindow={setTimeWindow}
+          creditsBalance={userProfile.creditsBalance}
+        />
       )}
 
       {/* VIEW MODE 1: MARKETING PAGE */}
@@ -926,12 +921,17 @@ export default function App() {
 
           <main className="relative">
             
-            {/* 1. Hero Section */}
-            <div className={isWalkthroughActive ? "transition-all duration-500 filter blur-sm opacity-40 select-none pointer-events-none" : "transition-all duration-300"}>
+            {/* 1. First Section: Illustrated Lagos Route Map Hero */}
+            <div>
+              <HeroMapSection />
+            </div>
+
+            {/* 2. Second Section: Restored Original Orange Hero */}
+            <div id="home">
               <HeroTypewriter />
             </div>
 
-            {/* 2. Reserve Your Desk (Guided Step 1 Highlighted) */}
+            {/* 3. Reserve Your Desk (Guided Step 1 Highlighted) */}
             <div
               className={`transition-all duration-500 ${
                 isWalkthroughActive

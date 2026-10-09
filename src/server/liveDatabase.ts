@@ -12,6 +12,7 @@ export interface LiveDatabaseSchema {
   announcements: AdminAnnouncement[];
   testimonials: TestimonialItem[];
   launchSettings: LaunchSettings;
+  customMeals?: Record<string, any>;
 }
 
 const DEFAULT_TESTIMONIALS: TestimonialItem[] = [
@@ -562,4 +563,30 @@ export function deleteTestimonialRecord(id: string): boolean {
   }
   return false;
 }
+
+/**
+ * Custom Meal Schedules Overrides
+ */
+export function getCustomMealsInDb(): Record<string, any> {
+  return dbState.customMeals || {};
+}
+
+export function updateCustomMealInDb(dateStr: string, meal: any): void {
+  if (!dbState.customMeals) {
+    dbState.customMeals = {};
+  }
+  dbState.customMeals[dateStr] = meal;
+  saveLiveDatabase();
+  broadcastLiveUpdate('MEAL_UPDATED', { dateStr, meal });
+}
+
+export function batchUpdateMealsInDb(meals: Record<string, any>): void {
+  if (!dbState.customMeals) {
+    dbState.customMeals = {};
+  }
+  Object.assign(dbState.customMeals, meals);
+  saveLiveDatabase();
+  broadcastLiveUpdate('MEALS_BATCH_UPDATED', meals);
+}
+
 

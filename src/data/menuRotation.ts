@@ -462,6 +462,42 @@ function loadStoredOverrides(): Record<string, StructuredMeal> {
 
 export const customMealOverrides: Record<string, StructuredMeal> = loadStoredOverrides();
 
+type MenuChangeListener = () => void;
+const menuListeners: Set<MenuChangeListener> = new Set();
+
+export function subscribeMenuChanges(listener: MenuChangeListener): () => void {
+  menuListeners.add(listener);
+  return () => {
+    menuListeners.delete(listener);
+  };
+}
+
+export function broadcastMenuUpdate(): void {
+  menuListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch (err) {
+      console.error('[Menu Sync error]:', err);
+    }
+  });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('11to12_menu_updated'));
+  }
+}
+
+// Listen to storage events from other tabs
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY && e.newValue) {
+      try {
+        const parsed = JSON.parse(e.newValue);
+        Object.assign(customMealOverrides, parsed);
+        broadcastMenuUpdate();
+      } catch {}
+    }
+  });
+}
+
 export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
   customMealOverrides[dateStr] = meal;
   try {
@@ -469,14 +505,43 @@ export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
   } catch {
     // Ignore storage errors
   }
+  broadcastMenuUpdate();
+
+  // Async sync to server
+  try {
+    fetch('/api/meals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dateStr, meal }),
+    }).catch(() => {});
+  } catch {}
+}
+
+export function batchUpdateMeals(mealsMap: Record<string, StructuredMeal>) {
+  Object.assign(customMealOverrides, mealsMap);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(customMealOverrides));
+  } catch {
+    // Ignore storage errors
+  }
+  broadcastMenuUpdate();
+
+  // Async sync to server
+  try {
+    fetch('/api/meals/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ meals: mealsMap }),
+    }).catch(() => {});
+  } catch {}
 }
 
 export function getCustomMealForDate(dateStr: string): StructuredMeal | undefined {
   return customMealOverrides[dateStr];
 }
 
-// Reference Base Date: Monday, October 5, 2026 = Week 1 (Matches Monday Oct 5: Jollof Rice + Grilled Chicken, Friday Oct 9: Semo/Eba/Fufu + Egusi Soup + Fish)
-export const BASE_DATE = new Date(2026, 9, 5); // 9 is October (0-indexed)
+// Reference Base Date: Monday, December 7, 2026 = Week 1 Launch (Matches Monday Dec 7: Jollof Rice + Grilled Chicken)
+export const BASE_DATE = new Date(2026, 11, 7); // 11 is December (0-indexed)
 
 export function getStructuredMealForDate(targetDate: Date): StructuredMeal | null {
   const dayOfWeek = targetDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MenuItem } from '../../types';
-import { getStructuredMealForDate } from '../../data/menuRotation';
+import { getStructuredMealForDate, subscribeMenuChanges } from '../../data/menuRotation';
 import { ChevronLeft, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { LAUNCH_CONFIG, isDateBeforeLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 
@@ -15,6 +15,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(
     new Date(LAUNCH_CONFIG.year, LAUNCH_CONFIG.monthIndex, LAUNCH_CONFIG.day)
   );
+  const [, setMenuUpdateVersion] = useState(0);
 
   useEffect(() => {
     const unsub = subscribeLaunchConfig((cfg) => {
@@ -22,7 +23,13 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
       setCurrentMonth(cfg.monthIndex);
       setSelectedDate(new Date(cfg.year, cfg.monthIndex, cfg.day));
     });
-    return () => unsub();
+    const unsubMenu = subscribeMenuChanges(() => {
+      setMenuUpdateVersion((v) => v + 1);
+    });
+    return () => {
+      unsub();
+      unsubMenu();
+    };
   }, []);
 
   const selectedMeal = getStructuredMealForDate(selectedDate) || {
@@ -146,7 +153,7 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
             What is the kitchen cooking this week?
           </h2>
           <p className="text-base text-zinc-500 font-normal mt-2">
-            Click on any workday below to inspect scheduled meals and what's in it.
+            Click on any workday below to inspect scheduled meals.
           </p>
         </div>
 
@@ -252,23 +259,6 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = () => {
               <div className="mt-3 flex items-center space-x-2 text-xs">
                 <span className="font-semibold text-zinc-700">Swallow Options:</span>
                 <span className="text-[#FF4C00] font-bold">Eba / Semo / Fufu</span>
-              </div>
-            )}
-
-            {/* What's In It - Displayed ONLY if admin added ingredients */}
-            {selectedMeal.ingredients && selectedMeal.ingredients.length > 0 && (
-              <div className="mt-6 pt-5 border-t border-zinc-200/80">
-                <div className="text-xs font-bold text-black uppercase tracking-wide mb-3">
-                  What's In It
-                </div>
-                <ul className="text-xs text-zinc-700 space-y-2">
-                  {selectedMeal.ingredients.map((item, i) => (
-                    <li key={i} className="flex items-center space-x-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF4C00] shrink-0" />
-                      <span className="font-medium">{item}</span>
-                    </li>
-                  ))}
-                </ul>
               </div>
             )}
 

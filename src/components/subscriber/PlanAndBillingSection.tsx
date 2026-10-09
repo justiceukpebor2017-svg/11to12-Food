@@ -22,7 +22,7 @@ import { CONTACT_CONFIG } from '../../config/contactConfig';
 interface PlanAndBillingSectionProps {
   planName: string; // "Desk Drop (20 Lunches)"
   status: 'Active' | 'Paused' | 'Finished';
-  startDate: string; // "Oct 5, 2026"
+  startDate: string; // "Dec 7, 2026"
   endDate: string; // "Mar 30, 2027"
   totalLunches: number; // 20
   selectedLunches: number; // 14
@@ -39,7 +39,7 @@ interface PlanAndBillingSectionProps {
 export const PlanAndBillingSection: React.FC<PlanAndBillingSectionProps> = ({
   planName = 'Desk Drop (20 Lunches)',
   status = 'Active',
-  startDate = 'Oct 5, 2026',
+  startDate = 'Dec 7, 2026',
   endDate = 'Mar 30, 2027',
   totalLunches = 20,
   selectedLunches = 0,
@@ -66,10 +66,10 @@ export const PlanAndBillingSection: React.FC<PlanAndBillingSectionProps> = ({
     company: userProfile?.company || 'Corporate Desk Drop',
     officeAddress: userProfile?.address || 'Victoria Island, Lagos',
     selectedDays: Array.from({ length: totalLunches }).map((_, idx) => ({
-      dateStr: `2026-10-${String(idx + 5).padStart(2, '0')}`,
+      dateStr: `2026-12-${String(idx + 7).padStart(2, '0')}`,
       meal: {
         id: `plan-m-${idx}`,
-        dateStr: `2026-10-${String(idx + 5).padStart(2, '0')}`,
+        dateStr: `2026-12-${String(idx + 7).padStart(2, '0')}`,
         day: (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][idx % 5]) as any,
         mealName: idx === 19 ? 'Chef Celebration Feast (20th Day Free)' : '11 to 12 Daily Chef Creation',
         mealCategory: 'Rice',

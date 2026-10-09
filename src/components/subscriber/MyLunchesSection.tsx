@@ -1212,21 +1212,6 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
               </h3>
             </div>
 
-            {/* What's In It Section */}
-            <div className="my-3 p-3.5 rounded-2xl bg-[#FAF7F2] border border-zinc-200 space-y-1.5">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
-                What's In It
-              </span>
-              <ul className="text-xs font-semibold text-zinc-800 space-y-1">
-                {activeDateModal.ingredients.map((ing, i) => (
-                  <li key={i} className="flex items-center space-x-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#FF4C00]" />
-                    <span>{ing}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
             {/* Friday Swallow Selector: Enforced Mandatory */}
             {(activeDateModal.isSwallow || activeDateModal.dayName === 'Fri') && (
               <div className="mb-4 p-3.5 rounded-2xl bg-amber-50/80 border border-amber-300">
@@ -1465,7 +1450,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
 
       {/* Move Credit Date Modal (Unlimited date moving, past dates blocked) */}
       {movingRedemptionItem && (() => {
-        const baseDate = new Date(2026, 9, 1);
+        const baseDate = new Date(2026, 11, 7);
         const viewMonthDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + moveMonthOffset, 1);
         const monthName = viewMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         const year = viewMonthDate.getFullYear();

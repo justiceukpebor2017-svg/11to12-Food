@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Utensils, Users, Sparkles, CheckCircle, Copy, Check, Ticket, ArrowRight, AlertTriangle, Loader2 } from 'lucide-react';
+import { CheckCircle2, Utensils, Users, Sparkles, CheckCircle, Copy, Check, Ticket, ArrowRight, AlertTriangle, Loader2, Gift } from 'lucide-react';
 import { WaitlistLead, CustomerRecord } from '../../types';
 import { LAUNCH_CONFIG, getTimeUntilLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
@@ -155,7 +155,8 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
   };
 
   return (
-    <section id="reserve-desk" className="py-16 sm:py-24 bg-[#141414] text-white font-['Poppins']">
+    <section id="reserve-desk" className="relative py-16 sm:py-24 bg-[#141414] text-white font-['Poppins']">
+      <div id="watch-and-reserve" className="absolute -top-16 left-0" />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
         
         {/* Launch Countdown Banner: Clean & Minimal (Visible when launching date is active, removed when officially launched) */}
@@ -183,6 +184,21 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
               <div>
                 <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.seconds).padStart(2, '0')}</div>
                 <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Secs</div>
+              </div>
+            </div>
+
+            {/* Free Pre-Launch Meal Callout */}
+            <div className="mt-6 max-w-xl mx-auto p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-orange-950/40 via-[#FF4C00]/15 to-orange-950/40 border border-[#FF4C00]/40 text-center shadow-lg">
+              <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#FF4C00] text-white text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-2">
+                <Gift className="w-3.5 h-3.5" />
+                <span>Pre-Launch Subscriber Perk</span>
+              </div>
+              <p className="text-sm sm:text-base font-bold text-white leading-snug">
+                Select your days and subscribe today to get a <span className="text-[#FF4C00] font-black underline decoration-[#FF4C00]/60 underline-offset-4">FREE meal</span> before we launch!
+              </p>
+              <div className="mt-2.5 flex items-center justify-center space-x-2 text-xs sm:text-sm text-zinc-300 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Pre-launch bonus meals get delivered <strong>every Friday</strong>.</span>
               </div>
             </div>
           </div>

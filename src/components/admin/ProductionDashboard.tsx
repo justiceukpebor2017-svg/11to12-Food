@@ -34,8 +34,8 @@ export const ProductionDashboard: React.FC<ProductionDashboardProps> = ({
   onSelectDate,
   onUpdateCustomer,
 }) => {
-  // Navigation across calendar dates
-  const [internalDate, setInternalDate] = useState<Date>(new Date(2026, 8, 22)); // Tuesday Sept 22, 2026
+  // Navigation across calendar dates starting from launch date Dec 7, 2026
+  const [internalDate, setInternalDate] = useState<Date>(new Date(2026, 11, 7)); // Monday Dec 7, 2026
   const selectedDate = propSelectedDate || internalDate;
   const setSelectedDate = onSelectDate || setInternalDate;
 
@@ -234,15 +234,15 @@ export const ProductionDashboard: React.FC<ProductionDashboardProps> = ({
           </div>
         </div>
 
-        {/* Quick Date Switcher */}
+        {/* Quick Date Switcher starting from December 7 */}
         <div className="flex items-center space-x-1.5 overflow-x-auto w-full md:w-auto">
           {[
-            { label: 'Tue Sep 22', date: new Date(2026, 8, 22) },
-            { label: 'Wed Sep 23', date: new Date(2026, 8, 23) },
-            { label: 'Thu Sep 24', date: new Date(2026, 8, 24) },
-            { label: 'Fri Sep 25 (Swallow)', date: new Date(2026, 8, 25) },
-            { label: 'Mon Sep 28', date: new Date(2026, 8, 28) },
-            { label: 'Fri Oct 2 (Swallow)', date: new Date(2026, 9, 2) },
+            { label: 'Mon Dec 7', date: new Date(2026, 11, 7) },
+            { label: 'Tue Dec 8', date: new Date(2026, 11, 8) },
+            { label: 'Wed Dec 9', date: new Date(2026, 11, 9) },
+            { label: 'Thu Dec 10', date: new Date(2026, 11, 10) },
+            { label: 'Fri Dec 11 (Swallow)', date: new Date(2026, 11, 11) },
+            { label: 'Mon Dec 14', date: new Date(2026, 11, 14) },
           ].map((item, idx) => {
             const isSelected =
               selectedDate.getFullYear() === item.date.getFullYear() &&
@@ -412,23 +412,6 @@ export const ProductionDashboard: React.FC<ProductionDashboardProps> = ({
                   </span>
                 </div>
               </div>
-
-              {/* What's In This Dish */}
-              <div className="mt-4 pt-4 border-t border-zinc-100">
-                <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block mb-2">
-                  Ingredients in this dish
-                </span>
-                <div className="flex flex-wrap gap-2 text-xs">
-                  {(currentMeal?.ingredients || [currentMeal?.baseIngredient, currentMeal?.protein]).filter(Boolean).map((ing, i) => (
-                    <span
-                      key={i}
-                      className="px-3 py-1 rounded-full bg-[#FAF7F2] border border-zinc-200 text-zinc-800 font-medium"
-                    >
-                      {ing}
-                    </span>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
@@ -529,7 +512,7 @@ export const ProductionDashboard: React.FC<ProductionDashboardProps> = ({
                   className="rounded text-emerald-600"
                 />
                 <span className="font-bold text-black">
-                  {isFriday ? 'Swallow Flour (Semo / Garri / Fufu)' : (currentMeal?.baseIngredient || 'Grain / Base')}
+                  {isFriday ? 'Swallow (Eba / Semo / Fufu)' : (currentMeal?.mealName || 'Main Food Prep')}
                 </span>
               </div>
               <span className="font-black text-sm text-zinc-900">{rawRiceKg} kg</span>

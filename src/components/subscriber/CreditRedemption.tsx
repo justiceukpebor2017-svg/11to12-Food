@@ -9,14 +9,15 @@ interface CreditRedemptionProps {
 export const CreditRedemption: React.FC<CreditRedemptionProps> = ({ creditsBalance, onRedeemCredit }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [redemptionType, setRedemptionType] = useState<'extra_meal' | 'extra_sub_pack'>('extra_meal');
-  const [selectedWorkday, setSelectedWorkday] = useState('2026-08-07'); // Default future workday
+  const [selectedWorkday, setSelectedWorkday] = useState('2026-12-07'); // Default future workday
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const futureWorkdays = [
-    { dateStr: '2026-08-07', label: 'THURSDAY (AUG 7) • Semo & Egusi' },
-    { dateStr: '2026-08-08', label: 'FRIDAY (AUG 8) • Seafood Special' },
-    { dateStr: '2026-08-10', label: 'MONDAY (AUG 10) • Party Jollof' },
-    { dateStr: '2026-08-11', label: 'TUESDAY (AUG 11) • Ewa Aganyin' },
+    { dateStr: '2026-12-07', label: 'MONDAY (DEC 7) • Party Jollof' },
+    { dateStr: '2026-12-08', label: 'TUESDAY (DEC 8) • Ewa Aganyin' },
+    { dateStr: '2026-12-09', label: 'WEDNESDAY (DEC 9) • Native Spaghetti' },
+    { dateStr: '2026-12-10', label: 'THURSDAY (DEC 10) • Fried Rice & Turkey' },
+    { dateStr: '2026-12-11', label: 'FRIDAY (DEC 11) • Semo/Eba/Fufu & Egusi' },
   ];
 
   const handleConfirmRedeem = () => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, LogIn, AlertCircle, X, ShieldAlert, ShieldCheck, ArrowRight, Lock, KeyRound } from 'lucide-react';
 
 interface HeaderProps {
@@ -19,6 +19,15 @@ export const Header: React.FC<HeaderProps> = ({
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 30);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleEnterAdmin = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -41,7 +50,13 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-[#FF4C00] text-white shadow-sm transition-all font-['Poppins']">
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 font-['Poppins'] ${
+          isScrolled
+            ? 'bg-white/95 backdrop-blur-md shadow-sm border-b border-zinc-200/50'
+            : 'bg-transparent border-transparent'
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             
@@ -58,21 +73,21 @@ export const Header: React.FC<HeaderProps> = ({
               <img
                 src="https://i.ibb.co/FLX7ttjm/11to12logg.png"
                 alt="11 to 12 Logo"
-                className="h-11 sm:h-12 w-auto object-contain transition-transform group-hover:scale-105 drop-shadow-sm"
+                className="h-11 sm:h-12 w-auto object-contain transition-transform group-hover:scale-105 drop-shadow-md"
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).src = 'https://i.ibb.co/mV0z77Mb/11to12logg.png';
                 }}
               />
             </a>
 
-            {/* Clean Restaurant Nav Links */}
-            <nav className="hidden md:flex items-center space-x-8 text-sm font-semibold tracking-wide text-white/95">
+            {/* Clean Restaurant Nav Links - Styled as Orange UI Buttons */}
+            <nav className="hidden md:flex items-center space-x-2.5 lg:space-x-3">
               <a
                 href="#how-it-works"
                 onClick={() => {
                   if (currentTab !== 'marketing') setCurrentTab('marketing');
                 }}
-                className="hover:text-white transition-colors"
+                className="px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-xs sm:text-sm tracking-wide shadow-md shadow-black/15 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 whitespace-nowrap"
               >
                 How It Works
               </a>
@@ -81,7 +96,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => {
                   if (currentTab !== 'marketing') setCurrentTab('marketing');
                 }}
-                className="hover:text-white transition-colors"
+                className="px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-xs sm:text-sm tracking-wide shadow-md shadow-black/15 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 whitespace-nowrap"
               >
                 Menu
               </a>
@@ -90,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => {
                   if (currentTab !== 'marketing') setCurrentTab('marketing');
                 }}
-                className="hover:text-white transition-colors"
+                className="px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-xs sm:text-sm tracking-wide shadow-md shadow-black/15 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 whitespace-nowrap"
               >
                 Build Plan
               </a>
@@ -99,13 +114,13 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => {
                   if (currentTab !== 'marketing') setCurrentTab('marketing');
                 }}
-                className="hover:text-white transition-colors"
+                className="px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-xs sm:text-sm tracking-wide shadow-md shadow-black/15 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 whitespace-nowrap"
               >
                 FAQ
               </a>
             </nav>
 
-            {/* Primary Action: Log In Button */}
+            {/* Primary Action: Log In Button - Styled as Orange UI Button */}
             <div className="flex items-center space-x-3">
               <button
                 type="button"
@@ -117,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
                     setShowLoginModal(true);
                   }
                 }}
-                className="px-4 py-2 rounded-full bg-white/15 hover:bg-white/25 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 transition cursor-pointer border border-white/20 shadow-xs"
+                className="px-4.5 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-xs sm:text-sm flex items-center space-x-1.5 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 shadow-md shadow-black/15 cursor-pointer whitespace-nowrap"
                 title="Log In"
               >
                 <LogIn className="w-4 h-4" />
@@ -127,12 +142,36 @@ export const Header: React.FC<HeaderProps> = ({
 
           </div>
 
-          {/* Mobile Navigation Row */}
-          <div className="flex md:hidden items-center justify-center py-2 border-t border-white/15 text-[11px] sm:text-xs font-semibold overflow-x-auto gap-4">
-            <a href="#how-it-works" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">How It Works</a>
-            <a href="#menu" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">Menu</a>
-            <a href="#pricing" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">Build Plan</a>
-            <a href="#faq" onClick={() => setCurrentTab('marketing')} className="text-white/90 hover:text-white whitespace-nowrap">FAQ</a>
+          {/* Mobile Navigation Row - Styled as Orange UI Buttons */}
+          <div className="flex md:hidden items-center justify-center pb-2.5 px-1 overflow-x-auto gap-2">
+            <a
+              href="#how-it-works"
+              onClick={() => setCurrentTab('marketing')}
+              className="px-3 py-1.5 rounded-lg bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-[11px] shadow-sm whitespace-nowrap active:scale-95 transition-all"
+            >
+              How It Works
+            </a>
+            <a
+              href="#menu"
+              onClick={() => setCurrentTab('marketing')}
+              className="px-3 py-1.5 rounded-lg bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-[11px] shadow-sm whitespace-nowrap active:scale-95 transition-all"
+            >
+              Menu
+            </a>
+            <a
+              href="#pricing"
+              onClick={() => setCurrentTab('marketing')}
+              className="px-3 py-1.5 rounded-lg bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-[11px] shadow-sm whitespace-nowrap active:scale-95 transition-all"
+            >
+              Build Plan
+            </a>
+            <a
+              href="#faq"
+              onClick={() => setCurrentTab('marketing')}
+              className="px-3 py-1.5 rounded-lg bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-[11px] shadow-sm whitespace-nowrap active:scale-95 transition-all"
+            >
+              FAQ
+            </a>
           </div>
 
         </div>

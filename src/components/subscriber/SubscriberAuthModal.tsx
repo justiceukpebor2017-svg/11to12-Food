@@ -85,6 +85,18 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       return;
     }
 
+    // Helper to detect any default / initial password
+    const isDefaultPasswordValue = (pass: string, cust?: CustomerRecord | null): boolean => {
+      const p = (pass || '').trim().toLowerCase();
+      const knownDefaults = ['11to12desk', '11to12lagos', '11to12', 'welcome123', 'password', '123456', 'deskdrop2026', 'deskdrop'];
+      if (knownDefaults.includes(p)) return true;
+      if (!cust) return false;
+      if (cust.mustChangePassword || cust.isDefaultPassword || !cust.isPasswordSet) return true;
+      if (cust.defaultPassword && (pass.trim() === cust.defaultPassword.trim() || p === cust.defaultPassword.trim().toLowerCase())) return true;
+      if (cust.password && cust.defaultPassword && cust.password.trim() === cust.defaultPassword.trim()) return true;
+      return false;
+    };
+
     // Pre-check registered customer with default password in active customers list
     const registeredCustomer = customers.find(
       (c) => c.email && c.email.trim().toLowerCase() === cleanEmail
@@ -92,16 +104,10 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
     if (
       registeredCustomer &&
       ((registeredCustomer.defaultPassword && cleanPass === registeredCustomer.defaultPassword.trim()) ||
-       (registeredCustomer.password && cleanPass === registeredCustomer.password.trim()))
+       (registeredCustomer.password && cleanPass === registeredCustomer.password.trim()) ||
+       isDefaultPasswordValue(cleanPass, registeredCustomer))
     ) {
-      const isDefault =
-        Boolean(registeredCustomer.mustChangePassword) ||
-        registeredCustomer.isDefaultPassword === true ||
-        !registeredCustomer.isPasswordSet ||
-        Boolean(registeredCustomer.defaultPassword && cleanPass === registeredCustomer.defaultPassword.trim()) ||
-        Boolean(registeredCustomer.password && registeredCustomer.defaultPassword && registeredCustomer.password === registeredCustomer.defaultPassword);
-
-      if (isDefault) {
+      if (isDefaultPasswordValue(cleanPass, registeredCustomer)) {
         setMatchedCustomer(registeredCustomer);
         setNewPassword('');
         setConfirmNewPassword('');
@@ -116,14 +122,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       const { user, customer } = await loginSubscriberAccount(cleanEmail, cleanPass);
 
       if (customer) {
-        const isUsingDefault =
-          Boolean(customer.mustChangePassword) ||
-          customer.isDefaultPassword === true ||
-          !customer.isPasswordSet ||
-          Boolean(customer.defaultPassword && cleanPass === customer.defaultPassword.trim()) ||
-          Boolean(customer.password && customer.defaultPassword && customer.password === customer.defaultPassword);
-
-        if (isUsingDefault) {
+        if (isDefaultPasswordValue(cleanPass, customer)) {
           setMatchedCustomer(customer);
           setNewPassword('');
           setConfirmNewPassword('');
@@ -160,6 +159,15 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
         finalTotalNGN: 0,
       };
 
+      if (isDefaultPasswordValue(cleanPass, fallbackCustomer)) {
+        setMatchedCustomer(fallbackCustomer);
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setMode('first_login_change_password');
+        setIsLoading(false);
+        return;
+      }
+
       onLoginSuccess(fallbackCustomer);
       setIsLoading(false);
       onClose();
@@ -173,16 +181,10 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       if (
         legacyCustomer &&
         ((legacyCustomer.password && cleanPass === legacyCustomer.password.trim()) ||
-         (legacyCustomer.defaultPassword && cleanPass === legacyCustomer.defaultPassword.trim()))
+         (legacyCustomer.defaultPassword && cleanPass === legacyCustomer.defaultPassword.trim()) ||
+         isDefaultPasswordValue(cleanPass, legacyCustomer))
       ) {
-        const isUsingDefault =
-          Boolean(legacyCustomer.mustChangePassword) ||
-          legacyCustomer.isDefaultPassword === true ||
-          !legacyCustomer.isPasswordSet ||
-          Boolean(legacyCustomer.defaultPassword && cleanPass === legacyCustomer.defaultPassword.trim()) ||
-          Boolean(legacyCustomer.password && legacyCustomer.defaultPassword && legacyCustomer.password === legacyCustomer.defaultPassword);
-
-        if (isUsingDefault) {
+        if (isDefaultPasswordValue(cleanPass, legacyCustomer)) {
           setMatchedCustomer(legacyCustomer);
           setNewPassword('');
           setConfirmNewPassword('');
