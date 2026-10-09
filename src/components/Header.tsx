@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, LogIn, AlertCircle, X, ShieldAlert, ShieldCheck, ArrowRight, Lock, KeyRound } from 'lucide-react';
+import { User, LogIn, AlertCircle, X, ShieldAlert, ShieldCheck, ArrowRight, Lock, KeyRound, Menu } from 'lucide-react';
 
 interface HeaderProps {
   currentTab: 'marketing' | 'subscriber' | 'admin';
@@ -20,6 +20,11 @@ export const Header: React.FC<HeaderProps> = ({
   const [adminPassword, setAdminPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [currentTab]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -80,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
               />
             </a>
 
-            {/* Clean Restaurant Nav Links - Styled as Orange UI Buttons */}
+            {/* Clean Restaurant Nav Links - Styled as Orange UI Buttons (Desktop) */}
             <nav className="hidden md:flex items-center space-x-2.5 lg:space-x-3">
               <a
                 href="#how-it-works"
@@ -120,8 +125,8 @@ export const Header: React.FC<HeaderProps> = ({
               </a>
             </nav>
 
-            {/* Primary Action: Log In Button - Styled as Orange UI Button */}
-            <div className="flex items-center space-x-3">
+            {/* Desktop Log In Button */}
+            <div className="hidden md:flex items-center space-x-3">
               <button
                 type="button"
                 onClick={() => {
@@ -140,39 +145,95 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
 
+            {/* Mobile 3-Line Navigation Icon Button (Toggles between 3-line Menu and Cancel X) */}
+            <div className="flex md:hidden items-center">
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2.5 rounded-xl bg-[#FF4D00] hover:bg-[#E64500] text-white shadow-md shadow-black/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+                aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              >
+                {isMobileMenuOpen ? (
+                  <X className="w-6 h-6 stroke-[2.5]" />
+                ) : (
+                  <Menu className="w-6 h-6 stroke-[2.5]" />
+                )}
+              </button>
+            </div>
+
           </div>
 
-          {/* Mobile Navigation Row - Styled as Orange UI Buttons */}
-          <div className="flex md:hidden items-center justify-center pb-2.5 px-1 overflow-x-auto gap-2">
-            <a
-              href="#how-it-works"
-              onClick={() => setCurrentTab('marketing')}
-              className="px-3 py-1.5 rounded-lg bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-[11px] shadow-sm whitespace-nowrap active:scale-95 transition-all"
-            >
-              How It Works
-            </a>
-            <a
-              href="#menu"
-              onClick={() => setCurrentTab('marketing')}
-              className="px-3 py-1.5 rounded-lg bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-[11px] shadow-sm whitespace-nowrap active:scale-95 transition-all"
-            >
-              Menu
-            </a>
-            <a
-              href="#pricing"
-              onClick={() => setCurrentTab('marketing')}
-              className="px-3 py-1.5 rounded-lg bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-[11px] shadow-sm whitespace-nowrap active:scale-95 transition-all"
-            >
-              Build Plan
-            </a>
-            <a
-              href="#faq"
-              onClick={() => setCurrentTab('marketing')}
-              className="px-3 py-1.5 rounded-lg bg-[#FF4D00] hover:bg-[#E64500] text-white font-semibold text-[11px] shadow-sm whitespace-nowrap active:scale-95 transition-all"
-            >
-              FAQ
-            </a>
-          </div>
+          {/* Mobile Dropdown Navigation Menu */}
+          {isMobileMenuOpen && (
+            <div className="md:hidden mt-1 pb-4 pt-2 px-3 bg-white/98 backdrop-blur-xl rounded-2xl border border-zinc-200/90 shadow-2xl space-y-3 animate-fadeIn">
+              <div className="flex flex-col space-y-1.5 pt-1">
+                <a
+                  href="#how-it-works"
+                  onClick={() => {
+                    if (currentTab !== 'marketing') setCurrentTab('marketing');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="px-4 py-3 rounded-xl bg-orange-50/70 hover:bg-[#FF4D00] text-zinc-900 hover:text-white font-bold text-sm tracking-wide transition-all active:scale-98 flex items-center justify-between"
+                >
+                  <span>How It Works</span>
+                  <ArrowRight className="w-4 h-4 text-[#FF4D00] group-hover:text-white opacity-80" />
+                </a>
+                <a
+                  href="#menu"
+                  onClick={() => {
+                    if (currentTab !== 'marketing') setCurrentTab('marketing');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="px-4 py-3 rounded-xl bg-orange-50/70 hover:bg-[#FF4D00] text-zinc-900 hover:text-white font-bold text-sm tracking-wide transition-all active:scale-98 flex items-center justify-between"
+                >
+                  <span>Menu</span>
+                  <ArrowRight className="w-4 h-4 text-[#FF4D00] group-hover:text-white opacity-80" />
+                </a>
+                <a
+                  href="#pricing"
+                  onClick={() => {
+                    if (currentTab !== 'marketing') setCurrentTab('marketing');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="px-4 py-3 rounded-xl bg-orange-50/70 hover:bg-[#FF4D00] text-zinc-900 hover:text-white font-bold text-sm tracking-wide transition-all active:scale-98 flex items-center justify-between"
+                >
+                  <span>Build Plan</span>
+                  <ArrowRight className="w-4 h-4 text-[#FF4D00] group-hover:text-white opacity-80" />
+                </a>
+                <a
+                  href="#faq"
+                  onClick={() => {
+                    if (currentTab !== 'marketing') setCurrentTab('marketing');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="px-4 py-3 rounded-xl bg-orange-50/70 hover:bg-[#FF4D00] text-zinc-900 hover:text-white font-bold text-sm tracking-wide transition-all active:scale-98 flex items-center justify-between"
+                >
+                  <span>FAQ</span>
+                  <ArrowRight className="w-4 h-4 text-[#FF4D00] group-hover:text-white opacity-80" />
+                </a>
+              </div>
+
+              {/* Mobile Log In Button */}
+              <div className="pt-2 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    if (onOpenSubscriberLogin) {
+                      onOpenSubscriberLogin();
+                    } else {
+                      setLoginError('');
+                      setShowLoginModal(true);
+                    }
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-[#FF4D00] hover:bg-[#E64500] text-white font-bold text-sm flex items-center justify-center space-x-2 transition-all shadow-md active:scale-98 cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Log In</span>
+                </button>
+              </div>
+            </div>
+          )}
 
         </div>
       </header>

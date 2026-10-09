@@ -117,6 +117,19 @@ export default function App() {
     };
     trackPageView(titles[viewMode] || '11 to 12 Food', `/${viewMode}`);
   }, [viewMode]);
+
+  // Bring revealed Step 1 section into focus on walkthrough start
+  useEffect(() => {
+    if (isWalkthroughActive && walkthroughStep === 1 && viewMode === 'marketing') {
+      const timer = setTimeout(() => {
+        const el = document.getElementById('reserve-desk') || document.getElementById('watch-and-reserve');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [isWalkthroughActive, walkthroughStep, viewMode]);
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     if (typeof window === 'undefined') return INITIAL_USER_PROFILE;
     try {
@@ -922,12 +935,25 @@ export default function App() {
           <main className="relative">
             
             {/* 1. First Section: Illustrated Lagos Route Map Hero */}
-            <div>
+            <div
+              className={`transition-all duration-500 ${
+                isWalkthroughActive
+                  ? 'filter blur-sm opacity-40 select-none pointer-events-none'
+                  : ''
+              }`}
+            >
               <HeroMapSection />
             </div>
 
             {/* 2. Second Section: Restored Original Orange Hero */}
-            <div id="home">
+            <div
+              id="home"
+              className={`transition-all duration-500 ${
+                isWalkthroughActive
+                  ? 'filter blur-sm opacity-40 select-none pointer-events-none'
+                  : ''
+              }`}
+            >
               <HeroTypewriter />
             </div>
 
