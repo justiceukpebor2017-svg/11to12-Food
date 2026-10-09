@@ -31,6 +31,9 @@ import {
   getCustomMealsInDb,
   updateCustomMealInDb,
   batchUpdateMealsInDb,
+  claimSessionInDb,
+  getSessionInDb,
+  releaseSessionInDb,
 } from './src/server/liveDatabase';
 import {
   notifyAdminWaitlistJoined,
@@ -443,6 +446,41 @@ app.patch('/api/testimonials/:id', (req, res) => {
 app.delete('/api/testimonials/:id', (req, res) => {
   const deleted = deleteTestimonialRecord(req.params.id);
   return res.json({ success: deleted, id: req.params.id });
+});
+
+/**
+ * Single Active Session Management Endpoints
+ */
+app.post('/api/sessions/claim', (req, res) => {
+  const { userId, role, activeSessionId, deviceInfo, userEmail } = req.body;
+  if (!userId || !activeSessionId) {
+    return res.status(400).json({ error: 'userId and activeSessionId are required' });
+  }
+  const session = claimSessionInDb({
+    id: userId,
+    userId,
+    userEmail,
+    role: role || 'subscriber',
+    activeSessionId,
+    deviceInfo: deviceInfo || 'Unknown device',
+    claimedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+  return res.json({ success: true, session });
+});
+
+app.get('/api/sessions/:userId', (req, res) => {
+  const session = getSessionInDb(req.params.userId);
+  return res.json({ session });
+});
+
+app.post('/api/sessions/release', (req, res) => {
+  const { userId, activeSessionId } = req.body;
+  if (!userId || !activeSessionId) {
+    return res.status(400).json({ error: 'userId and activeSessionId required' });
+  }
+  const released = releaseSessionInDb(userId, activeSessionId);
+  return res.json({ success: released });
 });
 
 // Guard: strictly ensure no /api/ request ever falls through to Vite HTML response

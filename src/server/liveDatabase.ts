@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Response } from 'express';
-import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem, LaunchSettings } from '../types';
+import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem, LaunchSettings, ActiveSessionRecord } from '../types';
 import { getStandardPhoneKey, normalizeEmail } from '../utils/phoneUtils';
 
 export interface LiveDatabaseSchema {
@@ -13,6 +13,7 @@ export interface LiveDatabaseSchema {
   testimonials: TestimonialItem[];
   launchSettings: LaunchSettings;
   customMeals?: Record<string, any>;
+  activeSessions?: Record<string, ActiveSessionRecord>;
 }
 
 const DEFAULT_TESTIMONIALS: TestimonialItem[] = [
@@ -587,6 +588,33 @@ export function batchUpdateMealsInDb(meals: Record<string, any>): void {
   Object.assign(dbState.customMeals, meals);
   saveLiveDatabase();
   broadcastLiveUpdate('MEALS_BATCH_UPDATED', meals);
+}
+
+/**
+ * Active Session Management (Single Concurrent Session Enforcement)
+ */
+export function claimSessionInDb(session: ActiveSessionRecord): ActiveSessionRecord {
+  if (!dbState.activeSessions) {
+    dbState.activeSessions = {};
+  }
+  dbState.activeSessions[session.userId] = session;
+  saveLiveDatabase();
+  broadcastLiveUpdate('SESSION_CLAIMED', session);
+  return session;
+}
+
+export function getSessionInDb(userId: string): ActiveSessionRecord | null {
+  return dbState.activeSessions?.[userId] || null;
+}
+
+export function releaseSessionInDb(userId: string, activeSessionId: string): boolean {
+  if (dbState.activeSessions?.[userId]?.activeSessionId === activeSessionId) {
+    delete dbState.activeSessions[userId];
+    saveLiveDatabase();
+    broadcastLiveUpdate('SESSION_RELEASED', { userId, activeSessionId });
+    return true;
+  }
+  return false;
 }
 
 

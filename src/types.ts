@@ -374,3 +374,14 @@ export interface LaunchSettings {
   launchDate: string; // 'YYYY-MM-DD'
   isEnabled: boolean; // true = launch countdown & pre-launch calendar gating active; false = officially launched (launch date removed from homepage)
 }
+
+export interface ActiveSessionRecord {
+  id: string; // 'admin' or customerId
+  userId: string;
+  userEmail?: string;
+  role: 'admin' | 'subscriber';
+  activeSessionId: string; // Unique session token of current active browser/tab
+  deviceInfo: string; // e.g. "Chrome on Windows"
+  claimedAt: string;
+  updatedAt: string;
+}

@@ -29,7 +29,7 @@ import {
   setLogLevel,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { CustomerRecord, WaitlistLead } from '../types';
+import { CustomerRecord, WaitlistLead, ActiveSessionRecord } from '../types';
 
 // Set log level to error to avoid noisy debug logs
 try {
@@ -677,6 +677,59 @@ export async function getMenuOverridesFromFirestore(): Promise<Record<string, an
     console.warn('[Firebase getMenuOverridesFromFirestore notice]:', err);
   }
   return null;
+}
+
+/**
+ * Claim an active session in Firestore for single concurrent session enforcement
+ */
+export async function saveSessionToFirestore(session: ActiveSessionRecord): Promise<void> {
+  try {
+    const sessionRef = doc(db, 'sessions', session.userId);
+    const clean = sanitizeForFirestore(session);
+    await setDoc(sessionRef, clean, { merge: true });
+  } catch (err) {
+    console.warn('[Firebase saveSessionToFirestore notice]:', err);
+  }
+}
+
+/**
+ * Real-time listener for active session conflict detection
+ */
+export function subscribeToSessionInFirestore(
+  userId: string,
+  callback: (session: ActiveSessionRecord | null) => void,
+  onError?: (err: any) => void
+): () => void {
+  return onSnapshot(
+    doc(db, 'sessions', userId),
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as ActiveSessionRecord;
+        callback(data);
+      } else {
+        callback(null);
+      }
+    },
+    (err) => {
+      console.warn('[Firebase subscribeToSessionInFirestore notice]:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Release active session from Firestore upon intentional logout
+ */
+export async function releaseSessionInFirestore(userId: string, activeSessionId: string): Promise<void> {
+  try {
+    const sessionRef = doc(db, 'sessions', userId);
+    const snap = await getDoc(sessionRef);
+    if (snap.exists() && snap.data()?.activeSessionId === activeSessionId) {
+      await deleteDoc(sessionRef);
+    }
+  } catch (err) {
+    console.warn('[Firebase releaseSessionInFirestore notice]:', err);
+  }
 }
 
 

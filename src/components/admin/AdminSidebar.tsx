@@ -7,6 +7,8 @@ import {
   CalendarDays,
   Settings,
   ExternalLink,
+  LogOut,
+  ShieldCheck,
 } from 'lucide-react';
 
 export type AdminTab =
@@ -21,6 +23,7 @@ interface AdminSidebarProps {
   activeTab: AdminTab;
   setActiveTab: (tab: AdminTab) => void;
   onNavigateToHome: () => void;
+  onLogout?: () => void;
   pendingOrdersCount: number;
   waitlistCount?: number;
   customersCount?: number;
@@ -30,6 +33,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   activeTab,
   setActiveTab,
   onNavigateToHome,
+  onLogout,
   pendingOrdersCount,
   waitlistCount = 0,
   customersCount = 0,
@@ -127,11 +131,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         })}
       </nav>
 
-      {/* Bottom Footer Action */}
-      <div className="p-4 border-t border-zinc-800/80">
+      {/* Bottom Footer Actions */}
+      <div className="p-4 border-t border-zinc-800/80 space-y-2">
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-red-400 hover:text-white hover:bg-red-950/50 transition cursor-pointer border border-red-900/40"
+            title="Safely sign out and release active session"
+          >
+            <LogOut className="w-3.5 h-3.5 text-red-400" />
+            <span>Sign Out Admin</span>
+          </button>
+        )}
         <button
           onClick={onNavigateToHome}
-          className="w-full flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-900 transition cursor-pointer border border-zinc-800/60"
+          className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-900 transition cursor-pointer border border-zinc-800/60"
         >
           <ExternalLink className="w-3.5 h-3.5" />
           <span>View Website</span>

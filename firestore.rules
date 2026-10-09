@@ -36,6 +36,11 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read, write: if true;
     }
+
+    // 8. Active Sessions (Single concurrent session enforcement per user/admin)
+    match /sessions/{sessionId} {
+      allow read, write: if true;
+    }
   }
 }
 

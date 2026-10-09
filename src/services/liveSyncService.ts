@@ -58,6 +58,7 @@ class LiveSyncService {
   };
 
   private listeners: Set<SyncListener> = new Set();
+  private sessionListeners: Set<(event: { type: 'CLAIMED' | 'RELEASED'; session: any }) => void> = new Set();
   private eventSource: EventSource | null = null;
   private pollInterval: any = null;
   private isConnected = false;
@@ -219,6 +220,18 @@ class LiveSyncService {
         localStorage.setItem('11to12_custom_meals_v3', JSON.stringify(customMealOverrides));
       } catch {}
       broadcastMenuUpdate();
+    } else if (data.type === 'SESSION_CLAIMED' && data.payload) {
+      this.sessionListeners.forEach((fn) => {
+        try {
+          fn({ type: 'CLAIMED', session: data.payload });
+        } catch {}
+      });
+    } else if (data.type === 'SESSION_RELEASED' && data.payload) {
+      this.sessionListeners.forEach((fn) => {
+        try {
+          fn({ type: 'RELEASED', session: data.payload });
+        } catch {}
+      });
     }
 
     this.notify();
@@ -733,6 +746,16 @@ class LiveSyncService {
     }
 
     return this.state.launchSettings;
+  }
+
+  /**
+   * Subscribes to real-time session claim and release events broadcasted via SSE
+   */
+  public onSessionEvent(listener: (event: { type: 'CLAIMED' | 'RELEASED'; session: any }) => void): () => void {
+    this.sessionListeners.add(listener);
+    return () => {
+      this.sessionListeners.delete(listener);
+    };
   }
 }
 

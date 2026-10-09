@@ -17,6 +17,7 @@ import {
   SwallowType,
   TestimonialItem,
   LaunchSettings,
+  ActiveSessionRecord,
 } from './types';
 import {
   INITIAL_MENU_ITEMS,
@@ -46,6 +47,14 @@ import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { generateDefaultPassword } from './utils/credentialUtils';
 import { liveSync } from './services/liveSyncService';
+import {
+  claimActiveSession,
+  releaseActiveSession,
+  listenToSessionConflict,
+  getCurrentSessionToken,
+} from './services/sessionService';
+import { SessionConflictModal } from './components/common/SessionConflictModal';
+import { ShieldAlert } from 'lucide-react';
 import {
   initGoogleAnalytics,
   trackPageView,
@@ -580,8 +589,106 @@ export default function App() {
     setViewMode('subscriber');
   };
 
+  // Real-Time Single Concurrent Session Management State
+  const [sessionConflict, setSessionConflict] = useState<{
+    conflict: ActiveSessionRecord;
+    role: 'admin' | 'subscriber';
+  } | null>(null);
+  const [sessionToast, setSessionToast] = useState<string | null>(null);
+
+  // Auto-dismiss session toast after 7 seconds
+  useEffect(() => {
+    if (!sessionToast) return;
+    const timer = setTimeout(() => {
+      setSessionToast(null);
+    }, 7000);
+    return () => clearTimeout(timer);
+  }, [sessionToast]);
+
+  // Single Device Enforcement Lifecycle for Admin and Subscriber
+  useEffect(() => {
+    if (viewMode !== 'admin' && viewMode !== 'subscriber') {
+      return;
+    }
+
+    const currentUserId = viewMode === 'admin' ? 'admin_11to12' : (userProfile.id || userProfile.email || 'customer');
+    const currentRole: 'admin' | 'subscriber' = viewMode === 'admin' ? 'admin' : 'subscriber';
+    const currentEmail = viewMode === 'admin' ? 'admin@11to12.food' : userProfile.email;
+
+    let unsubConflict: (() => void) | null = null;
+    let isDisposed = false;
+
+    // Claim active session across all channels (Firestore, Live Backend SSE, BroadcastChannel, localStorage)
+    claimActiveSession(currentUserId, currentRole, currentEmail).then((token) => {
+      if (isDisposed) return;
+      unsubConflict = listenToSessionConflict(currentUserId, token, (remoteSession) => {
+        if (!isDisposed) {
+          setSessionConflict({
+            conflict: remoteSession,
+            role: currentRole,
+          });
+        }
+      });
+    });
+
+    return () => {
+      isDisposed = true;
+      if (unsubConflict) {
+        unsubConflict();
+      }
+    };
+  }, [viewMode, userProfile.id, userProfile.email]);
+
+  const handleContinueUsingThisDevice = async () => {
+    if (!sessionConflict) return;
+    const currentUserId = sessionConflict.role === 'admin' ? 'admin_11to12' : (userProfile.id || userProfile.email || 'customer');
+    const currentEmail = sessionConflict.role === 'admin' ? 'admin@11to12.food' : userProfile.email;
+    await claimActiveSession(currentUserId, sessionConflict.role, currentEmail);
+    setSessionConflict(null);
+  };
+
+  const handleSaveAndLogoutConflict = async () => {
+    if (!sessionConflict) return;
+    const role = sessionConflict.role;
+    const currentUserId = role === 'admin' ? 'admin_11to12' : (userProfile.id || userProfile.email || 'customer');
+    const token = getCurrentSessionToken() || '';
+
+    if (role === 'admin') {
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+        localStorage.setItem(APP_STORAGE_KEYS.WAITLIST, JSON.stringify(waitlistLeads));
+        localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(submittedOrders));
+      } catch {}
+      await releaseActiveSession(currentUserId, token);
+      setViewMode('marketing');
+      setSessionConflict(null);
+      setSessionToast('All admin data was safely saved. You were logged out because this account was opened on another device.');
+    } else {
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.USER_PROFILE, JSON.stringify(userProfile));
+      } catch {}
+      await releaseActiveSession(currentUserId, token);
+      try {
+        await logoutSubscriberAccount();
+      } catch {}
+      setViewMode('marketing');
+      setSessionConflict(null);
+      setSessionToast('Your subscription account was safely saved. You were logged out because your account was opened on another device.');
+    }
+  };
+
+  const handleAdminLogout = async () => {
+    const token = getCurrentSessionToken() || '';
+    await releaseActiveSession('admin_11to12', token);
+    setViewMode('marketing');
+    setSessionToast('Admin signed out successfully.');
+  };
+
   const handleLogout = async () => {
     try {
+      const token = getCurrentSessionToken() || '';
+      const custId = userProfile.id || userProfile.email || 'customer';
+      await releaseActiveSession(custId, token);
       await logoutSubscriberAccount();
     } catch (e) {
       console.warn('Logout notice:', e);
@@ -1103,6 +1210,7 @@ export default function App() {
           timeWindow={timeWindow}
           onConfirmOrderPayment={handleConfirmTopUpOrder}
           onNavigateToHome={() => setViewMode('marketing')}
+          onLogout={handleAdminLogout}
           onAddAnnouncement={handleAddAnnouncement}
           onDeleteAnnouncement={handleDeleteAnnouncement}
           onUpdateStock={handleUpdateStock}
@@ -1115,6 +1223,32 @@ export default function App() {
           onAddTestimonial={handleAddTestimonial}
           onUpdateTestimonial={handleUpdateTestimonial}
           onDeleteTestimonial={handleDeleteTestimonial}
+        />
+      )}
+
+      {/* Floating Session Security Alert / Feedback Toast */}
+      {sessionToast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[110] bg-zinc-900 text-white text-xs sm:text-sm px-5 py-3 rounded-2xl shadow-2xl border border-zinc-700/80 flex items-center space-x-3 animate-fadeIn font-['Poppins']">
+          <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
+          <span className="font-medium text-zinc-100">{sessionToast}</span>
+          <button
+            type="button"
+            onClick={() => setSessionToast(null)}
+            className="text-zinc-400 hover:text-white ml-2 text-xs font-bold cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Real-Time Single Concurrent Session Conflict Modal */}
+      {sessionConflict && (
+        <SessionConflictModal
+          conflict={sessionConflict.conflict}
+          role={sessionConflict.role}
+          onContinueHere={handleContinueUsingThisDevice}
+          onSaveAndLogout={handleSaveAndLogoutConflict}
+          autoLogoutSeconds={45}
         />
       )}
 

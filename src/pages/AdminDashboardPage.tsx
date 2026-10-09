@@ -66,6 +66,7 @@ interface AdminDashboardPageProps {
   onDeleteTestimonial?: (id: string) => Promise<boolean | void>;
   launchSettings?: LaunchSettings;
   onUpdateLaunchSettings?: (settings: LaunchSettings) => void;
+  onLogout?: () => void;
 }
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
@@ -79,6 +80,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onDeleteOrder,
   onConfirmOrderPayment = () => {},
   onNavigateToHome = () => {},
+  onLogout,
   launchSettings,
   onUpdateLaunchSettings,
 }) => {
@@ -205,6 +207,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             if (tab !== 'customers') setSelectedCustomerProfile(null);
           }}
           onNavigateToHome={onNavigateToHome}
+          onLogout={onLogout}
           pendingOrdersCount={pendingOrdersCount}
           waitlistCount={waitlistLeads.length}
           customersCount={customers.length}
@@ -223,6 +226,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 if (tab !== 'customers') setSelectedCustomerProfile(null);
               }}
               onNavigateToHome={onNavigateToHome}
+              onLogout={onLogout}
               pendingOrdersCount={pendingOrdersCount}
               waitlistCount={waitlistLeads.length}
               customersCount={customers.length}
