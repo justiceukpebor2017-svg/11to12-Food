@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   UserProfile,
   SelectedLunchDay,
 } from '../../../types';
+import { getStructuredMealForDateStr, subscribeMenuChanges } from '../../../data/menuRotation';
 import {
   Calendar as CalendarIcon,
   RotateCcw,
@@ -31,6 +32,14 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
   const [filterMode, setFilterMode] = useState<'all' | 'upcoming' | 'past' | 'skipped'>('all');
   const [selectedMealModal, setSelectedMealModal] = useState<any | null>(null);
   const [dateToSkip, setDateToSkip] = useState<string | null>(null);
+  const [, setMenuUpdateVersion] = useState(0);
+
+  useEffect(() => {
+    const unsub = subscribeMenuChanges(() => {
+      setMenuUpdateVersion((v) => v + 1);
+    });
+    return () => unsub();
+  }, []);
 
   const formatYmd = (d: Date) => {
     const yyyy = d.getFullYear();
@@ -45,6 +54,8 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
   const lunchesList = useMemo(() => {
     const skippedSet = new Set(userProfile.skippedDates || []);
     return (userProfile.selectedDays || []).map((day) => {
+      // Dynamically resolve latest meal from menu schedule so admin calendar updates reflect here immediately!
+      const currentMeal = getStructuredMealForDateStr(day.dateStr) || day.meal;
       const isSkipped = skippedSet.has(day.dateStr);
       const isPast = day.dateStr < todayStr;
       const isToday = day.dateStr === todayStr;
@@ -66,7 +77,7 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
       return {
         dateStr: day.dateStr,
         day: day.day,
-        meal: day.meal,
+        meal: currentMeal,
         selectedSwallow: day.selectedSwallow,
         status,
         isPast,
@@ -220,7 +231,7 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
                         </span>
                       )}
                       <p className="text-[11px] text-zinc-500 mt-1 line-clamp-1">
-                        Category: {item.meal.mealCategory} • {item.meal.ingredients?.join(', ')}
+                        Category: {item.meal.mealCategory}
                       </p>
                     </div>
                   </div>

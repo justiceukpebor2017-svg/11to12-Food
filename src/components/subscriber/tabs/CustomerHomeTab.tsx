@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   UserProfile,
   MenuItem,
   SelectedLunchDay,
 } from '../../../types';
+import { getStructuredMealForDateStr, subscribeMenuChanges } from '../../../data/menuRotation';
 import {
   Utensils,
   Clock,
@@ -45,6 +46,14 @@ export const CustomerHomeTab: React.FC<CustomerHomeTabProps> = ({
 }) => {
   const [selectedMealDetails, setSelectedMealDetails] = useState<any | null>(null);
   const [dateToSkip, setDateToSkip] = useState<string | null>(null);
+  const [, setMenuUpdateVersion] = useState(0);
+
+  useEffect(() => {
+    const unsub = subscribeMenuChanges(() => {
+      setMenuUpdateVersion((v) => v + 1);
+    });
+    return () => unsub();
+  }, []);
 
   // Today's YYYY-MM-DD
   const formatYmd = (d: Date) => {
@@ -56,17 +65,25 @@ export const CustomerHomeTab: React.FC<CustomerHomeTabProps> = ({
 
   const todayStr = formatYmd(new Date());
 
+  // Dynamically resolve updated meal for any day
+  const resolveDayMeal = (dayItem: SelectedLunchDay): SelectedLunchDay => {
+    const current = getStructuredMealForDateStr(dayItem.dateStr);
+    return current ? { ...dayItem, meal: current } : dayItem;
+  };
+
   // Check if today is selected by the user
-  const todaySelection = (userProfile.selectedDays || []).find(
+  const rawTodaySelection = (userProfile.selectedDays || []).find(
     (d) => d.dateStr === todayStr
   );
+  const todaySelection = rawTodaySelection ? resolveDayMeal(rawTodaySelection) : undefined;
 
   const isTodaySkipped = (userProfile.skippedDates || []).includes(todayStr);
 
   // Find next upcoming lunch (including today if not skipped, or future)
   const upcomingLunches = (userProfile.selectedDays || [])
     .filter((d) => !(userProfile.skippedDates || []).includes(d.dateStr))
-    .sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+    .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
+    .map(resolveDayMeal);
 
   const nextUpcoming = upcomingLunches.find((d) => d.dateStr >= todayStr) || upcomingLunches[0];
 
@@ -153,9 +170,6 @@ export const CustomerHomeTab: React.FC<CustomerHomeTabProps> = ({
                     Swallow: {todaySelection.selectedSwallow}
                   </span>
                 )}
-                <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed">
-                  {todaySelection.meal.ingredients?.join(' • ') || 'Prepared hot in the morning with fresh market ingredients.'}
-                </p>
               </div>
 
               {/* Status and Location */}

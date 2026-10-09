@@ -295,7 +295,7 @@ export async function updateCustomerPasswordInFirestore(customerId: string, newP
   const clean = newPass.trim();
   const payload = {
     password: clean,
-    defaultPassword: clean,
+    defaultPassword: '',
     isDefaultPassword: false,
     mustChangePassword: false,
     isPasswordSet: true,
@@ -311,8 +311,8 @@ export async function updateCustomerPasswordInFirestore(customerId: string, newP
   }
 
   try {
-    await fetch(`/api/customers/${customerId}`, {
-      method: 'PUT',
+    await fetch(`/api/customers/${encodeURIComponent(customerId)}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
@@ -614,6 +614,69 @@ export function subscribeToOrders(
       if (onError) onError(err);
     }
   );
+}
+
+/**
+ * Save Meal Overrides to Firestore (Synchronizes across all devices worldwide)
+ */
+export async function saveMenuOverridesToFirestore(
+  overrides: Record<string, any>
+): Promise<void> {
+  try {
+    const cleanOverrides = sanitizeForFirestore(overrides);
+    const menuRef = doc(db, 'settings', 'menu');
+    await setDoc(menuRef, {
+      overrides: cleanOverrides,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    console.log('[Firebase] Menu overrides saved to Firestore successfully across devices');
+  } catch (e) {
+    console.error('[Firebase] Failed to save menu overrides to Firestore:', e);
+  }
+}
+
+/**
+ * Real-time subscription to Menu Overrides via onSnapshot.
+ * Syncs menu updates in real-time across all devices worldwide.
+ */
+export function subscribeToMenuOverrides(
+  callback: (overrides: Record<string, any>) => void,
+  onError?: (err: any) => void
+): () => void {
+  return onSnapshot(
+    doc(db, 'settings', 'menu'),
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.overrides && typeof data.overrides === 'object') {
+          callback(data.overrides);
+        }
+      }
+    },
+    (err) => {
+      console.warn('[Firebase onSnapshot menu overrides notice]:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Directly fetch latest Menu Overrides from Firestore on app load
+ */
+export async function getMenuOverridesFromFirestore(): Promise<Record<string, any> | null> {
+  try {
+    const menuRef = doc(db, 'settings', 'menu');
+    const docSnap = await getDoc(menuRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data && data.overrides && typeof data.overrides === 'object') {
+        return data.overrides;
+      }
+    }
+  } catch (err) {
+    console.warn('[Firebase getMenuOverridesFromFirestore notice]:', err);
+  }
+  return null;
 }
 
 

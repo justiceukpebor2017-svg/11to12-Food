@@ -509,7 +509,7 @@ export default function App() {
       ...customer,
       isPasswordSet: true,
       password: newPass,
-      defaultPassword: newPass,
+      defaultPassword: '',
       isDefaultPassword: false,
       mustChangePassword: false,
       passwordLastChangedAt: new Date().toISOString(),
@@ -1109,7 +1109,7 @@ export default function App() {
               const patched: CustomerRecord = {
                 ...cust,
                 password: newPass,
-                defaultPassword: newPass,
+                defaultPassword: '',
                 isDefaultPassword: false,
                 mustChangePassword: false,
                 isPasswordSet: true,
@@ -1118,6 +1118,7 @@ export default function App() {
               };
               setCustomers((prev) => prev.map((c) => (c.id === customerId ? patched : c)));
               liveSync.updateCustomer(customerId, patched);
+              saveCustomerToFirestore(patched).catch(() => {});
             }
           }}
           onOpenAdminLogin={() => {

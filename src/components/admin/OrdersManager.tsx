@@ -239,6 +239,11 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
     next.setDate(selectedDate.getDate() + step);
     if (next.getDay() === 6) next.setDate(next.getDate() + (step > 0 ? 2 : -1));
     if (next.getDay() === 0) next.setDate(next.getDate() + (step > 0 ? 1 : -2));
+    const launchLimit = new Date(2026, 11, 7);
+    if (next < launchLimit) {
+      setSelectedDate(launchLimit);
+      return;
+    }
     setSelectedDate(next);
   };
 

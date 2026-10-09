@@ -194,11 +194,11 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                 <span>Pre-Launch Subscriber Perk</span>
               </div>
               <p className="text-sm sm:text-base font-bold text-white leading-snug">
-                Select your days and subscribe today to get a <span className="text-[#FF4C00] font-black underline decoration-[#FF4C00]/60 underline-offset-4">FREE meal</span> before we launch!
+                If you select days and subscribe you get a <span className="text-[#FF4C00] font-black underline decoration-[#FF4C00]/60 underline-offset-4">free meal</span> before we launch!
               </p>
               <div className="mt-2.5 flex items-center justify-center space-x-2 text-xs sm:text-sm text-zinc-300 font-medium">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Pre-launch bonus meals get delivered <strong>every Friday</strong>.</span>
+                <span>Meals get delivered <strong>every Friday</strong>.</span>
               </div>
             </div>
           </div>

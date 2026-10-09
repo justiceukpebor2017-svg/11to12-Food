@@ -56,18 +56,8 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
 
   const todayStr = useMemo(() => formatYmd(new Date()), []);
 
-  // Selected date defaults to launch date (e.g. Dec 7, 2026) or today/next weekday
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    if (LAUNCH_CONFIG.isEnabled) {
-      return LAUNCH_CONFIG.dateString;
-    }
-    const now = new Date();
-    // If weekend, move to upcoming Monday
-    const day = now.getDay();
-    if (day === 0) now.setDate(now.getDate() + 1);
-    else if (day === 6) now.setDate(now.getDate() + 2);
-    return formatYmd(now);
-  });
+  // Selected date strictly starts from launch date (Dec 7, 2026)
+  const [selectedDate, setSelectedDate] = useState<string>('2026-12-07');
 
   // Calculate Counts
   const waitlistCount = waitlistLeads.length;
@@ -107,8 +97,8 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
   const availableMonths = useMemo(() => {
     const map = new Map<string, { key: string; label: string; count: number; total: number }>();
 
-    // Seed default launch window months
-    const defaultKeys = ['2026-10', '2026-11', '2026-12', '2027-01'];
+    // Seed default launch window months starting from December 2026
+    const defaultKeys = ['2026-12', '2027-01', '2027-02', '2027-03'];
     defaultKeys.forEach((key) => {
       const [y, m] = key.split('-').map(Number);
       const d = new Date(y, m - 1, 1);
@@ -198,25 +188,23 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
   // Total lunches for the day
   const totalLunchesToday = deliveryListForDate.length;
 
-  // Quick Date Navigation
+  // Quick Date Navigation (Guarded to start from Dec 7, 2026 launch)
   const handleShiftDate = (days: number) => {
     const cur = new Date(selectedDateObj);
     cur.setDate(cur.getDate() + days);
     // Skip weekends
     if (cur.getDay() === 0) cur.setDate(cur.getDate() + (days > 0 ? 1 : -2));
     else if (cur.getDay() === 6) cur.setDate(cur.getDate() + (days > 0 ? 2 : -1));
-    setSelectedDate(formatYmd(cur));
+    const nextYmd = formatYmd(cur);
+    if (nextYmd < '2026-12-07') {
+      setSelectedDate('2026-12-07');
+      return;
+    }
+    setSelectedDate(nextYmd);
   };
 
   const setDateToToday = () => {
-    if (LAUNCH_CONFIG.isEnabled) {
-      setSelectedDate(LAUNCH_CONFIG.dateString);
-      return;
-    }
-    const now = new Date();
-    if (now.getDay() === 0) now.setDate(now.getDate() + 1);
-    else if (now.getDay() === 6) now.setDate(now.getDate() + 2);
-    setSelectedDate(formatYmd(now));
+    setSelectedDate('2026-12-07');
   };
 
   const setDateToTomorrow = () => {
@@ -436,18 +424,22 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
             <button
               onClick={setDateToToday}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                selectedDate === todayStr
+                selectedDate === '2026-12-07'
                   ? 'bg-black text-white'
                   : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
               }`}
             >
-              Today
+              Launch Day (Dec 7)
             </button>
             <button
-              onClick={setDateToTomorrow}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-zinc-100 text-zinc-700 hover:bg-zinc-200 transition cursor-pointer"
+              onClick={() => setSelectedDate('2026-12-08')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                selectedDate === '2026-12-08'
+                  ? 'bg-black text-white'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+              }`}
             >
-              Tomorrow
+              Dec 8
             </button>
 
             <div className="flex items-center space-x-1 bg-zinc-50 border border-zinc-200 rounded-xl p-1">
@@ -461,9 +453,13 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
               
               <input
                 type="date"
-                min={LAUNCH_CONFIG.isEnabled ? LAUNCH_CONFIG.dateString : undefined}
+                min="2026-12-07"
                 value={selectedDate}
-                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDate(e.target.value < '2026-12-07' ? '2026-12-07' : e.target.value);
+                  }
+                }}
                 className="bg-transparent text-xs font-semibold text-zinc-800 px-2 py-0.5 focus:outline-none cursor-pointer"
               />
 
@@ -496,7 +492,7 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
                 </h3>
                 {mealForDate && (
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Category: <span className="font-semibold text-zinc-700">{mealForDate.mealCategory}</span> • {mealForDate.ingredients?.join(', ') || 'Gourmet meal'}
+                    Category: <span className="font-semibold text-zinc-700">{mealForDate.mealCategory}</span>
                   </p>
                 )}
               </div>

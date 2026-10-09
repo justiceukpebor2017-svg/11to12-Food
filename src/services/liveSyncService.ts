@@ -25,27 +25,8 @@ export interface LiveSyncState {
 
 type SyncListener = (state: LiveSyncState) => void;
 
-// Live Cloud Run Backend URL for fallback when frontend is hosted on GitHub Pages or custom domain
-const LIVE_BACKEND_ORIGIN = 'https://ais-pre-secg2iyogbtgqwhfhfcqb5-158555251553.europe-west1.run.app';
-
-export function getApiBaseUrl(): string {
-  if (typeof window === 'undefined') return '';
-  const hostname = window.location.hostname.toLowerCase();
-  // Check if hosted statically (GitHub Pages or custom domain without local Node backend)
-  const isStaticHost =
-    hostname.includes('github.io') ||
-    ((hostname === '11to12.food' || hostname.endsWith('.11to12.food')) && !window.location.port);
-
-  if (isStaticHost) {
-    return (import.meta as any).env?.VITE_API_URL || LIVE_BACKEND_ORIGIN;
-  }
-  return '';
-}
-
-function apiUrl(endpoint: string): string {
-  const base = getApiBaseUrl();
-  return `${base}${endpoint}`;
-}
+import { getApiBaseUrl, apiUrl } from '../utils/apiConfig';
+export { getApiBaseUrl, apiUrl };
 
 async function safeParseJson(res: Response): Promise<any> {
   const contentType = res.headers.get('content-type') || '';
@@ -228,14 +209,14 @@ class LiveSyncService {
       if (data.payload.dateStr && data.payload.meal) {
         customMealOverrides[data.payload.dateStr] = data.payload.meal;
         try {
-          localStorage.setItem('11to12_custom_meals_v2', JSON.stringify(customMealOverrides));
+          localStorage.setItem('11to12_custom_meals_v3', JSON.stringify(customMealOverrides));
         } catch {}
         broadcastMenuUpdate();
       }
     } else if (data.type === 'MEALS_BATCH_UPDATED' && data.payload) {
       Object.assign(customMealOverrides, data.payload);
       try {
-        localStorage.setItem('11to12_custom_meals_v2', JSON.stringify(customMealOverrides));
+        localStorage.setItem('11to12_custom_meals_v3', JSON.stringify(customMealOverrides));
       } catch {}
       broadcastMenuUpdate();
     }

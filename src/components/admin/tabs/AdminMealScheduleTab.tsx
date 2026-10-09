@@ -57,9 +57,9 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
 
   const todayStr = useMemo(() => formatYmd(new Date()), []);
 
-  // Selected date defaults to official launch date Dec 7, 2026 or initialDate
+  // Selected date defaults to official launch date Dec 7, 2026
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    if (initialDate) return initialDate;
+    if (initialDate && initialDate >= '2026-12-07') return initialDate;
     return '2026-12-07';
   });
 
@@ -147,13 +147,18 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
 
   const totalConfirmedLunches = deliveryListForDate.length;
 
-  // Date shifting
+  // Date shifting (guarded to never go before Dec 7, 2026 launch)
   const handleShiftDate = (days: number) => {
     const cur = new Date(selectedDateObj);
     cur.setDate(cur.getDate() + days);
     if (cur.getDay() === 0) cur.setDate(cur.getDate() + (days > 0 ? 1 : -2));
     else if (cur.getDay() === 6) cur.setDate(cur.getDate() + (days > 0 ? 2 : -1));
-    setSelectedDate(formatYmd(cur));
+    const nextYmd = formatYmd(cur);
+    if (nextYmd < '2026-12-07') {
+      setSelectedDate('2026-12-07');
+      return;
+    }
+    setSelectedDate(nextYmd);
   };
 
   const handleDownloadCsv = () => {
@@ -279,14 +284,64 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
 
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => setSelectedDate(todayStr)}
+              onClick={() => setSelectedDate('2026-12-07')}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                selectedDate === todayStr
+                selectedDate === '2026-12-07'
                   ? 'bg-black text-white'
                   : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
               }`}
             >
-              Today
+              Launch Day (Dec 7)
+            </button>
+            <button
+              onClick={() => setSelectedDate('2026-12-08')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                selectedDate === '2026-12-08'
+                  ? 'bg-black text-white'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+              }`}
+            >
+              Dec 8
+            </button>
+            <button
+              onClick={() => setSelectedDate('2026-12-09')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                selectedDate === '2026-12-09'
+                  ? 'bg-black text-white'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+              }`}
+            >
+              Dec 9
+            </button>
+            <button
+              onClick={() => setSelectedDate('2026-12-10')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                selectedDate === '2026-12-10'
+                  ? 'bg-black text-white'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+              }`}
+            >
+              Dec 10
+            </button>
+            <button
+              onClick={() => setSelectedDate('2026-12-11')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                selectedDate === '2026-12-11'
+                  ? 'bg-black text-white'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+              }`}
+            >
+              Dec 11 (Egusi)
+            </button>
+            <button
+              onClick={() => setSelectedDate('2026-12-14')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                selectedDate === '2026-12-14'
+                  ? 'bg-black text-white'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+              }`}
+            >
+              Week 2 (Dec 14)
             </button>
 
             <div className="flex items-center space-x-1 bg-zinc-50 border border-zinc-200 rounded-xl p-1">
@@ -300,8 +355,13 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
 
               <input
                 type="date"
+                min="2026-12-07"
                 value={selectedDate}
-                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDate(e.target.value < '2026-12-07' ? '2026-12-07' : e.target.value);
+                  }
+                }}
                 className="bg-transparent text-xs font-semibold text-zinc-900 px-2 py-0.5 focus:outline-none cursor-pointer"
               />
 

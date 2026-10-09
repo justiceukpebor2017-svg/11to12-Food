@@ -36,7 +36,7 @@ export const WeeklyMenuManager: React.FC = () => {
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
-  // Calculate dates for Monday-Friday of the selected week (Week 1 starts Oct 5, 2026)
+  // Calculate dates for Monday-Friday of the selected week (Week 1 starts Dec 7, 2026)
   const weekDays = [
     { key: 'Mon', name: 'Monday', offset: 0 },
     { key: 'Tue', name: 'Tuesday', offset: 1 },

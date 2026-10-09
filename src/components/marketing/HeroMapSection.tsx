@@ -9,12 +9,12 @@ export const HeroMapSection: React.FC = () => {
   return (
     <section
       id="hero"
-      className="relative w-full h-[70vh] sm:h-[85vh] md:h-screen lg:h-screen min-h-[480px] overflow-hidden bg-[#FAF7F2] flex items-center justify-center select-none"
+      className="relative w-full overflow-hidden bg-[#FAF7F2] flex items-center justify-center select-none"
     >
       <img
-        src="https://i.postimg.cc/bYHGffHs/Map.jpg"
+        src="https://i.ibb.co/twQTjf0N/Vector-illustration-of-road-corr-2-K-20261009131501.jpg"
         alt="11to12.food Lagos Delivery Route Map"
-        className="w-full h-full object-cover object-center pointer-events-none"
+        className="w-full h-auto max-h-screen object-contain pointer-events-none block"
         loading="eager"
         decoding="async"
       />

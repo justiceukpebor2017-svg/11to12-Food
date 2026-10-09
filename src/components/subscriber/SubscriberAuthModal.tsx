@@ -87,32 +87,53 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
 
     // Helper to detect any default / initial password
     const isDefaultPasswordValue = (pass: string, cust?: CustomerRecord | null): boolean => {
-      const p = (pass || '').trim().toLowerCase();
-      const knownDefaults = ['11to12desk', '11to12lagos', '11to12', 'welcome123', 'password', '123456', 'deskdrop2026', 'deskdrop'];
-      if (knownDefaults.includes(p)) return true;
       if (!cust) return false;
-      if (cust.mustChangePassword || cust.isDefaultPassword || !cust.isPasswordSet) return true;
-      if (cust.defaultPassword && (pass.trim() === cust.defaultPassword.trim() || p === cust.defaultPassword.trim().toLowerCase())) return true;
-      if (cust.password && cust.defaultPassword && cust.password.trim() === cust.defaultPassword.trim()) return true;
+
+      // If customer already customized and set their personal password, NEVER prompt to change again
+      if (
+        cust.mustChangePassword === false ||
+        cust.isDefaultPassword === false ||
+        Boolean(cust.passwordLastChangedAt)
+      ) {
+        return false;
+      }
+
+      // Only prompt if account is genuinely on initial temporary/default password
+      const p = (pass || '').trim().toLowerCase();
+      const defP = (cust.defaultPassword || '').trim().toLowerCase();
+      const knownDefaults = ['11to12desk', '11to12lagos', '11to12', 'welcome123', 'password', '123456', 'deskdrop2026', 'deskdrop'];
+
+      if (cust.mustChangePassword || cust.isDefaultPassword) {
+        if (defP && p === defP) return true;
+        if (knownDefaults.includes(p)) return true;
+        if (cust.defaultPassword && pass.trim() === cust.defaultPassword.trim()) return true;
+      }
+
       return false;
     };
 
-    // Pre-check registered customer with default password in active customers list
+    // Pre-check registered customer in active customers list
     const registeredCustomer = customers.find(
       (c) => c.email && c.email.trim().toLowerCase() === cleanEmail
     );
-    if (
-      registeredCustomer &&
-      ((registeredCustomer.defaultPassword && cleanPass === registeredCustomer.defaultPassword.trim()) ||
-       (registeredCustomer.password && cleanPass === registeredCustomer.password.trim()) ||
-       isDefaultPasswordValue(cleanPass, registeredCustomer))
-    ) {
-      if (isDefaultPasswordValue(cleanPass, registeredCustomer)) {
-        setMatchedCustomer(registeredCustomer);
-        setNewPassword('');
-        setConfirmNewPassword('');
-        setMode('first_login_change_password');
+    if (registeredCustomer) {
+      const passMatches = Boolean(
+        (registeredCustomer.password && cleanPass === registeredCustomer.password.trim()) ||
+        (registeredCustomer.defaultPassword && cleanPass === registeredCustomer.defaultPassword.trim())
+      );
+      if (passMatches) {
+        if (isDefaultPasswordValue(cleanPass, registeredCustomer)) {
+          setMatchedCustomer(registeredCustomer);
+          setNewPassword('');
+          setConfirmNewPassword('');
+          setMode('first_login_change_password');
+          setIsLoading(false);
+          return;
+        }
+        // Custom password already set: log in directly without asking to change password
+        onLoginSuccess(registeredCustomer);
         setIsLoading(false);
+        onClose();
         return;
       }
     }
@@ -305,7 +326,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
     const updatedCustomer: CustomerRecord = {
       ...matchedCustomer,
       password: newPassword,
-      defaultPassword: newPassword,
+      defaultPassword: '',
       isDefaultPassword: false,
       mustChangePassword: false,
       isPasswordSet: true,

@@ -1,4 +1,10 @@
 import { DayOfWeek, MenuItem, MealCategory, StructuredMeal, SwallowType } from '../types';
+import {
+  saveMenuOverridesToFirestore,
+  subscribeToMenuOverrides,
+  getMenuOverridesFromFirestore,
+} from '../services/firebase';
+import { apiUrl } from '../utils/apiConfig';
 
 export interface WeekMenuPlan {
   weekNumber: number;
@@ -26,44 +32,44 @@ export const TWENTY_SIX_WEEK_MENU: WeekMenuPlan[] = [
     weekNumber: 1,
     monthNumber: 1,
     days: {
-      Mon: 'Jollof rice + grilled chicken',
-      Tue: 'Beans + fried plantain + fish',
-      Wed: 'Stir-fry spaghetti + 2 boiled eggs',
-      Thu: 'White rice + stew + chopped fried meat',
-      Fri: 'Semo/Eba/Fufu + Egusi soup + fish',
+      Mon: 'Fried yam + egg sauce + fish',
+      Tue: 'Jollof rice + chicken + plantain',
+      Wed: 'Beans + white rice + beef',
+      Thu: 'Fried plantain + chicken',
+      Fri: 'Egusi soup',
     },
   },
   {
     weekNumber: 2,
     monthNumber: 1,
     days: {
-      Mon: 'Fried rice + chicken',
-      Tue: 'Yam porridge + vegetables',
-      Wed: 'White rice + chicken sauce',
-      Thu: 'Moi moi + 3-in-1 garri mix',
-      Fri: 'Semo/Eba/Fufu + Vegetable soup + chicken',
+      Mon: 'Boli + grilled fish',
+      Tue: 'White rice + stew + chicken',
+      Wed: 'Spaghetti + beef + egg',
+      Thu: 'Fried yam + peppered chicken',
+      Fri: 'Efo Riro',
     },
   },
   {
     weekNumber: 3,
     monthNumber: 1,
     days: {
-      Mon: 'Red-oil rice and beans + fried fish',
-      Tue: 'Fried yam + fish sauce',
-      Wed: 'Jollof rice + chopped fried meat',
-      Thu: 'White rice + beans + stew',
-      Fri: 'Semo/Eba/Fufu + Ogbono soup + beef',
+      Mon: 'Boiled yam + egg sauce + fish',
+      Tue: 'Fried rice + chicken',
+      Wed: 'Jollof rice + beef + plantain',
+      Thu: 'Boli + fish',
+      Fri: 'Okra soup',
     },
   },
   {
     weekNumber: 4,
     monthNumber: 1,
     days: {
-      Mon: 'Fried rice + grilled chicken',
-      Tue: 'Boiled yam + egg sauce + fish',
-      Wed: 'Spaghetti + chicken sauce',
-      Thu: 'Red-oil concoction rice + meat + boiled egg',
-      Fri: 'Semo/Eba/Fufu + Okra soup + fish',
+      Mon: 'Plantain + egg sauce + chicken',
+      Tue: 'White rice + beans + beef',
+      Wed: 'Spaghetti + chicken',
+      Thu: 'Fried rice + turkey + plantain',
+      Fri: 'Ogbono soup',
     },
   },
 
@@ -72,44 +78,44 @@ export const TWENTY_SIX_WEEK_MENU: WeekMenuPlan[] = [
     weekNumber: 5,
     monthNumber: 2,
     days: {
-      Mon: 'White rice + stew + grilled chicken',
-      Tue: 'Beans + plantain + fried fish',
-      Wed: 'Jollof rice + chicken',
-      Thu: 'Grilled plantain + sauce + fish',
-      Fri: 'Semo/Eba/Fufu + Afang soup + chicken',
+      Mon: 'Fried yam + peppered chicken',
+      Tue: 'Jollof rice + turkey + plantain',
+      Wed: 'Beans + rice + chicken',
+      Thu: 'Boli + grilled fish',
+      Fri: 'Bitterleaf soup (Ofe Onugbu)',
     },
   },
   {
     weekNumber: 6,
     monthNumber: 2,
     days: {
-      Mon: 'Fried rice + chopped fried meat',
-      Tue: 'Yam porridge + fish',
-      Wed: 'Stir-fry spaghetti + chicken',
-      Thu: 'Moi moi + 3-in-1 garri mix',
-      Fri: 'Semo/Eba/Fufu + Egusi soup + beef',
+      Mon: 'Boiled sweet potato + egg sauce',
+      Tue: 'Fried rice + chicken',
+      Wed: 'White rice + stew + beef',
+      Thu: 'Fried plantain + chicken',
+      Fri: 'Afang soup',
     },
   },
   {
     weekNumber: 7,
     monthNumber: 2,
     days: {
-      Mon: 'Red-oil rice and beans + chicken',
-      Tue: 'White rice + vegetable sauce + fish',
-      Wed: 'Fried yam + pepper ketchup + chicken',
-      Thu: 'Jollof rice + boiled egg',
-      Fri: 'Semo/Eba/Fufu + Efo riro + fish',
+      Mon: 'Boli + fish',
+      Tue: 'Spaghetti + chicken',
+      Wed: 'Fried rice + beef',
+      Thu: 'Ofada rice + ayamase + egg',
+      Fri: 'Edikang Ikong',
     },
   },
   {
     weekNumber: 8,
     monthNumber: 2,
     days: {
-      Mon: 'White rice + chicken sauce',
-      Tue: 'Beans + fried plantain + meat',
-      Wed: 'Fried rice + chicken',
-      Thu: 'Pepper soup + white rice',
-      Fri: 'Semo/Eba/Fufu + Ogbono soup + chicken',
+      Mon: 'Fried plantain + egg + chicken',
+      Tue: 'White rice + beans + beef',
+      Wed: 'Jollof rice + turkey',
+      Thu: 'Boiled yam + peppered fish',
+      Fri: 'Oha soup',
     },
   },
 
@@ -118,207 +124,256 @@ export const TWENTY_SIX_WEEK_MENU: WeekMenuPlan[] = [
     weekNumber: 9,
     monthNumber: 3,
     days: {
-      Mon: 'Jollof rice + grilled chicken',
-      Tue: 'Boiled yam + vegetable sauce + fish',
-      Wed: 'Stir-fry spaghetti + fried meat',
-      Thu: 'Red-oil rice and beans + fish',
-      Fri: 'Semo/Eba/Fufu + Vegetable soup + beef',
+      Mon: 'Fried yam + fish + egg sauce',
+      Tue: 'Jollof rice + chicken',
+      Wed: 'Beans + rice + beef',
+      Thu: 'Boli + chicken',
+      Fri: 'Banga soup',
     },
   },
   {
     weekNumber: 10,
     monthNumber: 3,
     days: {
-      Mon: 'Fried rice + chopped fried meat',
-      Tue: 'Yam porridge + vegetables',
-      Wed: 'White rice + stew + chicken',
-      Thu: 'Moi moi + 3-in-1 garri mix',
-      Fri: 'Semo/Eba/Fufu + Egusi soup + fish',
+      Mon: 'Boli + grilled fish',
+      Tue: 'White rice + stew + turkey',
+      Wed: 'Fried rice + chicken',
+      Thu: 'Spaghetti + beef',
+      Fri: 'Okra and egusi soup',
     },
   },
   {
     weekNumber: 11,
     monthNumber: 3,
     days: {
-      Mon: 'Red-oil concoction rice + meat + boiled egg',
-      Tue: 'Fried yam + fish sauce',
-      Wed: 'Jollof rice + chicken',
-      Thu: 'White rice + beans + stew',
-      Fri: 'Semo/Eba/Fufu + Okra soup + chicken',
+      Mon: 'Boiled yam + egg sauce',
+      Tue: 'Jollof rice + beef + plantain',
+      Wed: 'Rice + beans + chicken',
+      Thu: 'Fried plantain + fish',
+      Fri: 'Egusi soup',
     },
   },
   {
     weekNumber: 12,
     monthNumber: 3,
     days: {
-      Mon: 'White rice + chicken sauce',
-      Tue: 'Grilled plantain + sauce + grilled fish',
-      Wed: 'Fried rice + chicken',
-      Thu: 'Spaghetti + 2 boiled eggs',
-      Fri: 'Semo/Eba/Fufu + Efo riro + beef',
+      Mon: 'Plantain + egg sauce + chicken',
+      Tue: 'Fried rice + turkey',
+      Wed: 'White rice + stew + beef',
+      Thu: 'Boli + grilled fish',
+      Fri: 'Efo Riro',
     },
   },
 
-  // MONTH 4
+  // MONTH 4 (Cycle Repeat Weeks 1-4)
   {
     weekNumber: 13,
     monthNumber: 4,
     days: {
-      Mon: 'Jollof rice + chopped fried meat',
-      Tue: 'Beans + fried plantain + fish',
-      Wed: 'White rice + vegetable sauce + chicken',
-      Thu: 'Yam porridge + fish',
-      Fri: 'Semo/Eba/Fufu + Egusi soup + chicken',
+      Mon: 'Fried yam + egg sauce + fish',
+      Tue: 'Jollof rice + chicken + plantain',
+      Wed: 'Beans + white rice + beef',
+      Thu: 'Fried plantain + chicken',
+      Fri: 'Egusi soup',
     },
   },
   {
     weekNumber: 14,
     monthNumber: 4,
     days: {
-      Mon: 'Fried rice + grilled chicken',
-      Tue: 'Boiled yam + egg sauce + fish',
-      Wed: 'Stir-fry spaghetti + fried meat',
-      Thu: 'Moi moi + 3-in-1 garri mix',
-      Fri: 'Semo/Eba/Fufu + Vegetable soup + fish',
+      Mon: 'Boli + grilled fish',
+      Tue: 'White rice + stew + chicken',
+      Wed: 'Spaghetti + beef + egg',
+      Thu: 'Fried yam + peppered chicken',
+      Fri: 'Efo Riro',
     },
   },
   {
     weekNumber: 15,
     monthNumber: 4,
     days: {
-      Mon: 'Red-oil rice and beans + chicken',
-      Tue: 'Fried yam + pepper ketchup + chicken',
-      Wed: 'White rice + stew + boiled egg',
-      Thu: 'Jollof rice + fish',
-      Fri: 'Semo/Eba/Fufu + Ogbono soup + beef',
+      Mon: 'Boiled yam + egg sauce + fish',
+      Tue: 'Fried rice + chicken',
+      Wed: 'Jollof rice + beef + plantain',
+      Thu: 'Boli + fish',
+      Fri: 'Okra soup',
     },
   },
   {
     weekNumber: 16,
     monthNumber: 4,
     days: {
-      Mon: 'White rice + chicken sauce',
-      Tue: 'Grilled plantain + sauce + fish',
-      Wed: 'Fried rice + chopped meat',
-      Thu: 'Pepper soup + white rice',
-      Fri: 'Semo/Eba/Fufu + Okra soup + chicken',
+      Mon: 'Plantain + egg sauce + chicken',
+      Tue: 'White rice + beans + beef',
+      Wed: 'Spaghetti + chicken',
+      Thu: 'Fried rice + turkey + plantain',
+      Fri: 'Ogbono soup',
     },
   },
 
-  // MONTH 5
+  // MONTH 5 (Cycle Repeat Weeks 5-8)
   {
     weekNumber: 17,
     monthNumber: 5,
     days: {
-      Mon: 'Jollof rice + chicken',
-      Tue: 'Beans + plantain + fried fish',
-      Wed: 'Spaghetti + chicken sauce',
-      Thu: 'White rice + vegetable sauce + meat',
-      Fri: 'Semo/Eba/Fufu + Egusi soup + fish',
+      Mon: 'Fried yam + peppered chicken',
+      Tue: 'Jollof rice + turkey + plantain',
+      Wed: 'Beans + rice + chicken',
+      Thu: 'Boli + grilled fish',
+      Fri: 'Bitterleaf soup (Ofe Onugbu)',
     },
   },
   {
     weekNumber: 18,
     monthNumber: 5,
     days: {
-      Mon: 'Fried rice + chopped fried meat',
-      Tue: 'Yam porridge + vegetables',
-      Wed: 'Red-oil rice and beans + chicken',
-      Thu: 'Moi moi + 3-in-1 garri mix',
-      Fri: 'Semo/Eba/Fufu + Vegetable soup + beef',
+      Mon: 'Boiled sweet potato + egg sauce',
+      Tue: 'Fried rice + chicken',
+      Wed: 'White rice + stew + beef',
+      Thu: 'Fried plantain + chicken',
+      Fri: 'Afang soup',
     },
   },
   {
     weekNumber: 19,
     monthNumber: 5,
     days: {
-      Mon: 'White rice + stew + grilled chicken',
-      Tue: 'Fried yam + fish sauce',
-      Wed: 'Jollof rice + fried meat',
-      Thu: 'Boiled yam + egg sauce + fish',
-      Fri: 'Semo/Eba/Fufu + Efo riro + chicken',
+      Mon: 'Boli + fish',
+      Tue: 'Spaghetti + chicken',
+      Wed: 'Fried rice + beef',
+      Thu: 'Ofada rice + ayamase + egg',
+      Fri: 'Edikang Ikong',
     },
   },
   {
     weekNumber: 20,
     monthNumber: 5,
     days: {
-      Mon: 'Red-oil concoction rice + meat + boiled egg',
-      Tue: 'Grilled plantain + sauce + fish',
-      Wed: 'Fried rice + chicken',
-      Thu: 'Stir-fry spaghetti + 2 boiled eggs',
-      Fri: 'Semo/Eba/Fufu + Ogbono soup + fish',
+      Mon: 'Fried plantain + egg + chicken',
+      Tue: 'White rice + beans + beef',
+      Wed: 'Jollof rice + turkey',
+      Thu: 'Boiled yam + peppered fish',
+      Fri: 'Oha soup',
     },
   },
 
-  // MONTH 6
+  // MONTH 6 (Cycle Repeat Weeks 9-12 + 13-14)
   {
     weekNumber: 21,
     monthNumber: 6,
     days: {
-      Mon: 'Jollof rice + grilled chicken',
-      Tue: 'Beans + fried plantain + meat',
-      Wed: 'White rice + chicken sauce',
-      Thu: 'Yam porridge + fish',
-      Fri: 'Semo/Eba/Fufu + Egusi soup + beef',
+      Mon: 'Fried yam + fish + egg sauce',
+      Tue: 'Jollof rice + chicken',
+      Wed: 'Beans + rice + beef',
+      Thu: 'Boli + chicken',
+      Fri: 'Banga soup',
     },
   },
   {
     weekNumber: 22,
     monthNumber: 6,
     days: {
-      Mon: 'Fried rice + chicken',
-      Tue: 'Fried yam + pepper ketchup + chicken',
-      Wed: 'Red-oil rice and beans + fish',
-      Thu: 'Moi moi + 3-in-1 garri mix',
-      Fri: 'Semo/Eba/Fufu + Vegetable soup + fish',
+      Mon: 'Boli + grilled fish',
+      Tue: 'White rice + stew + turkey',
+      Wed: 'Fried rice + chicken',
+      Thu: 'Spaghetti + beef',
+      Fri: 'Okra and egusi soup',
     },
   },
   {
     weekNumber: 23,
     monthNumber: 6,
     days: {
-      Mon: 'White rice + stew + chopped fried meat',
-      Tue: 'Boiled yam + vegetable sauce + fish',
-      Wed: 'Stir-fry spaghetti + chicken',
-      Thu: 'Jollof rice + boiled egg',
-      Fri: 'Semo/Eba/Fufu + Okra soup + chicken',
+      Mon: 'Boiled yam + egg sauce',
+      Tue: 'Jollof rice + beef + plantain',
+      Wed: 'Rice + beans + chicken',
+      Thu: 'Fried plantain + fish',
+      Fri: 'Egusi soup',
     },
   },
   {
     weekNumber: 24,
     monthNumber: 6,
     days: {
-      Mon: 'Red-oil concoction rice + meat + boiled egg',
-      Tue: 'Grilled plantain + sauce + grilled fish',
-      Wed: 'Fried rice + chopped meat',
-      Thu: 'Pepper soup + white rice',
-      Fri: 'Semo/Eba/Fufu + Efo riro + beef',
+      Mon: 'Plantain + egg sauce + chicken',
+      Tue: 'Fried rice + turkey',
+      Wed: 'White rice + stew + beef',
+      Thu: 'Boli + grilled fish',
+      Fri: 'Efo Riro',
     },
   },
   {
     weekNumber: 25,
     monthNumber: 6,
     days: {
-      Mon: 'Jollof rice + chicken',
-      Tue: 'Beans + fried plantain + fish',
-      Wed: 'White rice + chicken sauce',
-      Thu: 'Fried yam + fish sauce',
-      Fri: 'Semo/Eba/Fufu + Egusi soup + fish',
+      Mon: 'Fried yam + egg sauce + fish',
+      Tue: 'Jollof rice + chicken + plantain',
+      Wed: 'Beans + white rice + beef',
+      Thu: 'Fried plantain + chicken',
+      Fri: 'Egusi soup',
     },
   },
   {
     weekNumber: 26,
     monthNumber: 6,
     days: {
-      Mon: 'Fried rice + grilled chicken',
-      Tue: 'Yam porridge + vegetables',
-      Wed: 'Red-oil rice and beans + meat',
-      Thu: 'Stir-fry spaghetti + chicken',
-      Fri: 'Semo/Eba/Fufu + Vegetable soup + chicken',
+      Mon: 'Boli + grilled fish',
+      Tue: 'White rice + stew + chicken',
+      Wed: 'Spaghetti + beef + egg',
+      Thu: 'Fried yam + peppered chicken',
+      Fri: 'Efo Riro',
     },
   },
 ];
+
+// Official Ingredients Dictionary per the authentic kitchen recipes
+export const MEAL_INGREDIENTS_MAP: Record<string, string[]> = {
+  'fried yam + egg sauce + fish': ['Yam', 'Eggs', 'Fish', 'Tomatoes', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'jollof rice + chicken + plantain': ['Rice', 'Chicken', 'Plantain', 'Tomatoes', 'Tatashe', 'Pepper', 'Onions', 'Tomato paste', 'Vegetable oil', 'Curry', 'Thyme', 'Seasoning', 'Salt'],
+  'beans + white rice + beef': ['Beans', 'Rice', 'Beef', 'Onions', 'Pepper', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'fried plantain + chicken': ['Plantain', 'Chicken', 'Onions', 'Pepper', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'egusi soup': ['Egusi', 'Assorted meat', 'Fish', 'Ugu/spinach', 'Palm oil', 'Pepper', 'Onions', 'Crayfish', 'Locust beans', 'Seasoning', 'Salt'],
+  'boli + grilled fish': ['Plantain', 'Fish', 'Pepper', 'Onions', 'Palm oil', 'Seasoning', 'Salt'],
+  'white rice + stew + chicken': ['Rice', 'Chicken', 'Tomatoes', 'Tatashe', 'Pepper', 'Onions', 'Tomato paste', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'spaghetti + beef + egg': ['Spaghetti', 'Beef', 'Eggs', 'Tomatoes', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'fried yam + peppered chicken': ['Yam', 'Chicken', 'Pepper', 'Tomatoes', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'efo riro': ['Efo/shoko', 'Assorted meat', 'Fish', 'Palm oil', 'Pepper', 'Tomatoes', 'Onions', 'Crayfish', 'Locust beans', 'Seasoning', 'Salt'],
+  'boiled yam + egg sauce + fish': ['Yam', 'Eggs', 'Fish', 'Tomatoes', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'fried rice + chicken': ['Rice', 'Chicken', 'Carrots', 'Green peas', 'Sweet corn', 'Green beans', 'Spring onions', 'Liver', 'Curry', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'jollof rice + beef + plantain': ['Rice', 'Beef', 'Plantain', 'Tomatoes', 'Tatashe', 'Pepper', 'Onions', 'Tomato paste', 'Vegetable oil', 'Curry', 'Thyme', 'Seasoning', 'Salt'],
+  'boli + fish': ['Plantain', 'Fish', 'Pepper', 'Onions', 'Palm oil', 'Seasoning', 'Salt'],
+  'okra soup': ['Okra', 'Assorted meat', 'Fish', 'Palm oil', 'Pepper', 'Onions', 'Crayfish', 'Locust beans', 'Ugu/spinach', 'Seasoning', 'Salt'],
+  'plantain + egg sauce + chicken': ['Plantain', 'Eggs', 'Chicken', 'Tomatoes', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'white rice + beans + beef': ['Rice', 'Beans', 'Beef', 'Onions', 'Pepper', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'spaghetti + chicken': ['Spaghetti', 'Chicken', 'Tomatoes', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'fried rice + turkey + plantain': ['Rice', 'Turkey', 'Plantain', 'Carrots', 'Peas', 'Sweet corn', 'Green beans', 'Spring onions', 'Curry', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'ogbono soup': ['Ogbono', 'Assorted meat', 'Fish', 'Ugu/spinach', 'Palm oil', 'Pepper', 'Onions', 'Crayfish', 'Locust beans', 'Seasoning', 'Salt'],
+  'jollof rice + turkey + plantain': ['Rice', 'Turkey', 'Plantain', 'Tomatoes', 'Tatashe', 'Pepper', 'Onions', 'Tomato paste', 'Vegetable oil', 'Curry', 'Thyme', 'Seasoning', 'Salt'],
+  'beans + rice + chicken': ['Beans', 'Rice', 'Chicken', 'Onions', 'Pepper', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'bitterleaf soup (ofe onugbu)': ['Bitterleaf', 'Assorted meat', 'Stockfish', 'Dry fish', 'Cocoyam', 'Palm oil', 'Pepper', 'Onions', 'Crayfish', 'Seasoning', 'Salt'],
+  'boiled sweet potato + egg sauce': ['Sweet potatoes', 'Eggs', 'Tomatoes', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'white rice + stew + beef': ['Rice', 'Beef', 'Tomatoes', 'Tatashe', 'Pepper', 'Onions', 'Tomato paste', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'afang soup': ['Afang leaves', 'Waterleaf', 'Assorted meat', 'Stockfish', 'Dry fish', 'Palm oil', 'Pepper', 'Onions', 'Crayfish', 'Seasoning', 'Salt'],
+  'fried rice + beef': ['Rice', 'Beef', 'Carrots', 'Peas', 'Sweet corn', 'Green beans', 'Spring onions', 'Liver', 'Curry', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'ofada rice + ayamase + egg': ['Ofada rice', 'Green peppers', 'Green scotch bonnet', 'Onions', 'Eggs', 'Palm oil', 'Locust beans', 'Seasoning', 'Salt'],
+  'edikang ikong': ['Pumpkin leaves', 'Waterleaf', 'Assorted meat', 'Stockfish', 'Dry fish', 'Palm oil', 'Pepper', 'Onions', 'Crayfish', 'Seasoning', 'Salt'],
+  'fried plantain + egg + chicken': ['Plantain', 'Eggs', 'Chicken', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'jollof rice + turkey': ['Rice', 'Turkey', 'Tomatoes', 'Tatashe', 'Pepper', 'Onions', 'Tomato paste', 'Vegetable oil', 'Curry', 'Thyme', 'Seasoning', 'Salt'],
+  'boiled yam + peppered fish': ['Yam', 'Fish', 'Tomatoes', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'oha soup': ['Oha leaves', 'Assorted meat', 'Stockfish', 'Dry fish', 'Cocoyam', 'Palm oil', 'Pepper', 'Onions', 'Crayfish', 'Seasoning', 'Salt'],
+  'fried yam + fish + egg sauce': ['Yam', 'Fish', 'Eggs', 'Tomatoes', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'jollof rice + chicken': ['Rice', 'Chicken', 'Tomatoes', 'Tatashe', 'Pepper', 'Onions', 'Tomato paste', 'Vegetable oil', 'Curry', 'Thyme', 'Seasoning', 'Salt'],
+  'beans + rice + beef': ['Beans', 'Rice', 'Beef', 'Onions', 'Pepper', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'boli + chicken': ['Plantain', 'Chicken', 'Pepper', 'Onions', 'Palm oil', 'Seasoning', 'Salt'],
+  'banga soup': ['Palm fruit extract', 'Assorted meat', 'Fish', 'Stockfish', 'Dry fish', 'Pepper', 'Onions', 'Crayfish', 'Scent leaves', 'Seasoning', 'Salt'],
+  'white rice + stew + turkey': ['Rice', 'Turkey', 'Tomatoes', 'Tatashe', 'Pepper', 'Onions', 'Tomato paste', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'spaghetti + beef': ['Spaghetti', 'Beef', 'Tomatoes', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'okra and egusi soup': ['Okra', 'Egusi', 'Assorted meat', 'Fish', 'Palm oil', 'Pepper', 'Onions', 'Crayfish', 'Locust beans', 'Ugu/spinach', 'Seasoning', 'Salt'],
+  'boiled yam + egg sauce': ['Yam', 'Eggs', 'Tomatoes', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'rice + beans + chicken': ['Rice', 'Beans', 'Chicken', 'Onions', 'Pepper', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'fried plantain + fish': ['Plantain', 'Fish', 'Pepper', 'Onions', 'Vegetable oil', 'Seasoning', 'Salt'],
+  'fried rice + turkey': ['Rice', 'Turkey', 'Carrots', 'Peas', 'Sweet corn', 'Green beans', 'Spring onions', 'Liver', 'Curry', 'Vegetable oil', 'Seasoning', 'Salt'],
+};
 
 // Helper to structure each meal according to user-defined categories
 export function parseStructuredMeal(
@@ -327,91 +382,89 @@ export function parseStructuredMeal(
   dateStr: string,
   priceOverride?: number
 ): StructuredMeal {
-  const titleLower = mealTitle.toLowerCase();
+  const titleLower = mealTitle.toLowerCase().trim();
 
-  // Categorize based strictly on the 8 user-defined categories
+  // Categorize based on ingredients and cuisine
   let mealCategory: MealCategory = 'Rice';
   let soup: string | undefined = undefined;
 
   // Extract soup if present
   if (titleLower.includes('egusi soup')) soup = 'Egusi Soup';
-  else if (titleLower.includes('vegetable soup')) soup = 'Vegetable Soup';
-  else if (titleLower.includes('ogbono soup')) soup = 'Ogbono Soup';
-  else if (titleLower.includes('okra soup')) soup = 'Okra Soup';
-  else if (titleLower.includes('afang soup')) soup = 'Afang Soup';
   else if (titleLower.includes('efo riro')) soup = 'Efo Riro';
-  else if (titleLower.includes('pepper soup')) soup = 'Pepper Soup';
-  else if (titleLower.includes('fish sauce')) soup = 'Fish Sauce';
-  else if (titleLower.includes('chicken sauce')) soup = 'Chicken Sauce';
-  else if (titleLower.includes('egg sauce')) soup = 'Egg Sauce';
+  else if (titleLower.includes('okra and egusi soup')) soup = 'Okra & Egusi Soup';
+  else if (titleLower.includes('okra soup')) soup = 'Okra Soup';
+  else if (titleLower.includes('ogbono soup')) soup = 'Ogbono Soup';
+  else if (titleLower.includes('bitterleaf soup')) soup = 'Bitterleaf Soup';
+  else if (titleLower.includes('afang soup')) soup = 'Afang Soup';
+  else if (titleLower.includes('edikang ikong')) soup = 'Edikang Ikong';
+  else if (titleLower.includes('oha soup')) soup = 'Oha Soup';
+  else if (titleLower.includes('banga soup')) soup = 'Banga Soup';
   else if (titleLower.includes('stew')) soup = 'Tomato Stew';
+  else if (titleLower.includes('egg sauce')) soup = 'Egg Sauce';
+  else if (titleLower.includes('ayamase')) soup = 'Ayamase (Designer Stew)';
 
   if (
+    titleLower.includes('soup') ||
+    titleLower.includes('efo riro') ||
     titleLower.includes('semo') ||
     titleLower.includes('eba') ||
     titleLower.includes('fufu') ||
     titleLower.includes('swallow')
   ) {
     mealCategory = 'Swallow';
-  } else if (titleLower.includes('pepper soup') && titleLower.includes('rice')) {
-    mealCategory = 'Rice + Soup';
-  } else if (
-    titleLower.includes('rice and beans') ||
-    (titleLower.includes('rice') && titleLower.includes('beans'))
-  ) {
-    mealCategory = 'Rice & Beans';
   } else if (titleLower.includes('spaghetti') || titleLower.includes('pasta')) {
     mealCategory = 'Pasta';
-  } else if (titleLower.includes('yam')) {
+  } else if (titleLower.includes('yam') || titleLower.includes('sweet potato')) {
     mealCategory = 'Yam';
+  } else if (titleLower.includes('boli') || (titleLower.includes('plantain') && !titleLower.includes('rice') && !titleLower.includes('beans'))) {
+    mealCategory = 'Plantain';
+  } else if (titleLower.includes('beans') && titleLower.includes('rice')) {
+    mealCategory = 'Rice & Beans';
   } else if (titleLower.includes('beans') || titleLower.includes('moi moi')) {
     mealCategory = 'Beans / Moi Moi';
-  } else if (titleLower.includes('plantain') && !titleLower.includes('rice') && !titleLower.includes('beans')) {
-    mealCategory = 'Plantain';
   } else {
     mealCategory = 'Rice';
   }
 
   // Extract Base Ingredient
   let baseIngredient = 'Jollof Rice';
-  if (titleLower.includes('fried rice')) baseIngredient = 'Fried Rice';
+  if (mealCategory === 'Swallow') baseIngredient = 'Eba / Semo / Fufu';
+  else if (titleLower.includes('fried rice')) baseIngredient = 'Fried Rice';
   else if (titleLower.includes('white rice')) baseIngredient = 'White Rice';
-  else if (titleLower.includes('concoction rice')) baseIngredient = 'Red-Oil Concoction Rice';
-  else if (titleLower.includes('rice and beans')) baseIngredient = 'Red-Oil Rice and Beans';
-  else if (titleLower.includes('stir-fry spaghetti')) baseIngredient = 'Stir-Fry Spaghetti';
+  else if (titleLower.includes('ofada rice')) baseIngredient = 'Ofada Rice';
   else if (titleLower.includes('spaghetti')) baseIngredient = 'Durum Spaghetti';
-  else if (titleLower.includes('yam porridge')) baseIngredient = 'Yam Porridge';
+  else if (titleLower.includes('sweet potato')) baseIngredient = 'Boiled Sweet Potato';
   else if (titleLower.includes('boiled yam')) baseIngredient = 'Boiled White Yam';
   else if (titleLower.includes('fried yam')) baseIngredient = 'Crispy Fried Yam';
-  else if (titleLower.includes('moi moi')) baseIngredient = 'Steamed Moi Moi & Garri Mix';
-  else if (titleLower.includes('beans')) baseIngredient = 'Honey Beans (Oloyin)';
-  else if (titleLower.includes('grilled plantain')) baseIngredient = 'Smoky Grilled Plantain (Boli)';
-  else if (mealCategory === 'Swallow') baseIngredient = 'Semo / Eba / Fufu';
+  else if (titleLower.includes('boli')) baseIngredient = 'Smoky Grilled Plantain (Boli)';
+  else if (titleLower.includes('fried plantain')) baseIngredient = 'Fried Plantain (Dodo)';
+  else if (titleLower.includes('beans')) baseIngredient = 'Honey Beans';
 
   // Extract Protein
   let protein = 'Grilled Chicken';
-  if (titleLower.includes('grilled fish') || titleLower.includes('fried fish') || titleLower.includes('fish')) {
-    protein = 'Titus / Catfish Seasoned Cut';
-  } else if (titleLower.includes('chopped fried meat') || titleLower.includes('fried meat')) {
-    protein = 'Chopped Fried Beef';
+  if (titleLower.includes('grilled fish') || titleLower.includes('peppered fish') || titleLower.includes('fish')) {
+    protein = 'Seasoned Fish';
+  } else if (titleLower.includes('turkey')) {
+    protein = 'Spiced Turkey';
   } else if (titleLower.includes('beef')) {
     protein = 'Tender Slow-Cooked Beef';
-  } else if (titleLower.includes('meat')) {
-    protein = 'Fried Beef Chunks';
-  } else if (titleLower.includes('2 boiled eggs') || titleLower.includes('boiled egg')) {
+  } else if (titleLower.includes('assorted meat')) {
+    protein = 'Assorted Meat & Fish';
+  } else if (titleLower.includes('egg') && !titleLower.includes('chicken') && !titleLower.includes('beef') && !titleLower.includes('fish')) {
     protein = 'Farm-Fresh Boiled Eggs';
   } else if (titleLower.includes('chicken')) {
-    protein = 'Spiced Grilled Chicken';
+    protein = 'Spiced Chicken';
   }
 
-  // Ingredients breakdown
-  const ingredients: string[] = [baseIngredient, protein];
-  if (soup) ingredients.push(soup);
-  if (titleLower.includes('plantain')) ingredients.push('Fried Sweet Plantain (Dodo)');
-  if (titleLower.includes('vegetables') || titleLower.includes('vegetable')) ingredients.push('Ugwu & Shoko Greens');
-  if (titleLower.includes('garri')) ingredients.push('Crisp Ijebu Garri');
+  // Exact Recipe Ingredients if mapped
+  let ingredients = MEAL_INGREDIENTS_MAP[titleLower];
+  if (!ingredients) {
+    ingredients = [baseIngredient, protein];
+    if (soup) ingredients.push(soup);
+    if (titleLower.includes('plantain') && !baseIngredient.includes('Plantain')) ingredients.push('Sweet Plantain');
+  }
 
-  // Curated Nigerian Food photography
+  // Photography URL
   let imageUrl = 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&q=80&w=800';
   if (mealCategory === 'Swallow') {
     imageUrl = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800';
@@ -419,6 +472,8 @@ export function parseStructuredMeal(
     imageUrl = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&q=80&w=800';
   } else if (mealCategory === 'Yam') {
     imageUrl = 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&q=80&w=800';
+  } else if (mealCategory === 'Plantain') {
+    imageUrl = 'https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&q=80&w=800';
   } else if (titleLower.includes('jollof')) {
     imageUrl = 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&q=80&w=800';
   }
@@ -446,7 +501,7 @@ export function parseStructuredMeal(
 }
 
 // Global In-Memory and LocalStorage Overrides for Admin Menu edits (Shared in sync with homepage and subscriber dashboard)
-const STORAGE_KEY = '11to12_custom_meals_v2';
+const STORAGE_KEY = '11to12_custom_meals_v3';
 
 function loadStoredOverrides(): Record<string, StructuredMeal> {
   try {
@@ -485,8 +540,55 @@ export function broadcastMenuUpdate(): void {
   }
 }
 
-// Listen to storage events from other tabs
+// Real-Time Worldwide Cloud Sync via Firestore & Live Server API
 if (typeof window !== 'undefined') {
+  // 1. Instantly pull latest overrides from Firestore on startup
+  try {
+    getMenuOverridesFromFirestore()
+      .then((remote) => {
+        if (remote && typeof remote === 'object' && Object.keys(remote).length > 0) {
+          Object.assign(customMealOverrides, remote);
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(customMealOverrides));
+          } catch {}
+          broadcastMenuUpdate();
+        }
+      })
+      .catch(() => {});
+  } catch {}
+
+  // 2. Also pull latest overrides from Server API on startup
+  try {
+    fetch(apiUrl('/api/meals'))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json?.meals && typeof json.meals === 'object' && Object.keys(json.meals).length > 0) {
+          Object.assign(customMealOverrides, json.meals);
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(customMealOverrides));
+          } catch {}
+          broadcastMenuUpdate();
+        }
+      })
+      .catch(() => {});
+  } catch {}
+
+  // 3. Real-time Firestore subscription via onSnapshot
+  try {
+    subscribeToMenuOverrides((remoteOverrides) => {
+      if (remoteOverrides && typeof remoteOverrides === 'object') {
+        Object.assign(customMealOverrides, remoteOverrides);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(customMealOverrides));
+        } catch {}
+        broadcastMenuUpdate();
+      }
+    });
+  } catch (err) {
+    console.warn('[Firebase menu subscription init notice]:', err);
+  }
+
+  // 4. Cross-Tab Local Storage Sync
   window.addEventListener('storage', (e) => {
     if (e.key === STORAGE_KEY && e.newValue) {
       try {
@@ -507,14 +609,19 @@ export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
   }
   broadcastMenuUpdate();
 
-  // Async sync to server
+  // Worldwide instant sync 1: Backend Server Database & SSE broadcast
   try {
-    fetch('/api/meals', {
+    fetch(apiUrl('/api/meals'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dateStr, meal }),
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[Server API meal update notice]:', err);
+    });
   } catch {}
+
+  // Worldwide instant sync 2: Firestore Cloud Document
+  saveMenuOverridesToFirestore(customMealOverrides).catch(() => {});
 }
 
 export function batchUpdateMeals(mealsMap: Record<string, StructuredMeal>) {
@@ -526,22 +633,32 @@ export function batchUpdateMeals(mealsMap: Record<string, StructuredMeal>) {
   }
   broadcastMenuUpdate();
 
-  // Async sync to server
+  // Worldwide instant sync 1: Backend Server Database & SSE broadcast
   try {
-    fetch('/api/meals/batch', {
+    fetch(apiUrl('/api/meals/batch'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ meals: mealsMap }),
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[Server API batch meals update notice]:', err);
+    });
   } catch {}
+
+  // Worldwide instant sync 2: Firestore Cloud Document
+  saveMenuOverridesToFirestore(customMealOverrides).catch(() => {});
 }
 
 export function getCustomMealForDate(dateStr: string): StructuredMeal | undefined {
   return customMealOverrides[dateStr];
 }
 
-// Reference Base Date: Monday, December 7, 2026 = Week 1 Launch (Matches Monday Dec 7: Jollof Rice + Grilled Chicken)
+// Reference Base Date: Monday, December 7, 2026 = Week 1 Launch (Mon Dec 7: Fried yam + egg sauce + fish)
 export const BASE_DATE = new Date(2026, 11, 7); // 11 is December (0-indexed)
+
+export function parseYmd(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
 
 export function getStructuredMealForDate(targetDate: Date): StructuredMeal | null {
   const dayOfWeek = targetDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
@@ -577,16 +694,25 @@ export function getStructuredMealForDate(targetDate: Date): StructuredMeal | nul
   const dayFullName = dayMap[dayOfWeek] || 'Monday';
   const dayShortKey = dayKeyMap[dayOfWeek] || 'Mon';
 
-  const diffTime = targetDate.getTime() - BASE_DATE.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  // UTC-normalized week difference to avoid DST/timezone hour offsets
+  const d1 = Date.UTC(BASE_DATE.getFullYear(), BASE_DATE.getMonth(), BASE_DATE.getDate());
+  const d2 = Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+  const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
   const weekNum = Math.floor(diffDays / 7);
 
   const rotationIndex = ((weekNum % 26) + 26) % 26;
   const currentWeekPlan = TWENTY_SIX_WEEK_MENU[rotationIndex];
 
-  const mealTitle = currentWeekPlan.days[dayShortKey] || 'Jollof rice + grilled chicken';
+  const mealTitle = currentWeekPlan.days[dayShortKey] || 'Fried yam + egg sauce + fish';
 
   return parseStructuredMeal(mealTitle, dayFullName, dateStr);
+}
+
+export function getStructuredMealForDateStr(dateStr: string): StructuredMeal | null {
+  if (customMealOverrides[dateStr]) {
+    return customMealOverrides[dateStr];
+  }
+  return getStructuredMealForDate(parseYmd(dateStr));
 }
 
 // Backward-compatible getMealDetails helper for admin scheduler

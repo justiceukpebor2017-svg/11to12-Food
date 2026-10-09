@@ -147,6 +147,11 @@ export const ProductionDashboard: React.FC<ProductionDashboardProps> = ({
     // Skip weekends
     if (next.getDay() === 6) next.setDate(next.getDate() + (direction === 'next' ? 2 : -1));
     if (next.getDay() === 0) next.setDate(next.getDate() + (direction === 'next' ? 1 : -2));
+    const launchLimit = new Date(2026, 11, 7);
+    if (next < launchLimit) {
+      setSelectedDate(launchLimit);
+      return;
+    }
     setSelectedDate(next);
   };
 

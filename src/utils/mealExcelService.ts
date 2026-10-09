@@ -91,10 +91,10 @@ export function downloadMealExcelTemplate(format: 'xlsx' | 'csv' = 'xlsx'): void
   const sampleData = [
     {
       'Date (YYYY-MM-DD)': '2026-12-07',
-      'Main Food': 'Party Jollof Rice with Grilled Peppered Chicken',
-      'Category': 'Rice & Grains',
-      'Base': 'Party Jollof Rice',
-      'Ingredients': 'Long grain rice, wood-smoked pepper puree, chicken breast',
+      'Main Food': 'Fried yam + egg sauce + fish',
+      'Category': 'Yam',
+      'Base': 'Crispy Fried Yam',
+      'Ingredients': 'Yam, eggs, fish, tomatoes, pepper, onions, vegetable oil, seasoning, salt',
     },
   ];
 

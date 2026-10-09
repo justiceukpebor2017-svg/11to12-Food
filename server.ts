@@ -307,13 +307,16 @@ app.post('/api/customers', (req, res) => {
   });
 });
 
-app.patch('/api/customers/:id', (req, res) => {
+const handleUpdateCustomerRoute = (req: express.Request, res: express.Response) => {
   const updated = updateCustomerRecord(req.params.id, req.body);
   if (!updated) {
     return res.status(404).json({ error: 'Customer not found' });
   }
   return res.json(updated);
-});
+};
+
+app.patch('/api/customers/:id', handleUpdateCustomerRoute);
+app.put('/api/customers/:id', handleUpdateCustomerRoute);
 
 app.delete('/api/customers/:id', (req, res) => {
   const deleted = deleteCustomerRecord(req.params.id);

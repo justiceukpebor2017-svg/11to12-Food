@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   UserProfile,
   OrderSubmission,
@@ -19,6 +19,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { downloadInvoiceDocument } from '../../../utils/invoiceDownload';
+import { getStructuredMealForDateStr, subscribeMenuChanges } from '../../../data/menuRotation';
 
 interface CustomerMyPlanTabProps {
   userProfile: UserProfile;
@@ -31,6 +32,15 @@ export const CustomerMyPlanTab: React.FC<CustomerMyPlanTabProps> = ({
   onOpenAddDaysModal,
   onOpenAddressModal,
 }) => {
+  const [, setMenuUpdateVersion] = useState(0);
+
+  useEffect(() => {
+    const unsub = subscribeMenuChanges(() => {
+      setMenuUpdateVersion((v) => v + 1);
+    });
+    return () => unsub();
+  }, []);
+
   const selectedDays = userProfile.selectedDays || [];
   const skippedDates = userProfile.skippedDates || [];
 
@@ -246,6 +256,7 @@ export const CustomerMyPlanTab: React.FC<CustomerMyPlanTabProps> = ({
         <div className="max-h-72 overflow-y-auto divide-y divide-zinc-100 border border-zinc-200 rounded-2xl p-2 bg-zinc-50/50 text-xs">
           {sortedDays.map((d, idx) => {
             const isSkipped = skippedDates.includes(d.dateStr);
+            const currentMeal = getStructuredMealForDateStr(d.dateStr) || d.meal;
             return (
               <div key={idx} className="py-2.5 px-3 flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -259,7 +270,7 @@ export const CustomerMyPlanTab: React.FC<CustomerMyPlanTabProps> = ({
                 </div>
 
                 <div className="text-right">
-                  <span className="text-zinc-700 font-medium">{d.meal.mealName}</span>
+                  <span className="text-zinc-700 font-medium">{currentMeal.mealName}</span>
                   {d.selectedSwallow && (
                     <span className="ml-1 text-[10px] font-bold text-[#FF4C00] bg-orange-50 px-1.5 py-0.5 rounded">
                       {d.selectedSwallow}
