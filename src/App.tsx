@@ -41,7 +41,6 @@ import { Testimonials } from './components/ui/testimonials-columns-1';
 import { FaqSection } from './components/marketing/FaqSection';
 import { Footer } from './components/Footer';
 import { CheckoutModal } from './components/marketing/CheckoutModal';
-import { GuidedWalkthroughControls, WalkthroughStep } from './components/marketing/GuidedWalkthroughControls';
 import { SubscriberAuthModal } from './components/subscriber/SubscriberAuthModal';
 import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
@@ -62,8 +61,6 @@ import {
   trackWaitlistJoined,
   trackBeginCheckout,
   trackOrderSubmitted,
-  trackWalkthroughStep,
-  trackWalkthroughSkip,
 } from './utils/analytics';
 import {
   db,
@@ -97,10 +94,6 @@ export default function App() {
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('morning');
   const [showSubscriberAuthModal, setShowSubscriberAuthModal] = useState(false);
   
-  // Guided Website Walkthrough State: Shown on every load of the website as requested
-  const [isWalkthroughActive, setIsWalkthroughActive] = useState<boolean>(true);
-  const [walkthroughStep, setWalkthroughStep] = useState<WalkthroughStep>(1);
-
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
   const [, setMenuSyncVersion] = useState(0);
 
@@ -127,18 +120,6 @@ export default function App() {
     trackPageView(titles[viewMode] || '11 to 12 Food', `/${viewMode}`);
   }, [viewMode]);
 
-  // Bring revealed Step 1 section into focus on walkthrough start
-  useEffect(() => {
-    if (isWalkthroughActive && walkthroughStep === 1 && viewMode === 'marketing') {
-      const timer = setTimeout(() => {
-        const el = document.getElementById('reserve-desk') || document.getElementById('watch-and-reserve');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 400);
-      return () => clearTimeout(timer);
-    }
-  }, [isWalkthroughActive, walkthroughStep, viewMode]);
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     if (typeof window === 'undefined') return INITIAL_USER_PROFILE;
     try {
@@ -982,35 +963,6 @@ export default function App() {
     setLaunchSettings(updated);
   };
 
-  // Guided Walkthrough Handlers
-  const handleWalkthroughSkip = () => {
-    setIsWalkthroughActive(false);
-  };
-
-  const handleWalkthroughNext = () => {
-    if (walkthroughStep === 1) {
-      setWalkthroughStep(2);
-      const menuEl = document.getElementById('menu');
-      if (menuEl) {
-        menuEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    } else if (walkthroughStep === 2) {
-      setWalkthroughStep(3);
-      const planEl = document.getElementById('pricing');
-      if (planEl) {
-        planEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }
-  };
-
-  const handleWalkthroughFinish = () => {
-    setIsWalkthroughActive(false);
-    const planEl = document.getElementById('pricing');
-    if (planEl) {
-      planEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1A1A] font-['Poppins'] antialiased selection:bg-[#FF4C00] selection:text-white">
       
@@ -1029,113 +981,52 @@ export default function App() {
       {/* VIEW MODE 1: MARKETING PAGE */}
       {viewMode === 'marketing' && (
         <>
-          {/* Guided Website Walkthrough Floating Controls */}
-          {isWalkthroughActive && (
-            <GuidedWalkthroughControls
-              currentStep={walkthroughStep}
-              onNext={handleWalkthroughNext}
-              onSkip={handleWalkthroughSkip}
-              onFinish={handleWalkthroughFinish}
-            />
-          )}
-
           <main className="relative">
             
             {/* 1. First Section: Illustrated Lagos Route Map Hero */}
-            <div
-              className={`transition-all duration-500 ${
-                isWalkthroughActive
-                  ? 'filter blur-sm opacity-40 select-none pointer-events-none'
-                  : ''
-              }`}
-            >
-              <HeroMapSection />
-            </div>
+            <HeroMapSection />
 
             {/* 2. Second Section: Restored Original Orange Hero */}
-            <div
-              id="home"
-              className={`transition-all duration-500 ${
-                isWalkthroughActive
-                  ? 'filter blur-sm opacity-40 select-none pointer-events-none'
-                  : ''
-              }`}
-            >
+            <div id="home">
               <HeroTypewriter />
             </div>
 
-            {/* 3. Reserve Your Desk (Guided Step 1 Highlighted) */}
-            <div
-              className={`transition-all duration-500 ${
-                isWalkthroughActive
-                  ? walkthroughStep === 1
-                    ? 'relative z-30 ring-4 ring-[#FF4C00] shadow-2xl rounded-3xl scale-[1.01]'
-                    : 'filter blur-sm opacity-40 select-none pointer-events-none'
-                  : ''
-              }`}
-            >
-              <DeskDropWaitlistAndTeaser
-                waitlistCount={waitlistCount}
-                confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
-                existingWaitlist={waitlistLeads}
-                existingCustomers={customers}
-                onJoinWaitlist={async (leadData) => {
-                  const res = await liveSync.joinWaitlist(leadData);
-                  if (res.success && res.lead) {
-                    await saveWaitlistLeadToFirestore(res.lead);
-                    setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
-                  }
-                  return res;
-                }}
-              />
-            </div>
+            {/* 3. Reserve Your Desk Drop Section */}
+            <DeskDropWaitlistAndTeaser
+              waitlistCount={waitlistCount}
+              confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
+              existingWaitlist={waitlistLeads}
+              existingCustomers={customers}
+              onJoinWaitlist={async (leadData) => {
+                const res = await liveSync.joinWaitlist(leadData);
+                if (res.success && res.lead) {
+                  await saveWaitlistLeadToFirestore(res.lead);
+                  setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
+                }
+                return res;
+              }}
+            />
 
-            {/* 3. Escape Your Lunch Rut (Process Grid) */}
-            <div className={isWalkthroughActive ? "transition-all duration-500 filter blur-sm opacity-40 select-none pointer-events-none" : "transition-all duration-300"}>
-              <ProcessGrid />
-            </div>
+            {/* 4. Escape Your Lunch Rut (Process Grid) */}
+            <ProcessGrid />
 
-            {/* 4. What is the kitchen cooking? (Guided Step 2 Highlighted) */}
-            <div
-              className={`transition-all duration-500 ${
-                isWalkthroughActive
-                  ? walkthroughStep === 2
-                    ? 'relative z-30 ring-4 ring-[#FF4C00] shadow-2xl rounded-3xl scale-[1.01]'
-                    : 'filter blur-sm opacity-40 select-none pointer-events-none'
-                  : ''
-              }`}
-            >
-              <InteractiveCalendar menuItems={menuItems} />
-            </div>
+            {/* 5. What is the kitchen cooking? (Interactive Menu Calendar) */}
+            <InteractiveCalendar menuItems={menuItems} />
 
-            {/* 5. Build Your Lunch Plan (Guided Step 3 Highlighted) */}
-            <div
-              className={`transition-all duration-500 ${
-                isWalkthroughActive
-                  ? walkthroughStep === 3
-                    ? 'relative z-30 ring-4 ring-[#FF4C00] shadow-2xl rounded-3xl scale-[1.01]'
-                    : 'filter blur-sm opacity-40 select-none pointer-events-none'
-                  : ''
-              }`}
-            >
-              <PlanBuilder onProceedToCheckout={handleProceedToCheckout} />
-            </div>
+            {/* 6. Build Your Lunch Plan */}
+            <PlanBuilder onProceedToCheckout={handleProceedToCheckout} />
 
-            {/* 6. People Tolerate Us (Testimonials - Animated 3-Column Display with Initials, No Images) */}
-            <div className={isWalkthroughActive ? "transition-all duration-500 filter blur-sm opacity-40 select-none pointer-events-none" : "transition-all duration-300"}>
-              <Testimonials
-                testimonials={liveTestimonials}
-                title="What Lagos Office Teams Say"
-                subtitle="Piping-hot Nigerian corporate lunches delivered directly to workstations between 11:00 AM and 12:00 PM."
-              />
-            </div>
+            {/* 7. What Lagos Office Teams Say (Testimonials) */}
+            <Testimonials
+              testimonials={liveTestimonials}
+              title="What Lagos Office Teams Say"
+              subtitle="Piping-hot Nigerian corporate lunches delivered directly to workstations between 11:00 AM and 12:00 PM."
+            />
 
-            {/* 7. Your Burning Questions, Answered (FAQ) */}
-            <div className={isWalkthroughActive ? "transition-all duration-500 filter blur-sm opacity-40 select-none pointer-events-none" : "transition-all duration-300"}>
-              <FaqSection />
-            </div>
+            {/* 8. FAQ Section */}
+            <FaqSection />
 
-            {/* Payout & Registration Modal (Official Flutterwave MFB & Wema Account, Copy Account, Proof Instructions) */}
+            {/* Payout & Registration Modal */}
             <CheckoutModal
               isOpen={isCheckoutOpen}
               onClose={() => setIsCheckoutOpen(false)}

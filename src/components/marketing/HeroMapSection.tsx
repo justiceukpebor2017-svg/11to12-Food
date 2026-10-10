@@ -2,21 +2,25 @@ import React from 'react';
 
 /**
  * HeroMapSection:
- * Full-width hero section featuring the official 11to12 Lagos delivery route map illustration.
- * Preserves the exact original image asset without modification, overlays, or distortion.
+ * Full-width Hero Cover section featuring the official 11to12 animated hero banner.
+ * Covers edge-to-edge on desktop without white borders, and maintains complete visibility
+ * on mobile and tablet without aggressive cropping.
  */
 export const HeroMapSection: React.FC = () => {
   return (
     <section
       id="hero"
-      className="relative w-full overflow-hidden bg-[#FAF7F2] flex items-center justify-center select-none md:h-screen md:min-h-[600px]"
+      className="relative w-full overflow-hidden bg-[#FAF7F2] flex items-center justify-center select-none"
     >
       <img
-        src="https://i.ibb.co/twQTjf0N/Vector-illustration-of-road-corr-2-K-20261009131501.jpg"
-        alt="11to12.food Lagos Delivery Route Map"
-        className="w-full h-auto md:w-full md:h-full md:object-cover md:object-center pointer-events-none block"
+        src="https://i.ibb.co/DD2TKrTn/ezgif-25712c0b68377720.gif"
+        alt="11 to 12 Hero Cover"
+        className="w-full h-auto min-w-full object-cover md:object-cover pointer-events-none block"
         loading="eager"
         decoding="async"
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).src = 'https://i.ibb.co/TB3dhWd5/ezgif-25712c0b68377720.gif';
+        }}
       />
     </section>
   );
