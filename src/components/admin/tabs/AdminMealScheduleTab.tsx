@@ -2,8 +2,10 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   CustomerRecord,
   StructuredMeal,
+  calculateMealPrice,
+  PER_DAY_FEE,
 } from '../../../types';
-import { getStructuredMealForDate, subscribeMenuChanges } from '../../../data/menuRotation';
+import { getStructuredMealForDate, updateCustomMealForDate, subscribeMenuChanges } from '../../../data/menuRotation';
 import { exportToCsv } from '../../../utils/csvExport';
 import { downloadMealExcelTemplate, parseAndApplyMealSpreadsheet } from '../../../utils/mealExcelService';
 import {
@@ -24,6 +26,9 @@ import {
   User,
   Clock,
   CheckCircle2,
+  Edit,
+  Sparkles,
+  X,
 } from 'lucide-react';
 
 interface AdminMealScheduleTabProps {
@@ -82,6 +87,12 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
     if (e.target) e.target.value = '';
   };
 
+  // Inline edit state for selected date
+  const [isEditingMeal, setIsEditingMeal] = useState(false);
+  const [editMealName, setEditMealName] = useState('');
+  const [editMealPrice, setEditMealPrice] = useState(2900);
+  const [editIsHoliday, setEditIsHoliday] = useState(false);
+
   // Selected Date Object
   const selectedDateObj = useMemo(() => {
     const [y, m, d] = selectedDate.split('-').map(Number);
@@ -91,7 +102,49 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
   // Meal for that date
   const mealForDate: StructuredMeal | null = useMemo(() => {
     return getStructuredMealForDate(selectedDateObj);
-  }, [selectedDateObj]);
+  }, [selectedDateObj, importStatus]);
+
+  const handleStartEditCurrentDate = () => {
+    if (mealForDate) {
+      setEditMealName(mealForDate.mealName);
+      setEditMealPrice(calculateMealPrice(mealForDate));
+      setEditIsHoliday(mealForDate.isHoliday || mealForDate.isNoDelivery || false);
+    } else {
+      setEditMealName('Jollof Rice + Chicken');
+      setEditMealPrice(2900);
+      setEditIsHoliday(false);
+    }
+    setIsEditingMeal(true);
+  };
+
+  const handleSaveCurrentDateMeal = () => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = (dayNames[new Date(y, m - 1, d).getDay()] || 'Monday') as any;
+
+    const parsedPrice = Number(editMealPrice) > 0 ? Number(editMealPrice) : 2900;
+
+    const updatedMeal: StructuredMeal = {
+      ...(mealForDate || {
+        id: `meal-${selectedDate}`,
+        dateStr: selectedDate,
+        day: dayName,
+        mealName: editMealName,
+        mealCategory: 'Rice',
+        imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800',
+      }),
+      mealName: editMealName.trim() || (mealForDate?.mealName ?? 'Daily Chef Special'),
+      price: parsedPrice,
+      isHoliday: editIsHoliday,
+      isNoDelivery: editIsHoliday,
+      holidayName: editIsHoliday ? 'Holiday / No Delivery' : undefined,
+    };
+
+    updateCustomMealForDate(selectedDate, updatedMeal);
+    setIsEditingMeal(false);
+    setImportStatus(`Saved & Distributed! Meal "${updatedMeal.mealName}" (₦${parsedPrice.toLocaleString()}) updated real-time across Website, Dashboard & Admin.`);
+    setTimeout(() => setImportStatus(null), 4000);
+  };
 
   // Filter ONLY confirmed customers with active meal on this date
   // Logic:
@@ -379,21 +432,141 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
         {/* Operational Highlights for Date */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           
-          {/* Meal Details */}
+          {/* Meal Details & Quick Pricing/Holiday Controls */}
           <div className="md:col-span-2 bg-[#FAF7F2] border border-zinc-200/80 rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4C00]">
-                {formattedDateLabel}
-              </span>
-              <h2 className="text-lg font-bold text-zinc-900">
-                {mealForDate ? mealForDate.mealName : 'Kitchen Off / Weekend'}
-              </h2>
-              {mealForDate && (
-                <p className="text-xs text-zinc-600 mt-1">
-                  Category: <strong>{mealForDate.mealCategory}</strong>
-                </p>
-              )}
-            </div>
+            {isEditingMeal ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-1 border-b border-zinc-200">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4C00]">
+                    Edit Meal & Price for {formattedDateLabel}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingMeal(false)}
+                    className="text-zinc-400 hover:text-zinc-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-zinc-700 mb-1">
+                      Meal Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editMealName}
+                      onChange={(e) => setEditMealName(e.target.value)}
+                      placeholder="e.g. Jollof rice + chicken + plantain"
+                      className="w-full bg-white border border-zinc-300 rounded-xl px-3 py-2 text-xs font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-zinc-700 mb-1">
+                      Meal Price (₦)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-zinc-400 font-bold">₦</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={editMealPrice}
+                        onChange={(e) => setEditMealPrice(Number(e.target.value))}
+                        className="w-full bg-white border border-zinc-300 rounded-xl pl-7 pr-3 py-2 text-xs font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Holiday Toggle */}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs font-semibold text-zinc-700">Day Delivery Status:</span>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditIsHoliday(false)}
+                      className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        !editIsHoliday
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
+                      }`}
+                    >
+                      ✓ Delivering Food
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditIsHoliday(true)}
+                      className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        editIsHoliday
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
+                      }`}
+                    >
+                      Holiday (No Delivery)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end space-x-2 pt-2 border-t border-zinc-200">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingMeal(false)}
+                    className="px-3 py-1.5 rounded-xl border border-zinc-300 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCurrentDateMeal}
+                    className="px-4 py-1.5 rounded-xl bg-[#FF4C00] hover:bg-[#E04300] text-white text-xs font-bold flex items-center space-x-1.5 shadow-xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Save Meal & Price</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4C00]">
+                    {formattedDateLabel}
+                  </span>
+                  <h2 className="text-lg font-bold text-zinc-900">
+                    {mealForDate ? mealForDate.mealName : 'Kitchen Off / Weekend'}
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                    {mealForDate && (
+                      <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        ₦{calculateMealPrice(mealForDate).toLocaleString()} (Each Meal)
+                      </span>
+                    )}
+                    {mealForDate?.isHoliday || mealForDate?.isNoDelivery ? (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                        Holiday (No Delivery)
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                        Delivering Food
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleStartEditCurrentDate}
+                    className="px-4 py-2 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-xs flex items-center space-x-1.5 transition cursor-pointer shadow-xs"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    <span>Edit Meal & Price</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Total Confirmed Lunches */}

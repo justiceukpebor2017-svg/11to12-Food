@@ -4,6 +4,7 @@ import {
   DEFAULT_CATEGORY_PRICES,
   PER_DAY_FEE,
   LaunchSettings,
+  calculateMealPrice,
 } from '../../../types';
 import {
   TWENTY_SIX_WEEK_MENU,
@@ -64,8 +65,9 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const [editingDateStr, setEditingDateStr] = useState<string | null>(null);
   const [editMealName, setEditMealName] = useState('');
-  const [editMealCategory, setEditMealCategory] = useState<string>('Rice & Grains');
+  const [editMealPrice, setEditMealPrice] = useState<number>(2900);
   const [editIsUnavailable, setEditIsUnavailable] = useState(false);
+  const [quickDateInput, setQuickDateInput] = useState<string>('2026-12-07');
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Subscribe to real-time menu updates
@@ -163,33 +165,48 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   const handleStartEditMeal = (item: { day: string; dateStr: string; meal: StructuredMeal | null }) => {
     setEditingDateStr(item.dateStr);
     setEditMealName(item.meal?.mealName || '');
-    setEditMealCategory(item.meal?.mealCategory || 'Rice & Grains');
-    setEditIsUnavailable(item.meal?.isNoDelivery || false);
+    setEditMealPrice(item.meal ? calculateMealPrice(item.meal) : 2900);
+    setEditIsUnavailable(item.meal?.isHoliday || item.meal?.isNoDelivery || false);
+  };
+
+  const handleStartEditByDate = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const existing = getStructuredMealForDate(new Date(y, m - 1, d));
+    setEditingDateStr(dateStr);
+    setEditMealName(existing?.mealName || 'Jollof Rice + Chicken');
+    setEditMealPrice(existing ? calculateMealPrice(existing) : 2900);
+    setEditIsUnavailable(existing?.isHoliday || existing?.isNoDelivery || false);
   };
 
   const handleSaveMealOverride = () => {
     if (!editingDateStr) return;
     const [y, m, d] = editingDateStr.split('-').map(Number);
     const existing = getStructuredMealForDate(new Date(y, m - 1, d));
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = (dayNames[new Date(y, m - 1, d).getDay()] || 'Monday') as any;
+
+    const parsedPrice = Number(editMealPrice) > 0 ? Number(editMealPrice) : 2900;
 
     const updatedMeal: StructuredMeal = {
       ...(existing || {
         id: `meal-${editingDateStr}`,
         dateStr: editingDateStr,
-        day: 'Mon',
+        day: dayName,
         mealName: editMealName,
-        mealCategory: editMealCategory as any,
+        mealCategory: 'Rice',
         imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800',
       }),
-      mealName: editMealName.trim(),
-      mealCategory: editMealCategory as any,
+      mealName: editMealName.trim() || (existing?.mealName ?? 'Daily Chef Special'),
+      price: parsedPrice,
+      isHoliday: editIsUnavailable,
       isNoDelivery: editIsUnavailable,
+      holidayName: editIsUnavailable ? 'Holiday / No Delivery' : undefined,
     };
 
     updateCustomMealForDate(editingDateStr, updatedMeal);
     setRefreshKey((prev) => prev + 1);
     setEditingDateStr(null);
-    showSaved(`Saved & Distributed! Updated real-time across Home page, User Dashboard, Meal Schedule & Settings.`);
+    showSaved(`Saved & Distributed! Meal "${updatedMeal.mealName}" (₦${parsedPrice.toLocaleString()}) updated real-time across Website, Dashboard & Admin.`);
   };
 
   const handleSavePricing = () => {
@@ -336,118 +353,202 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
             </div>
           </div>
 
-          {/* Week Days Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            {weekDays.map((item) => (
-              <div
-                key={item.dateStr}
-                className="p-4 rounded-2xl border border-zinc-200 bg-[#FAF7F2] space-y-3 flex flex-col justify-between"
+          {/* Date Picker Bar to Pick Any Date Directly or Browse by Week */}
+          <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center space-x-2">
+              <Calendar className="w-4 h-4 text-[#FF4C00]" />
+              <span className="font-bold text-zinc-900">Pick Any Date to Update Meal & Pricing:</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="date"
+                min="2026-12-07"
+                value={quickDateInput}
+                onChange={(e) => setQuickDateInput(e.target.value)}
+                className="bg-white border border-zinc-300 rounded-xl px-3 py-1.5 font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+              />
+              <button
+                type="button"
+                onClick={() => handleStartEditByDate(quickDateInput)}
+                className="px-4 py-1.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold transition cursor-pointer shadow-xs"
               >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-zinc-900">{item.day}</span>
-                    <span className="text-[10px] font-mono text-zinc-400">{item.dateStr}</span>
-                  </div>
-
-                  <div className="mt-2">
-                    <span className="text-xs font-bold text-zinc-800 line-clamp-2">
-                      {item.meal?.mealName || 'No Meal'}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 block mt-0.5">
-                      {item.meal?.mealCategory || 'Standard'}
-                    </span>
-                  </div>
-
-                  {item.meal?.isNoDelivery && (
-                    <span className="mt-1 inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">
-                      Marked Unavailable
-                    </span>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleStartEditMeal(item)}
-                  className="w-full py-1.5 rounded-xl border border-zinc-300 hover:border-black text-zinc-800 hover:text-black font-semibold text-[11px] transition cursor-pointer bg-white"
-                >
-                  Edit Meal
-                </button>
-              </div>
-            ))}
+                Edit Selected Date
+              </button>
+            </div>
           </div>
 
-          {/* Edit Meal Drawer / Box */}
+          {/* Week Days Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            {weekDays.map((item) => {
+              const currentPrice = item.meal ? calculateMealPrice(item.meal) : 2900;
+              const isHoliday = item.meal?.isHoliday || item.meal?.isNoDelivery;
+
+              return (
+                <div
+                  key={item.dateStr}
+                  className={`p-4 rounded-2xl border space-y-3 flex flex-col justify-between transition ${
+                    isHoliday
+                      ? 'bg-amber-50/70 border-amber-200'
+                      : 'bg-[#FAF7F2] border-zinc-200'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-zinc-900">{item.day}</span>
+                      <span className="text-[10px] font-mono text-zinc-400">{item.dateStr}</span>
+                    </div>
+
+                    <div className="mt-2 space-y-1">
+                      <span className="text-xs font-bold text-zinc-800 line-clamp-2">
+                        {item.meal?.mealName || 'No Meal'}
+                      </span>
+                      <div className="flex items-center space-x-1.5">
+                        <span className="text-[11px] font-black text-[#FF4C00]">
+                          ₦{currentPrice.toLocaleString()}
+                        </span>
+                        <span className="text-[9px] text-zinc-400 font-medium">+ ₦500 add-on</span>
+                      </div>
+                    </div>
+
+                    {isHoliday ? (
+                      <span className="mt-2 inline-block text-[9px] font-bold px-2 py-0.5 rounded bg-amber-200 text-amber-900">
+                        Holiday (No Delivery)
+                      </span>
+                    ) : (
+                      <span className="mt-2 inline-block text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                        Delivering Food
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStartEditMeal(item)}
+                    className="w-full py-1.5 rounded-xl border border-zinc-300 hover:border-black text-zinc-800 hover:text-black font-semibold text-[11px] transition cursor-pointer bg-white shadow-2xs"
+                  >
+                    Edit Meal & Price
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Edit Meal Drawer / Modal: Pick a date, edit meal name, put price, choose holiday or delivery */}
           {editingDateStr && (
-            <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-zinc-900">
-                  Editing Meal for {editingDateStr}
-                </span>
+            <div className="p-5 rounded-2xl bg-zinc-50 border-2 border-black/80 space-y-4 shadow-sm animate-in fade-in">
+              <div className="flex items-center justify-between pb-2 border-b border-zinc-200">
+                <div className="flex items-center space-x-2">
+                  <div className="w-8 h-8 rounded-xl bg-[#FF4C00]/10 text-[#FF4C00] flex items-center justify-center font-bold">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-zinc-900 block">
+                      Edit Meal & Pricing for {editingDateStr}
+                    </span>
+                    <span className="text-[10px] text-zinc-500">
+                      Changes update immediately across user dashboard, marketing page & admin schedule.
+                    </span>
+                  </div>
+                </div>
                 <button
                   onClick={() => setEditingDateStr(null)}
-                  className="text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                  className="text-zinc-400 hover:text-zinc-600 cursor-pointer p-1 rounded-lg"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                {/* 1. Meal Name */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-zinc-700 mb-1">Meal Title</label>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-700 mb-1.5">
+                    Meal Name / Title
+                  </label>
                   <input
                     type="text"
                     value={editMealName}
                     onChange={(e) => setEditMealName(e.target.value)}
-                    className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                    placeholder="e.g. Jollof rice + chicken + plantain"
+                    className="w-full bg-white border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
                   />
                 </div>
 
+                {/* 2. Meal Price */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-zinc-700 mb-1">Category</label>
-                  <select
-                    value={editMealCategory}
-                    onChange={(e) => setEditMealCategory(e.target.value)}
-                    className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
-                  >
-                    <option value="Rice & Grains">Rice & Grains</option>
-                    <option value="Swallow">Swallow</option>
-                    <option value="Pasta">Pasta</option>
-                    <option value="Beans & Delicacies">Beans & Delicacies</option>
-                    <option value="Yam">Yam</option>
-                  </select>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-700 mb-1.5">
+                    Meal Price (₦)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-zinc-400 font-bold">₦</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="100"
+                      value={editMealPrice}
+                      onChange={(e) => setEditMealPrice(Number(e.target.value))}
+                      placeholder="e.g. 2900"
+                      className="w-full bg-white border border-zinc-300 rounded-xl pl-8 pr-3.5 py-2.5 text-xs font-black text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                    />
+                  </div>
+                  <span className="text-[10px] text-zinc-500 mt-1 block">
+                    Calculator charges: ₦{editMealPrice.toLocaleString()} + ₦{PER_DAY_FEE} standard desk drop = <strong>₦{(editMealPrice + PER_DAY_FEE).toLocaleString()}</strong>
+                  </span>
                 </div>
               </div>
 
-              {/* Unavailable Toggle */}
-              <div className="flex items-center space-x-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="mark-unavail"
-                  checked={editIsUnavailable}
-                  onChange={(e) => setEditIsUnavailable(e.target.checked)}
-                  className="rounded text-[#FF4C00] cursor-pointer"
-                />
-                <label htmlFor="mark-unavail" className="text-xs text-zinc-700 font-medium cursor-pointer">
-                  Mark meal unavailable on this date (Public Holiday / Kitchen Off)
-                </label>
+              {/* 3. Holiday / Delivering Food Toggle */}
+              <div className="p-3.5 rounded-xl bg-white border border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-bold text-zinc-900 block">
+                    Delivery Status for this Day
+                  </span>
+                  <p className="text-[11px] text-zinc-500">
+                    Choose if this date is a holiday or if 11 to 12 will be delivering food.
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditIsUnavailable(false)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      !editIsUnavailable
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                    }`}
+                  >
+                    ✓ Delivering Food
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditIsUnavailable(true)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      editIsUnavailable
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                    }`}
+                  >
+                    Holiday (No Delivery)
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-zinc-200">
-                <p className="text-[11px] text-zinc-500">
-                  Clicking <strong>Save and Distribute</strong> instantly broadcasts this meal to the Home page, User Dashboard, and Meal Schedule in real-time.
+                <p className="text-[11px] text-zinc-500 hidden sm:block">
+                  Clicking <strong>Save and Distribute</strong> instantly reflects this update across user dashboards, the website, and admin.
                 </p>
-                <div className="flex space-x-2">
+                <div className="flex items-center space-x-2 ml-auto">
                   <button
                     type="button"
                     onClick={() => setEditingDateStr(null)}
-                    className="px-3.5 py-2 rounded-xl border border-zinc-200 text-xs text-zinc-600 hover:bg-zinc-100 cursor-pointer"
+                    className="px-4 py-2 rounded-xl border border-zinc-200 text-xs text-zinc-600 hover:bg-zinc-100 cursor-pointer font-semibold"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveMealOverride}
-                    className="px-4 py-2 rounded-xl bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center space-x-1.5"
+                    className="px-5 py-2 rounded-xl bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center space-x-1.5"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>Save and Distribute</span>

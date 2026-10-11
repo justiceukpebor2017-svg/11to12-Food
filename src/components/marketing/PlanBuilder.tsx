@@ -103,6 +103,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
 
+  // Earliest allowable month is launch date month (December 2026)
+  const isAtEarliestMonth = useMemo(() => {
+    return (
+      currentYear < LAUNCH_CONFIG.year ||
+      (currentYear === LAUNCH_CONFIG.year && currentMonth <= LAUNCH_CONFIG.monthIndex)
+    );
+  }, [currentYear, currentMonth]);
+
   // 6-month quick navigation tabs starting from launch date
   const sixMonthsCycle = useMemo(() => {
     const startYear = LAUNCH_CONFIG.isEnabled ? LAUNCH_CONFIG.year : new Date().getFullYear();
@@ -117,13 +125,25 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       });
     }
     return tabs;
-  }, [currentYear, currentMonth]);
+  }, []);
 
   const prevMonth = () => {
+    // Cannot move backwards past our launch date
+    if (isAtEarliestMonth) return;
+
     if (currentMonth === 0) {
+      const nextY = currentYear - 1;
+      const nextM = 11;
+      if (nextY < LAUNCH_CONFIG.year || (nextY === LAUNCH_CONFIG.year && nextM < LAUNCH_CONFIG.monthIndex)) {
+        return;
+      }
       setCurrentMonth(11);
       setCurrentYear((y) => y - 1);
     } else {
+      const nextM = currentMonth - 1;
+      if (currentYear === LAUNCH_CONFIG.year && nextM < LAUNCH_CONFIG.monthIndex) {
+        return;
+      }
       setCurrentMonth((m) => m - 1);
     }
   };
@@ -632,9 +652,6 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         
         {/* Header Block */}
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <span className="text-xs font-semibold text-[#FF4C00] uppercase tracking-wider">
-            6-Month Interactive Calendar
-          </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-black mt-1">
             Build Your Lunch Plan
           </h2>
@@ -713,8 +730,13 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
               <div className="flex items-center space-x-1 pl-2">
                 <button
                   onClick={prevMonth}
-                  className="p-2 rounded-full border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition cursor-pointer"
-                  title="Previous Month"
+                  disabled={isAtEarliestMonth}
+                  className={`p-2 rounded-full border border-zinc-200 transition ${
+                    isAtEarliestMonth
+                      ? 'text-zinc-300 opacity-40 cursor-not-allowed bg-zinc-50'
+                      : 'text-zinc-600 hover:bg-zinc-50 cursor-pointer'
+                  }`}
+                  title={isAtEarliestMonth ? 'Cannot navigate before launch month (December 2026)' : 'Previous Month'}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>

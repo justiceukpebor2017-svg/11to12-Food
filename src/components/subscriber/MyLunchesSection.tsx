@@ -190,11 +190,27 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
+  // Earliest allowable month is launch date month (December 2026)
+  const isAtEarliestMonth =
+    currentYear < LAUNCH_CONFIG.year ||
+    (currentYear === LAUNCH_CONFIG.year && currentMonthIndex <= LAUNCH_CONFIG.monthIndex);
+
   const handlePrevMonth = () => {
+    if (isAtEarliestMonth) return;
+
     if (currentMonthIndex === 0) {
+      const nextY = currentYear - 1;
+      const nextM = 11;
+      if (nextY < LAUNCH_CONFIG.year || (nextY === LAUNCH_CONFIG.year && nextM < LAUNCH_CONFIG.monthIndex)) {
+        return;
+      }
       setCurrentMonthIndex(11);
       setCurrentYear((y) => y - 1);
     } else {
+      const nextM = currentMonthIndex - 1;
+      if (currentYear === LAUNCH_CONFIG.year && nextM < LAUNCH_CONFIG.monthIndex) {
+        return;
+      }
       setCurrentMonthIndex((m) => m - 1);
     }
   };
@@ -527,8 +543,13 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
         <div className="flex items-center space-x-2">
           <button
             onClick={handlePrevMonth}
-            className="p-2 rounded-full border border-zinc-200 hover:bg-zinc-100 text-zinc-600 cursor-pointer"
-            title="Previous Month"
+            disabled={isAtEarliestMonth}
+            className={`p-2 rounded-full border border-zinc-200 transition ${
+              isAtEarliestMonth
+                ? 'text-zinc-300 opacity-40 cursor-not-allowed bg-zinc-50'
+                : 'hover:bg-zinc-100 text-zinc-600 cursor-pointer'
+            }`}
+            title={isAtEarliestMonth ? 'Cannot navigate before launch month (December 2026)' : 'Previous Month'}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>

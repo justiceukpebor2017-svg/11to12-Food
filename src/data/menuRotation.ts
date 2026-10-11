@@ -19,12 +19,8 @@ export interface WeekMenuPlan {
 }
 
 // Configurable Nigerian Public Holidays & No Delivery Days
-export const KNOWN_HOLIDAYS: Record<string, string> = {
-  '2026-10-01': 'Public Holiday: Nigeria Independence Day',
-  '2026-12-25': 'Public Holiday: Christmas Day',
-  '2026-12-26': 'Public Holiday: Boxing Day',
-  '2027-01-01': 'Public Holiday: New Year Day',
-};
+// Admin can explicitly set any date as holiday or delivering food
+export const KNOWN_HOLIDAYS: Record<string, string> = {};
 
 export const TWENTY_SIX_WEEK_MENU: WeekMenuPlan[] = [
   // MONTH 1

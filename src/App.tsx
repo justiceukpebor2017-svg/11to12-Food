@@ -35,7 +35,6 @@ import { HeroMapSection } from './components/marketing/HeroMapSection';
 import { HeroTypewriter } from './components/marketing/HeroTypewriter';
 import { DeskDropWaitlistAndTeaser } from './components/marketing/DeskDropWaitlistAndTeaser';
 import { ProcessGrid } from './components/marketing/ProcessGrid';
-import { InteractiveCalendar } from './components/marketing/InteractiveCalendar';
 import { PlanBuilder } from './components/marketing/PlanBuilder';
 import { Testimonials } from './components/ui/testimonials-columns-1';
 import { FaqSection } from './components/marketing/FaqSection';
@@ -1013,10 +1012,7 @@ export default function App() {
             {/* 5. Escape Your Lunch Rut (Process Grid) */}
             <ProcessGrid />
 
-            {/* 6. What is the kitchen cooking? (Interactive Menu Calendar) */}
-            <InteractiveCalendar menuItems={menuItems} />
-
-            {/* 7. What Lagos Office Teams Say (Testimonials) */}
+            {/* 6. What Lagos Office Teams Say (Testimonials) */}
             <Testimonials
               testimonials={liveTestimonials}
               title="What Lagos Office Teams Say"
