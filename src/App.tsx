@@ -991,7 +991,10 @@ export default function App() {
               <HeroTypewriter />
             </div>
 
-            {/* 3. Reserve Your Desk Drop Section */}
+            {/* 3. Build Your Lunch Plan */}
+            <PlanBuilder onProceedToCheckout={handleProceedToCheckout} />
+
+            {/* 4. Deliveries Begin / Reserve Your Desk Drop Section */}
             <DeskDropWaitlistAndTeaser
               waitlistCount={waitlistCount}
               confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
@@ -1007,14 +1010,11 @@ export default function App() {
               }}
             />
 
-            {/* 4. Escape Your Lunch Rut (Process Grid) */}
+            {/* 5. Escape Your Lunch Rut (Process Grid) */}
             <ProcessGrid />
 
-            {/* 5. What is the kitchen cooking? (Interactive Menu Calendar) */}
+            {/* 6. What is the kitchen cooking? (Interactive Menu Calendar) */}
             <InteractiveCalendar menuItems={menuItems} />
-
-            {/* 6. Build Your Lunch Plan */}
-            <PlanBuilder onProceedToCheckout={handleProceedToCheckout} />
 
             {/* 7. What Lagos Office Teams Say (Testimonials) */}
             <Testimonials
