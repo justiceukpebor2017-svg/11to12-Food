@@ -119,11 +119,11 @@ export const SkipConfirmationModal: React.FC<SkipConfirmationModalProps> = ({
                       💳 Save as credit
                     </span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                      +₦3,200 to Wallet
+                      +1 Lunch Credit
                     </span>
                   </div>
                   <p className="text-xs text-zinc-500 font-medium mt-1">
-                    Keep the full value in your Lunch Wallet to redeem for any future workday or extra plate.
+                    Keep your lunch credit safely in your Lunch Wallet to redeem for any future workday or extra plate.
                   </p>
                 </div>
               </button>
@@ -259,7 +259,7 @@ export const SkipConfirmationModal: React.FC<SkipConfirmationModalProps> = ({
                   Lunch Saved as Credit!
                 </h3>
                 <p className="text-xs text-zinc-500 font-medium max-w-sm mx-auto mt-1">
-                  ₦3,200 has been added to your Lunch Wallet. It will never expire and can be used on any future workday.
+                  1 lunch credit has been preserved in your Lunch Wallet. It will never expire and can be used on any future workday.
                 </p>
               </div>
             ) : (

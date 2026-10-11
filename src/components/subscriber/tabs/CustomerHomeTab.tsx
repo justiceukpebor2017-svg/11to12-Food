@@ -5,6 +5,7 @@ import {
   SelectedLunchDay,
 } from '../../../types';
 import { getStructuredMealForDateStr, subscribeMenuChanges } from '../../../data/menuRotation';
+import { checkWatCutoffStatus } from '../../../utils/timeCutoff';
 import {
   Utensils,
   Clock,
@@ -200,14 +201,43 @@ export const CustomerHomeTab: React.FC<CustomerHomeTabProps> = ({
                   <span>Meal Details</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setDateToSkip(todayStr)}
-                  className="px-3.5 py-2 rounded-xl text-amber-700 hover:bg-amber-50 border border-amber-200 font-semibold transition cursor-pointer flex items-center space-x-1"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Skip Today's Lunch</span>
-                </button>
+                {/* Skip button only visible if not skipped and no credit was used on today */}
+                {!isTodaySkipped && (
+                  (() => {
+                    const watCutoff = checkWatCutoffStatus();
+                    const hasCreditOnToday = Boolean(
+                      (userProfile.creditUsedDates || []).includes(todayStr) ||
+                      (userProfile.creditRedemptions || []).some((r) => (r.items || []).some((it) => it.dateStr === todayStr))
+                    );
+
+                    if (hasCreditOnToday) {
+                      return (
+                        <span className="text-[10px] text-zinc-400 font-medium py-2">
+                          Credit active on today
+                        </span>
+                      );
+                    }
+
+                    if (!watCutoff.isActionAllowed) {
+                      return (
+                        <span className="text-[10px] text-zinc-400 font-medium py-2" title={watCutoff.reason}>
+                          Skip locked (12–5 PM WAT)
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setDateToSkip(todayStr)}
+                        className="px-3.5 py-2 rounded-xl text-amber-700 hover:bg-amber-50 border border-amber-200 font-semibold transition cursor-pointer flex items-center space-x-1"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Skip Today's Lunch</span>
+                      </button>
+                    );
+                  })()
+                )}
               </div>
             </div>
 
@@ -329,23 +359,48 @@ export const CustomerHomeTab: React.FC<CustomerHomeTabProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           
           {/* Action 1: Skip Today's Lunch */}
-          <button
-            type="button"
-            onClick={() => {
-              if (todaySelection && !isTodaySkipped) {
-                setDateToSkip(todayStr);
-              } else {
-                onNavigateTab('my-lunches');
-              }
-            }}
-            className="bg-white border border-zinc-200 rounded-2xl p-4 text-left hover:border-zinc-400 transition cursor-pointer shadow-2xs group"
-          >
-            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
-              <RotateCcw className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold text-zinc-900 block">Skip Today's Lunch</span>
-            <span className="text-[11px] text-zinc-400 mt-0.5 block">Convert into wallet credit</span>
-          </button>
+          {(() => {
+            const watCutoff = checkWatCutoffStatus();
+            const hasCreditOnToday = Boolean(
+              (userProfile.creditUsedDates || []).includes(todayStr) ||
+              (userProfile.creditRedemptions || []).some((r) => (r.items || []).some((it) => it.dateStr === todayStr))
+            );
+            const isSkipAllowed = todaySelection && !isTodaySkipped && !hasCreditOnToday && watCutoff.isActionAllowed;
+
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  if (todaySelection && !isTodaySkipped && !hasCreditOnToday) {
+                    if (!watCutoff.isActionAllowed) {
+                      onNavigateTab('my-lunches');
+                      return;
+                    }
+                    setDateToSkip(todayStr);
+                  } else {
+                    onNavigateTab('my-lunches');
+                  }
+                }}
+                className={`bg-white border rounded-2xl p-4 text-left transition shadow-2xs group cursor-pointer ${
+                  isSkipAllowed ? 'border-zinc-200 hover:border-zinc-400' : 'border-zinc-200/60 opacity-80'
+                }`}
+              >
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-bold text-zinc-900 block">Skip Today's Lunch</span>
+                <span className="text-[11px] text-zinc-400 mt-0.5 block">
+                  {isTodaySkipped
+                    ? 'Already skipped'
+                    : hasCreditOnToday
+                    ? 'Credit used on today'
+                    : !watCutoff.isActionAllowed
+                    ? 'Locked (12–5 PM WAT)'
+                    : 'Convert into wallet credit'}
+                </span>
+              </button>
+            );
+          })()}
 
           {/* Action 2: View My Lunches */}
           <button

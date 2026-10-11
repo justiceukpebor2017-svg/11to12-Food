@@ -54,8 +54,12 @@ export const CustomerMyPlanTab: React.FC<CustomerMyPlanTabProps> = ({
   const remainingLunches = Math.max(0, totalSelectedLunches - totalSkippedLunches);
   const remainingCredits = userProfile.creditsBalance || 0;
 
-  // Mock / Real order object for invoice download
+  // Mock / Real order object for invoice download - excludes skipped days and includes active dates
   const handleDownloadReceipt = () => {
+    const skippedSet = new Set(skippedDates);
+    // Filter out skipped days so they are removed from the invoice as requested
+    const activeDays = selectedDays.filter((d) => !skippedSet.has(d.dateStr));
+
     const mockOrder: OrderSubmission = {
       id: userProfile.orderRef || userProfile.id || 'ORD-1112',
       fullName: userProfile.name,
@@ -64,11 +68,11 @@ export const CustomerMyPlanTab: React.FC<CustomerMyPlanTabProps> = ({
       company: userProfile.company || 'Corporate Office',
       officeAddress: userProfile.address || 'Desk Drop Location',
       secondAddress: userProfile.secondAddress,
-      selectedDays,
-      totalDays: totalSelectedLunches,
-      subtotalNGN: userProfile.orderTotalNGN || totalSelectedLunches * 3200,
+      selectedDays: activeDays,
+      totalDays: activeDays.length,
+      subtotalNGN: userProfile.orderTotalNGN || activeDays.length * 3200,
       discountNGN: 0,
-      finalTotalNGN: userProfile.orderTotalNGN || totalSelectedLunches * 3200,
+      finalTotalNGN: userProfile.orderTotalNGN || activeDays.length * 3200,
       submittedAt: new Date().toISOString(),
       paymentStatus: 'Confirmed',
     };
@@ -174,9 +178,9 @@ export const CustomerMyPlanTab: React.FC<CustomerMyPlanTabProps> = ({
           </div>
 
           <div>
-            <span className="text-[10px] text-zinc-400 block font-semibold uppercase">Order Total Paid</span>
+            <span className="text-[10px] text-zinc-400 block font-semibold uppercase">Scheduled Lunches</span>
             <span className="font-bold text-zinc-900 text-sm mt-0.5 block">
-              ₦{(userProfile.orderTotalNGN || totalSelectedLunches * 3200).toLocaleString()}
+              {totalSelectedLunches} Workday Lunches
             </span>
           </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   TimeWindow,
   MenuItem,
@@ -15,6 +15,7 @@ import { CustomerMyPlanTab } from '../components/subscriber/tabs/CustomerMyPlanT
 import { CustomerWalletTab } from '../components/subscriber/tabs/CustomerWalletTab';
 import { CustomerAccountTab } from '../components/subscriber/tabs/CustomerAccountTab';
 import { AddExtraDaysModal } from '../components/subscriber/tabs/AddExtraDaysModal';
+import { checkWatCutoffStatus } from '../utils/timeCutoff';
 import {
   Home,
   CalendarDays,
@@ -28,6 +29,8 @@ import {
   MessageCircle,
   X,
   ShieldCheck,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
 
 interface SubscriberDashboardPageProps {
@@ -70,24 +73,90 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isAddDaysModalOpen, setIsAddDaysModalOpen] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-
-  // Address edit state inside quick address modal
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [editPrimaryAddress, setEditPrimaryAddress] = useState(userProfile.address || '');
   const [editSecondAddress, setEditSecondAddress] = useState(userProfile.secondAddress || '');
+
+  useEffect(() => {
+    setEditPrimaryAddress(userProfile.address || '');
+    setEditSecondAddress(userProfile.secondAddress || '');
+  }, [userProfile.address, userProfile.secondAddress]);
+
+  // Live Notification state
+  const [liveNotification, setLiveNotification] = useState<{
+    id: string;
+    title: string;
+    message: string;
+    type: 'skip' | 'topup' | 'credit' | 'info';
+  } | null>(null);
+  const notifTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+    };
+  }, []);
+
+  const showLiveNotification = (title: string, message: string, type: 'skip' | 'topup' | 'credit' | 'info' = 'info') => {
+    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+    setLiveNotification({
+      id: String(Date.now()),
+      title,
+      message,
+      type,
+    });
+    notifTimerRef.current = window.setTimeout(() => {
+      setLiveNotification(null);
+    }, 6000);
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Safe manual logout with auto-save
+  const handleConfirmLogout = () => {
+    setIsLoggingOut(true);
+    // Explicit manual save pulse
+    onUpdateProfile(userProfile);
+    setTimeout(() => {
+      setIsLoggingOut(false);
+      setIsLogoutModalOpen(false);
+      if (onNavigateToLanding) {
+        onNavigateToLanding();
+      }
+    }, 450);
+  };
+
   // Skip Lunch Flow:
-  // 1. Adds date to skippedDates
-  // 2. Increments creditsBalance by 1
-  // 3. Updates userProfile which propagates to customer record and syncs with Admin
+  // 1. Checks 12:00 PM - 5:00 PM WAT daily cutoff rule
+  // 2. Disallows skipping on any date that has already been skipped or already used credit on
+  // 3. Adds date to skippedDates and increments creditsBalance
+  // 4. Updates userProfile which propagates to customer record and syncs with Admin every 5 seconds
+  // 5. Triggers live notification letting user know what they did and that dashboard has updated!
   const handleSkipLunch = (dateStr: string) => {
+    // Cutoff check: 12:00 PM to 5:00 PM WAT
+    const cutoffStatus = checkWatCutoffStatus();
+    if (!cutoffStatus.isActionAllowed) {
+      showToast(cutoffStatus.reason);
+      return;
+    }
+
     const existingSkips = userProfile.skippedDates || [];
     if (existingSkips.includes(dateStr)) {
-      showToast('This lunch is already marked as skipped.');
+      showToast('This lunch is already marked as skipped. Skipping cannot be repeated on the same date.');
+      return;
+    }
+
+    const creditedDates = new Set<string>([
+      ...(userProfile.creditUsedDates || []),
+      ...(userProfile.creditRedemptions || []).flatMap((r) => (r.items || []).map((it) => it.dateStr)),
+    ]);
+
+    if (creditedDates.has(dateStr)) {
+      showToast(`Cannot skip ${dateStr}. A credit plate has already been scheduled for this date.`);
       return;
     }
 
@@ -101,7 +170,11 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
     };
 
     onUpdateProfile(updatedProfile);
-    showToast(`✓ Lunch for ${dateStr} skipped. 1 credit added to your Lunch Wallet.`);
+    showLiveNotification(
+      '⚡ Lunch Skipped & Credit Preserved',
+      `Meal for ${dateStr} has been cancelled from kitchen cooking. 1 credit has been added to your Lunch Wallet, and your upcoming lunch dashboard has been updated.`,
+      'skip'
+    );
   };
 
   // Save quick address update
@@ -155,11 +228,47 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
         </div>
       )}
 
+      {/* Real-time Live Action Notification Banner */}
+      {liveNotification && (
+        <aside
+          role="status"
+          aria-live="polite"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[94%] max-w-xl rounded-2xl sm:rounded-3xl bg-zinc-950/95 text-white border border-[#FF4C00]/40 shadow-2xl p-4 sm:p-5 backdrop-blur-md animate-in fade-in slide-in-from-top-3 flex items-start gap-3.5 font-['Poppins']"
+        >
+          <div className="w-10 h-10 rounded-2xl bg-[#FF4C00] text-white flex items-center justify-center shrink-0 shadow-md shadow-[#FF4C00]/25">
+            <Sparkles className="w-5 h-5" />
+          </div>
+
+          <div className="flex-1 min-w-0 pr-1">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight flex items-center space-x-1.5 flex-wrap">
+                <span>{liveNotification.title}</span>
+                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  Dashboard Live
+                </span>
+              </h4>
+
+              <button
+                type="button"
+                onClick={() => setLiveNotification(null)}
+                className="text-zinc-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
+              {liveNotification.message}
+            </p>
+          </div>
+        </aside>
+      )}
+
       {/* Main Top Header */}
       <header className="bg-white border-b border-zinc-200/80 sticky top-0 z-40 shadow-2xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3.5 flex items-center justify-between">
           
-          {/* Logo & Brand */}
+          {/* Logo & Brand + Logout Beside Logo */}
           <div className="flex items-center space-x-3">
             <img
               src="https://i.ibb.co/FLX7ttjm/11to12logg.png"
@@ -172,6 +281,17 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
                 Lunch Control Center
               </span>
             </div>
+
+            {/* Logout icon button right beside the logo */}
+            <button
+              type="button"
+              onClick={() => setIsLogoutModalOpen(true)}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border border-zinc-200 hover:border-red-300 bg-zinc-50 hover:bg-red-50 text-zinc-700 hover:text-red-600 text-xs font-semibold transition cursor-pointer shadow-2xs group ml-1"
+              title="Save All & Log Out"
+            >
+              <LogOut className="w-3.5 h-3.5 text-zinc-500 group-hover:text-red-600 transition-colors" />
+              <span className="text-[11px] font-bold">Log Out</span>
+            </button>
           </div>
 
           {/* Desktop Navigation Tabs */}
@@ -211,7 +331,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
 
             <button
               type="button"
-              onClick={onNavigateToLanding}
+              onClick={() => setIsLogoutModalOpen(true)}
               className="p-2 sm:px-3 sm:py-1.5 rounded-xl text-zinc-500 hover:text-red-600 hover:bg-red-50 text-xs font-semibold transition cursor-pointer flex items-center space-x-1"
               title="Sign Out"
             >
@@ -238,12 +358,13 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
           />
         )}
 
-        {/* Tab 2: My Lunches */}
+        {/* Tab 2: My Lunches (with interleaved credit meals) */}
         {activeTab === 'my-lunches' && (
           <CustomerMyLunchesTab
             userProfile={userProfile}
             onSkipLunch={handleSkipLunch}
             onOpenAddDaysModal={() => setIsAddDaysModalOpen(true)}
+            creditRedemptions={creditRedemptions}
           />
         )}
 
@@ -260,7 +381,15 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
         {activeTab === 'lunch-wallet' && (
           <CustomerWalletTab
             userProfile={userProfile}
-            onAddCreditRedemption={onAddCreditRedemption}
+            onAddCreditRedemption={(order) => {
+              if (onAddCreditRedemption) onAddCreditRedemption(order);
+              const targetDate = order.items?.[0]?.dateStr || 'selected date';
+              showLiveNotification(
+                '⚡ 1 Credit Redeemed',
+                `Extra meal on ${targetDate} scheduled! It now appears on your schedule under ${targetDate} in My Lunches.`,
+                'credit'
+              );
+            }}
             onUpdateProfile={onUpdateProfile}
           />
         )}
@@ -271,7 +400,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
             userProfile={userProfile}
             onUpdateProfile={onUpdateProfile}
             onChangePassword={onChangePassword}
-            onLogout={onNavigateToLanding || (() => {})}
+            onLogout={() => setIsLogoutModalOpen(true)}
           />
         )}
 
@@ -308,8 +437,63 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
             if (onTopUpOrderSubmitted) {
               onTopUpOrderSubmitted(order);
             }
+            showLiveNotification(
+              '⚡ Top-Up Order Submitted',
+              `Top-Up order for +${order.totalDays} workdays submitted! Once verified by kitchen operations, your dates will be locked on your active schedule.`,
+              'topup'
+            );
           }}
         />
+      )}
+
+      {/* Logout Confirmation Modal */}
+      {isLogoutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-['Poppins'] animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-zinc-200 space-y-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <LogOut className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-zinc-900">
+                Log Out of Your Dashboard?
+              </h3>
+              <p className="text-xs text-zinc-600 leading-relaxed">
+                All your preferences, skipped meals, wallet credits, and calendar selections are automatically and safely saved.
+              </p>
+            </div>
+
+            <div className="pt-2 flex items-center justify-center space-x-2.5">
+              <button
+                type="button"
+                disabled={isLoggingOut}
+                onClick={() => setIsLogoutModalOpen(false)}
+                className="w-1/2 py-2.5 px-4 rounded-xl border border-zinc-200 hover:bg-zinc-100 text-xs font-semibold text-zinc-700 transition cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isLoggingOut}
+                onClick={handleConfirmLogout}
+                className="w-1/2 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition cursor-pointer shadow-md flex items-center justify-center space-x-1.5 disabled:opacity-50"
+              >
+                {isLoggingOut ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Save & Log Out</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Quick Address Modal */}

@@ -50,6 +50,8 @@ export const AdminPendingPaymentsTab: React.FC<AdminPendingPaymentsTabProps> = (
     password: string;
     orderTotal: number;
     totalDays: number;
+    isAddOn?: boolean;
+    newGrandTotalDays?: number;
   } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [proofRequestNotice, setProofRequestNotice] = useState<string | null>(null);
@@ -73,11 +75,9 @@ export const AdminPendingPaymentsTab: React.FC<AdminPendingPaymentsTabProps> = (
 
   // Handle Confirm Payment Flow
   const handleExecuteConfirmPayment = (order: OrderSubmission) => {
-    // 1. Trigger App.tsx confirm payment which records Confirmed and creates active CustomerRecord
+    // Trigger App.tsx confirm payment which merges days to existing customer or creates a new one
     onConfirmPayment(order.id);
 
-    // Find the default password that was generated or retrieve customer
-    // The App.tsx generates a default password for the new customer
     setTimeout(() => {
       const matchedCustomer = customers.find(
         (c) =>
@@ -85,6 +85,7 @@ export const AdminPendingPaymentsTab: React.FC<AdminPendingPaymentsTabProps> = (
           (c.email && order.email && c.email.toLowerCase() === order.email.toLowerCase())
       );
 
+      const isExistingAddOn = Boolean(order.isTopUp || (matchedCustomer && matchedCustomer.orderRef !== order.id));
       const generatedPass = matchedCustomer?.defaultPassword || matchedCustomer?.password || 'DeskDrop#842';
 
       setSuccessConfirmation({
@@ -93,6 +94,8 @@ export const AdminPendingPaymentsTab: React.FC<AdminPendingPaymentsTabProps> = (
         password: generatedPass,
         orderTotal: order.finalTotalNGN,
         totalDays: order.totalDays,
+        isAddOn: isExistingAddOn,
+        newGrandTotalDays: matchedCustomer?.totalDays,
       });
 
       setSelectedOrder(null);
@@ -209,7 +212,18 @@ export const AdminPendingPaymentsTab: React.FC<AdminPendingPaymentsTabProps> = (
                   return (
                     <tr key={order.id} className="hover:bg-zinc-50/80 transition">
                       <td className="py-3.5 px-5">
-                        <div className="font-bold text-zinc-900">{order.fullName}</div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-zinc-900">{order.fullName}</span>
+                          {order.isTopUp ? (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-200">
+                              ⚡ Existing User Add-On
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200">
+                              New Subscriber
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] font-mono text-zinc-400">{order.id}</div>
                       </td>
 
@@ -419,57 +433,80 @@ export const AdminPendingPaymentsTab: React.FC<AdminPendingPaymentsTabProps> = (
             </div>
 
             <div className="text-center space-y-1">
-              <h3 className="text-xl font-bold text-zinc-900">Payment Confirmed & Account Activated!</h3>
+              <h3 className="text-xl font-bold text-zinc-900">
+                {successConfirmation.isAddOn ? '⚡ Add-On Days Confirmed & Added!' : 'Payment Confirmed & Account Activated!'}
+              </h3>
               <p className="text-xs text-zinc-500">
-                <strong>{successConfirmation.customerName}</strong> is now a confirmed customer.
+                {successConfirmation.isAddOn ? (
+                  <>
+                    +<strong>{successConfirmation.totalDays} Workdays</strong> have been added to <strong>{successConfirmation.customerName}</strong>'s existing active calendar.
+                    {successConfirmation.newGrandTotalDays ? ` Their new total is ${successConfirmation.newGrandTotalDays} days.` : ''}
+                  </>
+                ) : (
+                  <>
+                    <strong>{successConfirmation.customerName}</strong> is now a confirmed customer.
+                  </>
+                )}
               </p>
             </div>
 
-            {/* Login Credentials Box */}
-            <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-200 space-y-3 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-bold uppercase text-[10px] text-zinc-400">Default Login Credentials</span>
-                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                  Eligible for Dashboard
-                </span>
-              </div>
-
-              <div className="space-y-1.5 font-mono">
-                <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-zinc-200">
-                  <span className="text-zinc-500">Email:</span>
-                  <span className="font-bold text-zinc-900">{successConfirmation.email}</span>
+            {/* Login Credentials Box - Only for brand new subscribers */}
+            {!successConfirmation.isAddOn ? (
+              <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-200 space-y-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold uppercase text-[10px] text-zinc-400">Default Login Credentials</span>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    Eligible for Dashboard
+                  </span>
                 </div>
-                <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-zinc-200">
-                  <span className="text-zinc-500">Temporary Password:</span>
-                  <span className="font-bold text-[#FF4C00]">{successConfirmation.password}</span>
+
+                <div className="space-y-1.5 font-mono">
+                  <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-zinc-200">
+                    <span className="text-zinc-500">Email:</span>
+                    <span className="font-bold text-zinc-900">{successConfirmation.email}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-zinc-200">
+                    <span className="text-zinc-500">Temporary Password:</span>
+                    <span className="font-bold text-[#FF4C00]">{successConfirmation.password}</span>
+                  </div>
+                </div>
+
+                <div className="pt-1 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleCopyText(
+                        `Email: ${successConfirmation.email}\nTemporary Password: ${successConfirmation.password}`,
+                        'creds'
+                      )
+                    }
+                    className="flex-1 py-2 rounded-xl bg-black text-white font-semibold text-xs hover:bg-zinc-800 transition cursor-pointer flex items-center justify-center space-x-1.5"
+                  >
+                    {copiedKey === 'creds' ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Copied Details!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Login Details</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
-
-              <div className="pt-1 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleCopyText(
-                      `Email: ${successConfirmation.email}\nTemporary Password: ${successConfirmation.password}`,
-                      'creds'
-                    )
-                  }
-                  className="flex-1 py-2 rounded-xl bg-black text-white font-semibold text-xs hover:bg-zinc-800 transition cursor-pointer flex items-center justify-center space-x-1.5"
-                >
-                  {copiedKey === 'creds' ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Copied Details!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Login Details</span>
-                    </>
-                  )}
-                </button>
+            ) : (
+              <div className="p-4 rounded-2xl bg-purple-50 border border-purple-200 text-xs text-purple-900 space-y-1.5">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse" />
+                  <span className="font-bold text-xs">Existing Customer Account Preserved</span>
+                </div>
+                <p className="text-[11px] text-purple-800 leading-relaxed">
+                  No new account was created. The user’s existing login credentials remain active, their selected days have been merged into their schedule, and the kitchen prep queue was synchronized.
+                </p>
               </div>
-            </div>
+            )}
 
             <p className="text-[11px] text-zinc-400 text-center">
               Login details have been dispatched. The customer will be prompted to create their permanent password on first login.

@@ -217,6 +217,7 @@ export interface CustomerRecord {
   creditsBalance?: number;
   skippedDates?: string[];
   extraPlateDates?: string[];
+  creditUsedDates?: string[];
   dayStatuses?: Record<string, 'Accepted' | 'Skipped' | 'Extra Plate'>;
   selectedDays: SelectedLunchDay[];
   subtotalNGN: number;
@@ -267,6 +268,8 @@ export interface UserProfile {
   isPasswordSet?: boolean;
   isTrial?: boolean;
   trialDaysLeft?: number;
+  creditRedemptions?: CreditRedemptionOrder[];
+  creditUsedDates?: string[];
   pendingAddressChange?: {
     newLocation: string;
     effectiveAt: string;

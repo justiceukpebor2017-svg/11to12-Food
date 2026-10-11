@@ -74,12 +74,21 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
   const [swallowModalItem, setSwallowModalItem] = useState<{ dateStr: string; meal: StructuredMeal } | null>(null);
   const [selectedSwallow, setSelectedSwallow] = useState<SwallowType>('Semo');
 
+  // Floating Top Meal Preview Popup state (identical to home page)
+  const [activeMealPopup, setActiveMealPopup] = useState<{
+    meal: StructuredMeal;
+    action: 'added' | 'removed' | 'preview';
+    formattedDate: string;
+  } | null>(null);
+  const popupTimeoutRef = useRef<number | null>(null);
+
   // Animation frame ref
   const animFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
     };
   }, []);
 
@@ -233,20 +242,49 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
     if (cell.isWeekend) return;
     // Cannot pick dates before launch (e.g. Dec 7)
     if (cell.isBeforeLaunch) return;
-    // Cannot pick dates already on their active schedule
-    if (cell.isConfirmed) return;
-    // Cannot pick dates currently awaiting admin confirmation
-    if (cell.isUnderConfirmation) return;
-    // Must have meal
-    if (!cell.meal || cell.meal.isNoDelivery) return;
 
     const dateStr = cell.dateStr;
+    const formattedDate = cell.date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    // If day is already confirmed on active plan or under payment confirmation, show meal preview
+    if (cell.isConfirmed || cell.isUnderConfirmation) {
+      if (cell.meal) {
+        if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
+        setActiveMealPopup({
+          meal: cell.meal,
+          action: 'preview',
+          formattedDate,
+        });
+        popupTimeoutRef.current = window.setTimeout(() => {
+          setActiveMealPopup(null);
+        }, 3500);
+      }
+      return;
+    }
+
+    // Must have meal
+    if (!cell.meal || cell.meal.isNoDelivery) return;
 
     if (selectedExtraDays[dateStr]) {
       const copy = { ...selectedExtraDays };
       delete copy[dateStr];
       setSelectedExtraDays(copy);
       setIsCalculated(false);
+
+      if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
+      setActiveMealPopup({
+        meal: cell.meal,
+        action: 'removed',
+        formattedDate,
+      });
+      popupTimeoutRef.current = window.setTimeout(() => {
+        setActiveMealPopup(null);
+      }, 3000);
     } else {
       // If Swallow meal, open quick swallow choice
       if (cell.meal.mealCategory === 'Swallow' || (cell.meal.swallowOptions && cell.meal.swallowOptions.length > 0)) {
@@ -263,6 +301,16 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
           },
         });
         setIsCalculated(false);
+
+        if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
+        setActiveMealPopup({
+          meal: cell.meal,
+          action: 'added',
+          formattedDate,
+        });
+        popupTimeoutRef.current = window.setTimeout(() => {
+          setActiveMealPopup(null);
+        }, 3500);
       }
     }
   };
@@ -272,6 +320,12 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
     const { dateStr, meal } = swallowModalItem;
     const dateObj = new Date(dateStr + 'T00:00:00');
     const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dateObj.getDay()];
+    const formattedDate = dateObj.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
 
     setSelectedExtraDays({
       ...selectedExtraDays,
@@ -284,6 +338,16 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
     });
     setSwallowModalItem(null);
     setIsCalculated(false);
+
+    if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
+    setActiveMealPopup({
+      meal,
+      action: 'added',
+      formattedDate,
+    });
+    popupTimeoutRef.current = window.setTimeout(() => {
+      setActiveMealPopup(null);
+    }, 3500);
   };
 
   // Trigger Calculate Order with animation (just like homepage!)
@@ -335,13 +399,14 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
       secondAddress: userProfile.secondAddress,
       selectedDays: chosenList,
       totalDays: chosenCount,
-      planName: `Top-Up (+${chosenCount} Workdays)`,
+      planName: `Add-On (+${chosenCount} Workdays)`,
       subtotalNGN: subtotal,
       discountNGN: discount,
       finalTotalNGN: realFinalTotal,
       submittedAt: new Date().toISOString(),
       paymentStatus: 'Pending Verification',
       isTopUp: true,
+      memberCode: userProfile.id,
     };
 
     onSubmitTopUpOrder(newOrder);
@@ -372,6 +437,110 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm font-['Poppins'] overflow-y-auto animate-in fade-in">
+      
+      {/* Top Floating Meal Preview Popup (exact design from Home page) */}
+      {activeMealPopup && (
+        <aside
+          role="status"
+          aria-live="polite"
+          className={`fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[120] w-[92%] max-w-lg rounded-2xl sm:rounded-3xl border shadow-2xl p-4 sm:p-5 backdrop-blur-md font-['Poppins'] animate-in fade-in slide-in-from-top-4 duration-300 ${
+            activeMealPopup.action === 'added'
+              ? 'bg-zinc-950/95 text-white border-[#FF4C00]/40 shadow-orange-500/10'
+              : activeMealPopup.action === 'removed'
+              ? 'bg-zinc-900/95 text-zinc-200 border-zinc-700/80 shadow-black/40'
+              : 'bg-zinc-900/95 text-white border-zinc-700/80 shadow-black/40'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
+                activeMealPopup.action === 'added'
+                  ? 'bg-[#FF4C00] text-white border-[#FF4C00]/50 shadow-md shadow-[#FF4C00]/25'
+                  : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+              }`}
+            >
+              {activeMealPopup.action === 'added' ? (
+                <Utensils className="w-5 h-5" />
+              ) : activeMealPopup.action === 'removed' ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Sparkles className="w-5 h-5 text-[#FF4C00]" />
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0 pr-1">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-zinc-400">
+                    {activeMealPopup.formattedDate}
+                  </span>
+                  <span
+                    className={`text-[9px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                      activeMealPopup.action === 'added'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : activeMealPopup.action === 'removed'
+                        ? 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                        : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                    }`}
+                  >
+                    {activeMealPopup.action === 'added'
+                      ? '✓ Added to Extra Days'
+                      : activeMealPopup.action === 'removed'
+                      ? 'Removed from Selection'
+                      : 'Meal Schedule Preview'}
+                  </span>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={() => setActiveMealPopup(null)}
+                  className="text-zinc-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition cursor-pointer shrink-0"
+                  title="Close"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Full Meal Title */}
+              <h4 className="text-sm sm:text-base font-extrabold text-white leading-snug break-words">
+                {activeMealPopup.meal.mealName}
+              </h4>
+
+              {/* Meal Composition Tags */}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-300">
+                {activeMealPopup.meal.mealCategory && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/10 text-white/90">
+                    {activeMealPopup.meal.mealCategory}
+                  </span>
+                )}
+                {activeMealPopup.meal.protein && (
+                  <span className="truncate">Protein: <strong className="text-white">{activeMealPopup.meal.protein}</strong></span>
+                )}
+                {activeMealPopup.meal.soup && (
+                  <span className="truncate">• Soup: <strong className="text-white">{activeMealPopup.meal.soup}</strong></span>
+                )}
+                {activeMealPopup.meal.ingredients && activeMealPopup.meal.ingredients.length > 0 && (
+                  <span className="text-zinc-400 truncate max-w-full block">
+                    {activeMealPopup.meal.ingredients.join(', ')}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Visual Countdown Indicator Bar */}
+          <div className="mt-3.5 w-full bg-white/10 h-1 rounded-full overflow-hidden">
+            <div
+              className="bg-[#FF4C00] h-full rounded-full transition-all ease-linear"
+              style={{
+                width: '100%',
+                animation: 'pulse 3.5s linear forwards',
+              }}
+            />
+          </div>
+        </aside>
+      )}
+
       <div className="bg-white rounded-3xl max-w-3xl w-full p-5 sm:p-7 shadow-2xl border border-zinc-200 space-y-5 my-auto max-h-[94vh] overflow-y-auto">
         
         {/* Header */}
@@ -467,14 +636,17 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
                   return (
                     <div
                       key={`${cell.dateStr}-${idx}`}
-                      onClick={() => !isLocked && handleToggleCell(cell)}
+                      onClick={() => {
+                        if (cell.isWeekend || cell.isBeforeLaunch) return;
+                        handleToggleCell(cell);
+                      }}
                       className={`min-h-[64px] sm:min-h-[72px] p-1.5 rounded-xl border transition flex flex-col justify-between text-left select-none ${
                         isSelected
                           ? 'bg-[#FF4C00] text-white border-[#FF4C00] shadow-sm font-bold cursor-pointer'
                           : cell.isConfirmed
-                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950 opacity-90 cursor-not-allowed'
+                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950 opacity-90 cursor-pointer hover:border-emerald-400'
                           : cell.isUnderConfirmation
-                          ? 'bg-amber-50 border-amber-300 text-amber-950 opacity-95 cursor-not-allowed'
+                          ? 'bg-amber-50 border-amber-300 text-amber-950 opacity-95 cursor-pointer hover:border-amber-400'
                           : cell.isBeforeLaunch
                           ? 'bg-zinc-100/60 border-zinc-200/50 text-zinc-300 cursor-not-allowed'
                           : cell.isWeekend

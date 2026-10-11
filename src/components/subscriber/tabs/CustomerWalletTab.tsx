@@ -18,6 +18,8 @@ import {
   X,
   AlertCircle,
 } from 'lucide-react';
+import { getStructuredMealForDateStr } from '../../../data/menuRotation';
+import { checkWatCutoffStatus } from '../../../utils/timeCutoff';
 
 interface CustomerWalletTabProps {
   userProfile: UserProfile;
@@ -67,40 +69,65 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
       return;
     }
 
-    const newCredits = creditsBalance - 1;
+    // 1. Time cutoff check: 12:00 PM to 5:00 PM WAT
+    const cutoffStatus = checkWatCutoffStatus();
+    if (!cutoffStatus.isActionAllowed) {
+      showToast(cutoffStatus.reason);
+      return;
+    }
 
-    // Update Profile
+    // 2. Strict one-time rule: User can use credit on any day ONLY ONCE
+    const previouslyCreditedDates = new Set<string>([
+      ...(userProfile.creditUsedDates || []),
+      ...(userProfile.creditRedemptions || []).flatMap((r) => (r.items || []).map((it) => it.dateStr)),
+    ]);
+
+    if (previouslyCreditedDates.has(selectedRedeemDate)) {
+      showToast(`A credit has already been used on ${selectedRedeemDate}. Each day can only be credited once.`);
+      return;
+    }
+
+    const structuredMeal = getStructuredMealForDateStr(selectedRedeemDate);
+    const dishTitle = structuredMeal?.mealName || 'Redeemed Credit Extra Plate';
+
+    // Record Credit Redemption Order
+    const order: CreditRedemptionOrder = {
+      id: `CREDIT-ORD-${Date.now()}`,
+      userId: userProfile.id,
+      userName: userProfile.name,
+      userPhone: userProfile.phone,
+      company: userProfile.company || 'Corporate Office',
+      officeAddress: userProfile.address || 'Office Desk',
+      items: [
+        {
+          dateStr: selectedRedeemDate,
+          portions: 1,
+          dishName: dishTitle,
+          swallowChoice: selectedSwallow,
+        },
+      ],
+      totalCreditsUsed: 1,
+      status: 'Confirmed',
+      submittedAt: new Date().toISOString(),
+    };
+
+    const existingRedemptions = userProfile.creditRedemptions || [];
+    const newCredits = creditsBalance - 1;
+    const updatedCreditDates = Array.from(new Set([...(userProfile.creditUsedDates || []), selectedRedeemDate]));
+
     onUpdateProfile({
       ...userProfile,
       creditsBalance: newCredits,
+      creditRedemptions: [...existingRedemptions, order],
+      creditUsedDates: updatedCreditDates,
     });
 
-    // Record Credit Redemption Order
     if (onAddCreditRedemption) {
-      const order: CreditRedemptionOrder = {
-        id: `CREDIT-ORD-${Date.now()}`,
-        userId: userProfile.id,
-        userName: userProfile.name,
-        userPhone: userProfile.phone,
-        company: userProfile.company || 'Corporate Office',
-        officeAddress: userProfile.address || 'Office Desk',
-        items: [
-          {
-            dateStr: selectedRedeemDate,
-            portions: 1,
-            dishName: 'Redeemed Credit Extra Plate',
-            swallowChoice: selectedSwallow,
-          },
-        ],
-        totalCreditsUsed: 1,
-        status: 'Confirmed',
-        submittedAt: new Date().toISOString(),
-      };
       onAddCreditRedemption(order);
     }
 
     setShowRedeemModal(false);
-    showToast(`✓ Credit redeemed! 1 Extra Meal scheduled for ${selectedRedeemDate}.`);
+    showToast(`✓ Credit redeemed! 1 Extra Meal locked for ${selectedRedeemDate} (Used once).`);
   };
 
   // Handle Gifting a Lunch Credit
@@ -148,27 +175,59 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={() => setShowRedeemModal(true)}
-            disabled={creditsBalance < 1}
-            className="px-4 py-2 rounded-xl bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center space-x-1.5 shadow-xs disabled:opacity-40"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Use a Credit</span>
-          </button>
+          {(() => {
+            const watCutoff = checkWatCutoffStatus();
+            return (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowRedeemModal(true)}
+                  disabled={creditsBalance < 1 || !watCutoff.isActionAllowed}
+                  title={!watCutoff.isActionAllowed ? watCutoff.reason : undefined}
+                  className="px-4 py-2 rounded-xl bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center space-x-1.5 shadow-xs disabled:opacity-40"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Use a Credit</span>
+                </button>
 
-          <button
-            type="button"
-            onClick={() => setShowGiftModal(true)}
-            disabled={creditsBalance < 1}
-            className="px-3.5 py-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 font-semibold text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-2xs disabled:opacity-40"
-          >
-            <Gift className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Gift a Lunch</span>
-          </button>
+                <button
+                  type="button"
+                  onClick={() => setShowGiftModal(true)}
+                  disabled={creditsBalance < 1 || !watCutoff.isActionAllowed}
+                  title={!watCutoff.isActionAllowed ? watCutoff.reason : undefined}
+                  className="px-3.5 py-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 font-semibold text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-2xs disabled:opacity-40"
+                >
+                  <Gift className="w-3.5 h-3.5 text-zinc-500" />
+                  <span>Gift a Lunch</span>
+                </button>
+              </>
+            );
+          })()}
         </div>
       </div>
+
+      {/* Time Window Notice */}
+      {(() => {
+        const watCutoff = checkWatCutoffStatus();
+        if (!watCutoff.isActionAllowed) {
+          return (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-900 flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Daily Action Window (12:00 PM – 5:00 PM WAT):</strong> {watCutoff.reason}
+              </span>
+            </div>
+          );
+        }
+        return (
+          <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-900 flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>Action Window Active (Current: {watCutoff.timeStringWat}):</strong> You can skip meals or redeem wallet credits until 5:00 PM WAT.
+            </span>
+          </div>
+        );
+      })()}
 
       {toastMessage && (
         <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center space-x-2">
@@ -194,12 +253,12 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
                 <span className="text-sm font-semibold text-zinc-500">
                   {creditsBalance === 1 ? 'Lunch Credit' : 'Lunch Credits'}
                 </span>
-                <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
-                  ≈ ₦{(creditsBalance * 3200).toLocaleString()} value
+                <span className="text-xs text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  100% Flexible Workday Credits
                 </span>
               </div>
               <p className="text-xs text-zinc-500 mt-2 max-w-lg leading-relaxed">
-                Whenever you skip a scheduled lunch before the daily cutoff, 100% of the meal value is converted into a credit. You can redeem it anytime as an extra meal or gift it to a colleague.
+                Whenever you skip a scheduled lunch before the daily cutoff, your lunch credit is safely preserved in your wallet. You can redeem it anytime as an extra meal or gift it to a colleague.
               </p>
             </div>
           </div>
@@ -239,8 +298,8 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
                 </div>
 
                 <div className="text-right">
-                  <span className="font-bold text-emerald-600 text-sm">+₦3,200</span>
-                  <span className="block text-[10px] text-zinc-400">Credited to wallet</span>
+                  <span className="font-bold text-emerald-600 text-sm">+1 Credit</span>
+                  <span className="block text-[10px] text-zinc-400">Preserved in wallet</span>
                 </div>
               </div>
             ))}
@@ -278,6 +337,25 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
                   onChange={(e) => setSelectedRedeemDate(e.target.value)}
                   className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
                 />
+                {(() => {
+                  const previouslyCreditedDates = new Set<string>([
+                    ...(userProfile.creditUsedDates || []),
+                    ...(userProfile.creditRedemptions || []).flatMap((r) => (r.items || []).map((it) => it.dateStr)),
+                  ]);
+                  if (previouslyCreditedDates.has(selectedRedeemDate)) {
+                    return (
+                      <p className="text-[11px] text-red-600 font-bold mt-1.5 flex items-center space-x-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>A credit has already been used on {selectedRedeemDate}. Each day can only be credited once.</span>
+                      </p>
+                    );
+                  }
+                  return (
+                    <p className="text-[11px] text-zinc-400 mt-1">
+                      You can schedule an extra plate on any workday (including previously skipped days or new days) once.
+                    </p>
+                  );
+                })()}
               </div>
 
               <div>

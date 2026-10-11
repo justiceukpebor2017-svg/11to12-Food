@@ -89,7 +89,24 @@ const APP_STORAGE_KEYS = {
 };
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('marketing');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window === 'undefined') return 'marketing';
+    try {
+      const savedMode = localStorage.getItem('11to12_active_view_mode') as ViewMode | null;
+      if (savedMode === 'admin') {
+        return 'admin';
+      }
+      if (savedMode === 'subscriber') {
+        return 'subscriber';
+      }
+      if (savedMode === 'marketing') {
+        return 'marketing';
+      }
+    } catch (e) {
+      console.error('Failed to restore viewMode from localStorage', e);
+    }
+    return 'marketing';
+  });
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('morning');
   const [showSubscriberAuthModal, setShowSubscriberAuthModal] = useState(false);
   
@@ -290,6 +307,36 @@ export default function App() {
       console.error('Failed to save user profile', e);
     }
   }, [userProfile]);
+
+  // Persist active viewMode across reloads so reload stays on active dashboard
+  useEffect(() => {
+    try {
+      localStorage.setItem('11to12_active_view_mode', viewMode);
+    } catch (e) {}
+  }, [viewMode]);
+
+  // Guaranteed 5-second periodic auto-save and sync for Admin and Subscriber dashboards
+  useEffect(() => {
+    const autoSaveTimer = setInterval(() => {
+      if (viewMode === 'subscriber') {
+        if (userProfile && userProfile.email) {
+          try {
+            localStorage.setItem(APP_STORAGE_KEYS.USER_PROFILE, JSON.stringify(userProfile));
+          } catch (e) {}
+          handleUpdateProfile(userProfile);
+        }
+      } else if (viewMode === 'admin') {
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+          localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(submittedOrders));
+          localStorage.setItem(APP_STORAGE_KEYS.CREDIT_REDEMPTIONS, JSON.stringify(creditRedemptions));
+          localStorage.setItem(APP_STORAGE_KEYS.WAITLIST, JSON.stringify(waitlistLeads));
+        } catch (e) {}
+      }
+    }, 5000);
+
+    return () => clearInterval(autoSaveTimer);
+  }, [viewMode, userProfile, customers, submittedOrders, creditRedemptions, waitlistLeads]);
 
   // Real-time multi-device synchronization via LiveSync
   useEffect(() => {
@@ -658,13 +705,32 @@ export default function App() {
   };
 
   const handleAdminLogout = async () => {
+    // Explicit manual save pulse on admin logout
+    try {
+      localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+      localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(submittedOrders));
+      localStorage.setItem(APP_STORAGE_KEYS.CREDIT_REDEMPTIONS, JSON.stringify(creditRedemptions));
+      localStorage.setItem(APP_STORAGE_KEYS.WAITLIST, JSON.stringify(waitlistLeads));
+      localStorage.removeItem('11to12_active_view_mode');
+      localStorage.removeItem('11to12_admin_logged_in');
+    } catch {}
+
     const token = getCurrentSessionToken() || '';
     await releaseActiveSession('admin_11to12', token);
     setViewMode('marketing');
-    setSessionToast('Admin signed out successfully.');
+    setSessionToast('Admin signed out successfully. All operations data was safely saved.');
   };
 
   const handleLogout = async () => {
+    // Explicit manual save pulse on user logout
+    try {
+      if (userProfile && userProfile.email) {
+        localStorage.setItem(APP_STORAGE_KEYS.USER_PROFILE, JSON.stringify(userProfile));
+        handleUpdateProfile(userProfile);
+      }
+      localStorage.removeItem('11to12_active_view_mode');
+    } catch {}
+
     try {
       const token = getCurrentSessionToken() || '';
       const custId = userProfile.id || userProfile.email || 'customer';
@@ -788,6 +854,9 @@ export default function App() {
         copy[custIdx] = updatedCust;
         return copy;
       });
+
+      liveSync.updateCustomer(updatedCust.id, updatedCust).catch(() => {});
+      saveCustomerToFirestore(updatedCust).catch(() => {});
 
       // Synchronize active userProfile if this customer is the logged-in user
       if (

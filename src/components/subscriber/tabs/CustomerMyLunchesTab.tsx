@@ -2,8 +2,12 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   UserProfile,
   SelectedLunchDay,
+  CreditRedemptionOrder,
+  StructuredMeal,
+  SwallowType,
 } from '../../../types';
 import { getStructuredMealForDateStr, subscribeMenuChanges } from '../../../data/menuRotation';
+import { checkWatCutoffStatus } from '../../../utils/timeCutoff';
 import {
   Calendar as CalendarIcon,
   RotateCcw,
@@ -18,16 +22,33 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
+export interface LunchScheduleItem {
+  id: string;
+  dateStr: string;
+  day: string;
+  meal: StructuredMeal;
+  selectedSwallow?: SwallowType;
+  status: 'Scheduled' | 'Preparing' | 'On the way' | 'Delivered' | 'Skipped' | 'Credit Plate';
+  isPast: boolean;
+  isToday: boolean;
+  isSkipped: boolean;
+  isCreditPlate: boolean;
+  creditIndex?: number;
+  creditTotalForDay?: number;
+}
+
 interface CustomerMyLunchesTabProps {
   userProfile: UserProfile;
   onSkipLunch: (dateStr: string) => void;
   onOpenAddDaysModal: () => void;
+  creditRedemptions?: CreditRedemptionOrder[];
 }
 
 export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
   userProfile,
   onSkipLunch,
   onOpenAddDaysModal,
+  creditRedemptions = [],
 }) => {
   const [filterMode, setFilterMode] = useState<'all' | 'upcoming' | 'past' | 'skipped'>('all');
   const [selectedMealModal, setSelectedMealModal] = useState<any | null>(null);
@@ -50,53 +71,142 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
 
   const todayStr = formatYmd(new Date());
 
-  // Map user dates with status
+  // Unified schedule list incorporating both standard meals and extra plates from used credits
   const lunchesList = useMemo(() => {
     const skippedSet = new Set(userProfile.skippedDates || []);
-    return (userProfile.selectedDays || []).map((day) => {
-      // Dynamically resolve latest meal from menu schedule so admin calendar updates reflect here immediately!
-      const currentMeal = getStructuredMealForDateStr(day.dateStr) || day.meal;
-      const isSkipped = skippedSet.has(day.dateStr);
-      const isPast = day.dateStr < todayStr;
-      const isToday = day.dateStr === todayStr;
 
-      let status: 'Scheduled' | 'Preparing' | 'On the way' | 'Delivered' | 'Skipped' | 'Credit' = 'Scheduled';
+    // Combine redemptions from userProfile and creditRedemptions prop
+    const allRedemptions: CreditRedemptionOrder[] = [
+      ...(userProfile.creditRedemptions || []),
+      ...(creditRedemptions || []).filter(
+        (r) => r.userId === userProfile.id || (userProfile.email && r.userName === userProfile.name)
+      ),
+    ];
 
-      if (isSkipped) {
-        status = 'Skipped';
-      } else if (isPast) {
-        status = 'Delivered';
-      } else if (isToday) {
-        const curHour = new Date().getHours();
-        if (curHour >= 12) status = 'Delivered';
-        else if (curHour >= 11) status = 'On the way';
-        else if (curHour >= 10) status = 'Preparing';
-        else status = 'Scheduled';
+    // Deduplicate redemptions by id
+    const redemptionMap = new Map<string, CreditRedemptionOrder>();
+    allRedemptions.forEach((r) => {
+      if (r && r.id && !redemptionMap.has(r.id)) {
+        redemptionMap.set(r.id, r);
+      }
+    });
+
+    // Group credit plates by dateStr
+    const creditPlatesByDate: Record<
+      string,
+      Array<{
+        redemptionId: string;
+        dishName: string;
+        swallowChoice?: SwallowType;
+        index: number;
+      }>
+    > = {};
+
+    Array.from(redemptionMap.values()).forEach((order) => {
+      (order.items || []).forEach((item) => {
+        const d = item.dateStr;
+        if (!creditPlatesByDate[d]) creditPlatesByDate[d] = [];
+        const count = Math.max(1, item.portions || 1);
+        for (let p = 0; p < count; p++) {
+          creditPlatesByDate[d].push({
+            redemptionId: order.id,
+            dishName: item.dishName,
+            swallowChoice: item.swallowChoice,
+            index: creditPlatesByDate[d].length + 1,
+          });
+        }
+      });
+    });
+
+    // Collect all unique dates across selectedDays and credit redemptions
+    const allDatesSet = new Set<string>();
+    (userProfile.selectedDays || []).forEach((d) => allDatesSet.add(d.dateStr));
+    Object.keys(creditPlatesByDate).forEach((d) => allDatesSet.add(d));
+
+    const sortedDates = Array.from(allDatesSet).sort((a, b) => a.localeCompare(b));
+    const result: LunchScheduleItem[] = [];
+
+    sortedDates.forEach((dateStr) => {
+      const targetDate = new Date(dateStr + 'T00:00:00');
+      const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][targetDate.getDay()];
+      const isPast = dateStr < todayStr;
+      const isToday = dateStr === todayStr;
+
+      // 1. Primary Scheduled Meal (if on plan)
+      const primaryPlanDay = (userProfile.selectedDays || []).find((d) => d.dateStr === dateStr);
+      if (primaryPlanDay) {
+        const currentMeal = getStructuredMealForDateStr(dateStr) || primaryPlanDay.meal;
+        const isSkipped = skippedSet.has(dateStr);
+
+        let status: 'Scheduled' | 'Preparing' | 'On the way' | 'Delivered' | 'Skipped' = 'Scheduled';
+        if (isSkipped) {
+          status = 'Skipped';
+        } else if (isPast) {
+          status = 'Delivered';
+        } else if (isToday) {
+          const curHour = new Date().getHours();
+          if (curHour >= 12) status = 'Delivered';
+          else if (curHour >= 11) status = 'On the way';
+          else if (curHour >= 10) status = 'Preparing';
+          else status = 'Scheduled';
+        }
+
+        result.push({
+          id: `main-${dateStr}`,
+          dateStr,
+          day: primaryPlanDay.day || dayName,
+          meal: currentMeal,
+          selectedSwallow: primaryPlanDay.selectedSwallow,
+          status,
+          isPast,
+          isToday,
+          isSkipped,
+          isCreditPlate: false,
+        });
       }
 
-      return {
-        dateStr: day.dateStr,
-        day: day.day,
-        meal: currentMeal,
-        selectedSwallow: day.selectedSwallow,
-        status,
-        isPast,
-        isToday,
-        isSkipped,
-      };
-    }).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-  }, [userProfile.selectedDays, userProfile.skippedDates, todayStr]);
+      // 2. Extra Plates Used with Credits on this Date (rendered immediately after this date's main meal)
+      const creditsForThisDate = creditPlatesByDate[dateStr] || [];
+      creditsForThisDate.forEach((creditItem) => {
+        const structuredMeal = getStructuredMealForDateStr(dateStr) || {
+          id: `credit-meal-${dateStr}-${creditItem.index}`,
+          dateStr,
+          day: dayName as any,
+          mealName: creditItem.dishName || 'Chef Fresh Daily Special',
+          mealCategory: (creditItem.swallowChoice ? 'Swallow' : 'Rice') as any,
+          ingredients: ['Fresh seasonal office lunch', 'Protein', 'Side'],
+        };
+
+        result.push({
+          id: `credit-${dateStr}-${creditItem.redemptionId}-${creditItem.index}`,
+          dateStr,
+          day: dayName,
+          meal: structuredMeal,
+          selectedSwallow: creditItem.swallowChoice,
+          status: isPast ? 'Delivered' : 'Credit Plate',
+          isPast,
+          isToday,
+          isSkipped: false,
+          isCreditPlate: true,
+          creditIndex: creditItem.index,
+          creditTotalForDay: creditsForThisDate.length,
+        });
+      });
+    });
+
+    return result;
+  }, [userProfile.selectedDays, userProfile.skippedDates, userProfile.creditRedemptions, creditRedemptions, userProfile.id, userProfile.email, userProfile.name, todayStr]);
 
   // Filtered view
   const filteredLunches = useMemo(() => {
     if (filterMode === 'upcoming') {
-      return lunchesList.filter((l) => l.dateStr >= todayStr && !l.isSkipped);
+      return lunchesList.filter((l) => (l.dateStr >= todayStr && !l.isSkipped) || (l.isCreditPlate && l.dateStr >= todayStr));
     }
     if (filterMode === 'past') {
       return lunchesList.filter((l) => l.isPast && !l.isSkipped);
     }
     if (filterMode === 'skipped') {
-      return lunchesList.filter((l) => l.isSkipped);
+      return lunchesList.filter((l) => l.isSkipped || l.isCreditPlate);
     }
     return lunchesList;
   }, [lunchesList, filterMode, todayStr]);
@@ -187,21 +297,30 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
               if (item.status === 'On the way') badgeStyle = 'bg-purple-50 text-purple-700 border-purple-200';
               if (item.status === 'Delivered') badgeStyle = 'bg-emerald-50 text-emerald-800 border-emerald-200';
               if (item.status === 'Skipped') badgeStyle = 'bg-zinc-100 text-zinc-600 border-zinc-200';
+              if (item.status === 'Credit Plate') badgeStyle = 'bg-emerald-100 text-emerald-900 border-emerald-300';
+
+              const watCutoff = checkWatCutoffStatus();
+              const hasUsedCreditOnThisDate = Boolean(
+                (userProfile.creditUsedDates || []).includes(item.dateStr) ||
+                (userProfile.creditRedemptions || []).some((r) => (r.items || []).some((it) => it.dateStr === item.dateStr))
+              );
 
               return (
                 <div
-                  key={item.dateStr}
-                  className={`bg-white rounded-2xl border p-4.5 transition shadow-2xs flex flex-col justify-between space-y-3 ${
-                    item.isToday
-                      ? 'border-[#FF4C00] ring-2 ring-[#FF4C00]/10'
+                  key={item.id}
+                  className={`rounded-2xl border p-4.5 transition shadow-2xs flex flex-col justify-between space-y-3 ${
+                    item.isCreditPlate
+                      ? 'bg-emerald-50/30 border-2 border-emerald-400/90 ring-2 ring-emerald-500/10'
+                      : item.isToday
+                      ? 'bg-white border-[#FF4C00] ring-2 ring-[#FF4C00]/10'
                       : item.isSkipped
-                      ? 'border-zinc-200 opacity-75'
-                      : 'border-zinc-200 hover:border-zinc-300'
+                      ? 'bg-white border-zinc-200 opacity-75'
+                      : 'bg-white border-zinc-200 hover:border-zinc-300'
                   }`}
                 >
                   <div>
                     {/* Top Date & Status Badge */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center space-x-2">
                         <span className="text-xs font-bold text-zinc-900">
                           {formattedDate}
@@ -209,6 +328,14 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
                         {item.isToday && (
                           <span className="text-[9px] font-black uppercase tracking-wider text-white bg-[#FF4C00] px-1.5 py-0.5 rounded-full">
                             Today
+                          </span>
+                        )}
+                        {item.isCreditPlate && (
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center space-x-1">
+                            <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                            <span>
+                              Extra Plate (Credit Used{item.creditTotalForDay && item.creditTotalForDay > 1 ? ` #${item.creditIndex}` : ''})
+                            </span>
                           </span>
                         )}
                       </div>
@@ -231,40 +358,57 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
                         </span>
                       )}
                       <p className="text-[11px] text-zinc-500 mt-1 line-clamp-1">
-                        Category: {item.meal.mealCategory}
+                        {item.isCreditPlate
+                          ? 'Extra meal redeemed with Lunch Wallet credit • Warm desk delivery'
+                          : `Category: ${item.meal.mealCategory}`}
                       </p>
                     </div>
                   </div>
 
-                  {/* Actions Bar */}
-                  <div className="pt-2 border-t border-zinc-100 flex items-center justify-between text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMealModal(item.meal)}
-                      className="text-zinc-600 hover:text-black font-semibold flex items-center space-x-1 cursor-pointer"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Meal Details</span>
-                    </button>
-
-                    {!item.isPast && !item.isSkipped && (
+                    {/* Actions Bar */}
+                    <div className="pt-2 border-t border-zinc-100 flex items-center justify-between text-xs">
                       <button
                         type="button"
-                        onClick={() => setDateToSkip(item.dateStr)}
-                        className="text-amber-700 hover:text-amber-900 font-semibold flex items-center space-x-1 cursor-pointer"
+                        onClick={() => setSelectedMealModal(item.meal)}
+                        className="text-zinc-600 hover:text-black font-semibold flex items-center space-x-1 cursor-pointer"
                       >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>Skip Lunch</span>
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Meal Details</span>
                       </button>
-                    )}
 
-                    {item.isSkipped && (
-                      <span className="text-[11px] text-emerald-600 font-bold flex items-center space-x-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Credit In Wallet</span>
-                      </span>
-                    )}
-                  </div>
+                      {item.isCreditPlate ? (
+                        <span className="text-[11px] text-emerald-700 font-bold flex items-center space-x-1" title="Credit plate is locked in and cannot be skipped">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Credit Plate Confirmed</span>
+                        </span>
+                      ) : item.isSkipped ? (
+                        <span className="text-[11px] text-emerald-600 font-bold flex items-center space-x-1" title="Already skipped and preserved in wallet">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Credit In Wallet</span>
+                        </span>
+                      ) : !item.isPast ? (
+                        // Day has NOT been skipped and is NOT a credit plate.
+                        // Also check if user has already redeemed a credit on this date: if so, skip feature is removed.
+                        hasUsedCreditOnThisDate ? (
+                          <span className="text-[10px] text-zinc-400 font-medium">
+                            Credit active on this date
+                          </span>
+                        ) : !watCutoff.isActionAllowed ? (
+                          <span className="text-[10px] text-zinc-400 font-medium" title={watCutoff.reason}>
+                            Skip locked (12–5 PM WAT)
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setDateToSkip(item.dateStr)}
+                            className="text-amber-700 hover:text-amber-900 font-semibold flex items-center space-x-1 cursor-pointer"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Skip Lunch</span>
+                          </button>
+                        )
+                      ) : null}
+                    </div>
                 </div>
               );
             })}
