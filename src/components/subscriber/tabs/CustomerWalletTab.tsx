@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   UserProfile,
   CreditRedemptionOrder,
@@ -17,6 +17,7 @@ import {
   Send,
   X,
   AlertCircle,
+  Utensils,
 } from 'lucide-react';
 import { getStructuredMealForDateStr } from '../../../data/menuRotation';
 import { checkWatCutoffStatus } from '../../../utils/timeCutoff';
@@ -38,12 +39,21 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
   // Modals
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [showGiftModal, setShowGiftModal] = useState(false);
-  const [selectedRedeemDate, setSelectedRedeemDate] = useState('2026-12-10');
+  const [selectedRedeemDate, setSelectedRedeemDate] = useState('2026-12-11'); // Default Friday Dec 11
   const [selectedSwallow, setSelectedSwallow] = useState<SwallowType>('Semo');
   const [giftRecipientName, setGiftRecipientName] = useState('');
   const [giftRecipientEmail, setGiftRecipientEmail] = useState('');
   const [giftRecipientDesk, setGiftRecipientDesk] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Check if selected redeem date falls on a Friday
+  const isRedeemDateFriday = useMemo(() => {
+    if (!selectedRedeemDate) return false;
+    const parts = selectedRedeemDate.split('-').map(Number);
+    if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return false;
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return d.getDay() === 5;
+  }, [selectedRedeemDate]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -90,7 +100,7 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
     const structuredMeal = getStructuredMealForDateStr(selectedRedeemDate);
     const dishTitle = structuredMeal?.mealName || 'Redeemed Credit Extra Plate';
 
-    // Record Credit Redemption Order
+    // Record Credit Redemption Order - swallow ONLY if Friday
     const order: CreditRedemptionOrder = {
       id: `CREDIT-ORD-${Date.now()}`,
       userId: userProfile.id,
@@ -103,7 +113,7 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
           dateStr: selectedRedeemDate,
           portions: 1,
           dishName: dishTitle,
-          swallowChoice: selectedSwallow,
+          swallowChoice: isRedeemDateFriday ? selectedSwallow : undefined,
         },
       ],
       totalCreditsUsed: 1,
@@ -358,20 +368,47 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
                 })()}
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-zinc-700 mb-1">
-                  Swallow Choice (If Swallow Meal on this date):
-                </label>
-                <select
-                  value={selectedSwallow}
-                  onChange={(e) => setSelectedSwallow(e.target.value as SwallowType)}
-                  className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
-                >
-                  <option value="Eba">Eba</option>
-                  <option value="Semo">Semo</option>
-                  <option value="Fufu">Fufu</option>
-                </select>
-              </div>
+              {/* Swallow selection - Strictly only selectable on Friday */}
+              {isRedeemDateFriday ? (
+                <div className="p-3.5 rounded-2xl bg-orange-50/70 border border-orange-200/90 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-zinc-900 flex items-center gap-1.5">
+                      <Utensils className="w-3.5 h-3.5 text-[#FF4C00]" />
+                      <span>Friday Swallow Selection:</span>
+                    </label>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#FF4C00] bg-orange-100/90 px-2 py-0.5 rounded-full">
+                      Friday Exclusive
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-600">
+                    Friday meals include traditional Nigerian swallow. Select your preferred choice:
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => {
+                      const isSelected = selectedSwallow === swallow;
+                      return (
+                        <button
+                          key={swallow}
+                          type="button"
+                          onClick={() => setSelectedSwallow(swallow)}
+                          className={`py-2 px-3 rounded-xl text-xs font-bold transition border cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#FF4C00] text-white border-[#FF4C00] shadow-xs'
+                              : 'bg-white text-zinc-700 border-zinc-200 hover:border-orange-300'
+                          }`}
+                        >
+                          {swallow}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-2xl bg-zinc-50 border border-zinc-200/80 text-[11px] text-zinc-500 flex items-center space-x-2">
+                  <Utensils className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                  <span>Standard Chef Daily Special (Swallow choices are exclusive to Friday lunches).</span>
+                </div>
+              )}
 
               <div className="pt-2 flex justify-end space-x-2">
                 <button

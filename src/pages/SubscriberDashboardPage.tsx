@@ -268,7 +268,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
       <header className="bg-white border-b border-zinc-200/80 sticky top-0 z-40 shadow-2xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3.5 flex items-center justify-between">
           
-          {/* Logo & Brand + Logout Beside Logo */}
+          {/* Logo & Brand */}
           <div className="flex items-center space-x-3">
             <img
               src="https://i.ibb.co/FLX7ttjm/11to12logg.png"
@@ -281,17 +281,6 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
                 Lunch Control Center
               </span>
             </div>
-
-            {/* Logout icon button right beside the logo */}
-            <button
-              type="button"
-              onClick={() => setIsLogoutModalOpen(true)}
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border border-zinc-200 hover:border-red-300 bg-zinc-50 hover:bg-red-50 text-zinc-700 hover:text-red-600 text-xs font-semibold transition cursor-pointer shadow-2xs group ml-1"
-              title="Save All & Log Out"
-            >
-              <LogOut className="w-3.5 h-3.5 text-zinc-500 group-hover:text-red-600 transition-colors" />
-              <span className="text-[11px] font-bold">Log Out</span>
-            </button>
           </div>
 
           {/* Desktop Navigation Tabs */}
@@ -316,7 +305,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
             })}
           </nav>
 
-          {/* Right Top Header Actions */}
+          {/* Right Top Header Actions - Exactly 1 Single Logout Button */}
           <div className="flex items-center space-x-2">
             <a
               href="https://wa.me/2348026180680"
@@ -332,11 +321,11 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
             <button
               type="button"
               onClick={() => setIsLogoutModalOpen(true)}
-              className="p-2 sm:px-3 sm:py-1.5 rounded-xl text-zinc-500 hover:text-red-600 hover:bg-red-50 text-xs font-semibold transition cursor-pointer flex items-center space-x-1"
-              title="Sign Out"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-zinc-200 hover:border-red-200 bg-zinc-50 hover:bg-red-50 text-zinc-700 hover:text-red-600 text-xs font-bold transition cursor-pointer shadow-2xs group"
+              title="Log Out of Dashboard"
             >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Log Out</span>
+              <LogOut className="w-3.5 h-3.5 text-zinc-500 group-hover:text-red-600 transition-colors" />
+              <span>Log Out</span>
             </button>
           </div>
 

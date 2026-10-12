@@ -291,21 +291,16 @@ export const CustomerAccountTab: React.FC<CustomerAccountTabProps> = ({
         </form>
       </div>
 
-      {/* 4. LOGOUT */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-5 sm:p-6 shadow-xs flex items-center justify-between">
+      {/* 4. ACTIVE SESSION */}
+      <div className="bg-white border border-zinc-200/80 rounded-3xl p-5 sm:p-6 shadow-xs flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-zinc-900">Sign Out of Dashboard</h3>
-          <p className="text-xs text-zinc-500">You can log back in anytime with your email and password.</p>
+          <h3 className="text-sm font-bold text-zinc-900">Active Account Session</h3>
+          <p className="text-xs text-zinc-500 mt-0.5">Signed in as <strong className="text-zinc-800">{userProfile.email}</strong> • Protected by 11 to 12 Desk Drop</p>
         </div>
-
-        <button
-          type="button"
-          onClick={onLogout}
-          className="px-4 py-2 rounded-xl text-red-600 hover:bg-red-50 font-bold text-xs transition cursor-pointer flex items-center space-x-1.5 border border-red-200"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Log Out</span>
-        </button>
+        <div className="flex items-center space-x-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>Active Session</span>
+        </div>
       </div>
 
     </div>
