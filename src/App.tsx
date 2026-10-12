@@ -341,22 +341,39 @@ export default function App() {
   // Real-time multi-device synchronization via LiveSync
   useEffect(() => {
     const unsubscribe = liveSync.subscribe((liveState) => {
-      if (liveState.waitlistLeads && Array.isArray(liveState.waitlistLeads)) {
-        setWaitlistLeads(liveState.waitlistLeads);
+      if (liveState.waitlistLeads && Array.isArray(liveState.waitlistLeads) && liveState.waitlistLeads.length > 0) {
+        setWaitlistLeads((prev) => {
+          const map = new Map<string, WaitlistLead>();
+          prev.forEach((l) => map.set(l.id, l));
+          liveState.waitlistLeads.forEach((l) => map.set(l.id, l));
+          return Array.from(map.values());
+        });
       }
-      if (liveState.customers && Array.isArray(liveState.customers)) {
-        setCustomers(liveState.customers);
+      if (liveState.customers && Array.isArray(liveState.customers) && liveState.customers.length > 0) {
+        setCustomers((prev) => {
+          const map = new Map<string, CustomerRecord>();
+          prev.forEach((c) => map.set(c.id, c));
+          liveState.customers.forEach((c) => map.set(c.id, c));
+          return Array.from(map.values());
+        });
       }
       if (liveState.submittedOrders && Array.isArray(liveState.submittedOrders)) {
-        setSubmittedOrders(liveState.submittedOrders);
+        if (liveState.submittedOrders.length > 0) {
+          setSubmittedOrders(liveState.submittedOrders);
+        }
       }
-      if (liveState.creditRedemptions && Array.isArray(liveState.creditRedemptions)) {
-        setCreditRedemptions(liveState.creditRedemptions);
+      if (liveState.creditRedemptions && Array.isArray(liveState.creditRedemptions) && liveState.creditRedemptions.length > 0) {
+        setCreditRedemptions((prev) => {
+          const map = new Map<string, CreditRedemptionOrder>();
+          prev.forEach((r) => map.set(r.id, r));
+          liveState.creditRedemptions.forEach((r) => map.set(r.id, r));
+          return Array.from(map.values());
+        });
       }
       if (liveState.announcements && liveState.announcements.length > 0) {
         setAnnouncements(liveState.announcements);
       }
-      if (liveState.testimonials && Array.isArray(liveState.testimonials)) {
+      if (liveState.testimonials && Array.isArray(liveState.testimonials) && liveState.testimonials.length > 0) {
         setLiveTestimonials(liveState.testimonials);
       }
       if (liveState.launchSettings) {
@@ -373,6 +390,7 @@ export default function App() {
   // Real-time onSnapshot camera stream: Listen to entire waitlist collection across all devices
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'waitlist'), (snapshot) => {
+      if (snapshot.empty) return;
       setWaitlistCount(snapshot.size);
 
       const leads: WaitlistLead[] = snapshot.docs.map((d) => {
@@ -390,7 +408,14 @@ export default function App() {
           notes: data.notes || data.dietaryNotes || '',
         };
       });
-      setWaitlistLeads(leads);
+      if (leads.length > 0) {
+        setWaitlistLeads((prev) => {
+          const map = new Map<string, WaitlistLead>();
+          prev.forEach((l) => map.set(l.id, l));
+          leads.forEach((l) => map.set(l.id, l));
+          return Array.from(map.values());
+        });
+      }
     }, (error) => {
       console.warn('[Firestore onSnapshot waitlist error]:', error);
     });
@@ -403,12 +428,24 @@ export default function App() {
   // Real-time onSnapshot camera stream: Listen to customers collection across all devices
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'customers'), (snapshot) => {
+      if (snapshot.empty) return;
       const firestoreCustomers: CustomerRecord[] = snapshot.docs.map((d) => ({
         ...(d.data() as CustomerRecord),
         id: d.id,
       }));
-      // Authoritative live feed: automatically pushes new, updated, and deleted customers to the screen
-      setCustomers(firestoreCustomers);
+      // Merge into state safely without wiping locally saved customers
+      if (firestoreCustomers.length > 0) {
+        setCustomers((prev) => {
+          const map = new Map<string, CustomerRecord>();
+          prev.forEach((c) => map.set(c.id, c));
+          firestoreCustomers.forEach((c) => map.set(c.id, c));
+          const merged = Array.from(map.values());
+          try {
+            localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      }
     }, (error) => {
       console.warn('[Firestore onSnapshot customers error]:', error);
     });
@@ -421,6 +458,7 @@ export default function App() {
   // Real-time onSnapshot camera stream: Listen to submitted orders collection across all devices
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'orders'), (snapshot) => {
+      if (snapshot.empty) return;
       const firestoreOrders: OrderSubmission[] = snapshot.docs.map((d) => ({
         ...(d.data() as OrderSubmission),
         id: d.id,
@@ -453,8 +491,10 @@ export default function App() {
             company: matched.company || 'Corporate Office',
             address: matched.officeAddress || 'Victoria Island, Lagos',
             floorSuite: matched.floorSuite || 'Desk Drop',
-            deliveryArea: matched.deliveryArea || 'Victoria Island',
             creditsBalance: matched.creditsBalance || 0,
+            skippedDates: matched.skippedDates || [],
+            creditUsedDates: matched.creditUsedDates || [],
+            creditRedemptions: matched.creditRedemptions || [],
             spicePreference: 'Medium',
             proteinsPreferred: ['Spiced Grilled Chicken', 'Assorted Goat Meat'],
             dislikes: matched.notes ? [matched.notes] : [],
@@ -465,7 +505,7 @@ export default function App() {
             nextBillingDate: 'Nov 1, 2026',
             totalMealsReceived: 0,
             totalSubscribedDays: matched.totalDays || 20,
-            skipCount: 0,
+            skipCount: (matched.skippedDates || []).length,
             isPasswordSet: true,
             selectedDays: matched.selectedDays || [],
             pendingAddressChange: null,
@@ -504,7 +544,45 @@ export default function App() {
 
   // Credit Redemption Handlers
   const handleAddCreditRedemption = (order: CreditRedemptionOrder) => {
-    setCreditRedemptions((prev) => [order, ...prev]);
+    setCreditRedemptions((prev) => {
+      const exists = prev.some((r) => r.id === order.id);
+      const next = exists ? prev.map((r) => (r.id === order.id ? order : r)) : [order, ...prev];
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.CREDIT_REDEMPTIONS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    liveSync.addCreditRedemption(order).catch(() => {});
+
+    const dateStr = order.items?.[0]?.dateStr;
+    setCustomers((prev) => {
+      const matchedIdx = prev.findIndex(
+        (c) =>
+          c.id === order.userId ||
+          Boolean(c.email && order.email && c.email.toLowerCase() === order.email.toLowerCase())
+      );
+      if (matchedIdx >= 0) {
+        const copy = [...prev];
+        const c = copy[matchedIdx];
+        const updatedUsedDates = Array.from(new Set([...(c.creditUsedDates || []), ...(dateStr ? [dateStr] : [])]));
+        const updatedRedemptions = [...(c.creditRedemptions || []).filter((r) => r.id !== order.id), order];
+        const updatedCust: CustomerRecord = {
+          ...c,
+          creditUsedDates: updatedUsedDates,
+          creditRedemptions: updatedRedemptions,
+          creditsBalance: Math.max(0, (c.creditsBalance ?? 1) - (order.totalCreditsUsed || 1)),
+        };
+        copy[matchedIdx] = updatedCust;
+        liveSync.updateCustomer(updatedCust.id, updatedCust).catch(() => {});
+        saveCustomerToFirestore(updatedCust).catch(() => {});
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(copy));
+        } catch {}
+        return copy;
+      }
+      return prev;
+    });
   };
 
   const handleConfirmCreditRedemption = (redemptionId: string) => {
@@ -580,7 +658,7 @@ export default function App() {
       return [updatedCust, ...prev];
     });
 
-    // Synchronize into current userProfile and load all selected days
+    // Synchronize into current userProfile and load all selected days and credits
     setUserProfile({
       id: customer.id,
       name: customer.fullName,
@@ -594,6 +672,8 @@ export default function App() {
       deliveryArea: customer.deliveryArea || 'Victoria Island',
       creditsBalance: customer.creditsBalance || 0,
       skippedDates: customer.skippedDates || [],
+      creditUsedDates: customer.creditUsedDates || [],
+      creditRedemptions: customer.creditRedemptions || [],
       orderTotalNGN: customer.finalTotalNGN,
       orderRef: customer.orderRef || customer.id,
       spicePreference: 'Medium',
@@ -607,7 +687,7 @@ export default function App() {
       nextBillingDate: 'Nov 1, 2026',
       totalMealsReceived: 0,
       totalSubscribedDays: customer.totalDays,
-      skipCount: 0,
+      skipCount: (customer.skippedDates || []).length,
       isPasswordSet: true,
       selectedDays: customer.selectedDays,
       pendingAddressChange: null,
@@ -816,9 +896,13 @@ export default function App() {
     liveSync.confirmOrderPayment(orderId);
 
     // 1. Mark order payment as Confirmed
-    setSubmittedOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, paymentStatus: 'Confirmed' } : o))
-    );
+    setSubmittedOrders((prev) => {
+      const next = prev.map((o) => (o.id === orderId ? { ...o, paymentStatus: 'Confirmed' as const } : o));
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
 
     // 2. Locate customer by orderRef, email, or memberCode
     const custIdx = customers.findIndex(
@@ -852,6 +936,9 @@ export default function App() {
       setCustomers((prev) => {
         const copy = [...prev];
         copy[custIdx] = updatedCust;
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(copy));
+        } catch {}
         return copy;
       });
 
@@ -901,7 +988,13 @@ export default function App() {
         isDefaultPassword: true,
         mustChangePassword: true,
       };
-      setCustomers((prev) => [newCustomer, ...prev]);
+      setCustomers((prev) => {
+        const next = [newCustomer, ...prev];
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
       liveSync.registerCustomer(newCustomer).catch(() => {});
       saveCustomerToFirestore(newCustomer).catch(() => {});
     }
@@ -920,6 +1013,9 @@ export default function App() {
 
   const handleUpdateProfile = (updated: UserProfile) => {
     setUserProfile(updated);
+    try {
+      localStorage.setItem(APP_STORAGE_KEYS.USER_PROFILE, JSON.stringify(updated));
+    } catch {}
 
     // Synchronize into customer record for Admin Dashboard in real time
     setCustomers((prev) => {
@@ -939,12 +1035,17 @@ export default function App() {
           secondAddress: updated.secondAddress,
           creditsBalance: updated.creditsBalance,
           skippedDates: updated.skippedDates || [],
+          creditUsedDates: updated.creditUsedDates || copy[idx].creditUsedDates || [],
+          creditRedemptions: updated.creditRedemptions || copy[idx].creditRedemptions || [],
           selectedDays: updated.selectedDays || copy[idx].selectedDays,
           totalDays: updated.selectedDays?.length || copy[idx].totalDays,
         };
         copy[idx] = updatedCust;
         liveSync.updateCustomer(updatedCust.id, updatedCust).catch(() => {});
         saveCustomerToFirestore(updatedCust).catch(() => {});
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(copy));
+        } catch {}
         return copy;
       }
       return prev;
@@ -1020,8 +1121,14 @@ export default function App() {
   };
 
   const handleDeleteOrder = async (orderId: string) => {
-    setSubmittedOrders((prev) => prev.filter((o) => o.id !== orderId));
-    await liveSync.deleteOrder(orderId);
+    setSubmittedOrders((prev) => {
+      const next = prev.filter((o) => o.id !== orderId);
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    await liveSync.deleteOrder(orderId).catch(() => {});
     await deleteOrderFromFirestore(orderId).catch(() => {});
   };
 

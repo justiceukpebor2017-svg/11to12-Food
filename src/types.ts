@@ -218,6 +218,7 @@ export interface CustomerRecord {
   skippedDates?: string[];
   extraPlateDates?: string[];
   creditUsedDates?: string[];
+  creditRedemptions?: CreditRedemptionOrder[];
   dayStatuses?: Record<string, 'Accepted' | 'Skipped' | 'Extra Plate'>;
   selectedDays: SelectedLunchDay[];
   subtotalNGN: number;
@@ -352,6 +353,7 @@ export interface CreditRedemptionOrder {
   id: string;
   userId: string;
   userName: string;
+  email?: string;
   userPhone: string;
   company: string;
   officeAddress: string;

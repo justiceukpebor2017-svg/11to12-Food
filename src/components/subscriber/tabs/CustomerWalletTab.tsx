@@ -71,6 +71,49 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
     };
   });
 
+  // Compile all used credits from userProfile.creditRedemptions and userProfile.creditUsedDates
+  const usedCredits = useMemo(() => {
+    const list: Array<{
+      id: string;
+      dateStr: string;
+      mealTitle: string;
+      swallowChoice?: SwallowType;
+      status: string;
+    }> = [];
+
+    const datesSeen = new Set<string>();
+
+    (userProfile.creditRedemptions || []).forEach((order) => {
+      (order.items || []).forEach((item, itemIdx) => {
+        datesSeen.add(item.dateStr);
+        list.push({
+          id: `${order.id}-${item.dateStr}-${itemIdx}`,
+          dateStr: item.dateStr,
+          mealTitle: item.dishName || getStructuredMealForDateStr(item.dateStr)?.mealName || 'Fresh Office Meal',
+          swallowChoice: item.swallowChoice,
+          status: 'Active on Kitchen Schedule',
+        });
+      });
+    });
+
+    // Also check creditUsedDates
+    (userProfile.creditUsedDates || []).forEach((d, idx) => {
+      if (!datesSeen.has(d)) {
+        datesSeen.add(d);
+        const m = getStructuredMealForDateStr(d);
+        list.push({
+          id: `used-date-${d}-${idx}`,
+          dateStr: d,
+          mealTitle: m?.mealName || 'Redeemed Credit Meal',
+          swallowChoice: undefined,
+          status: 'Active on Kitchen Schedule',
+        });
+      }
+    });
+
+    return list.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+  }, [userProfile.creditRedemptions, userProfile.creditUsedDates]);
+
   // Handle Redeeming Credit for Extra Meal
   const handleExecuteRedeemCredit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,6 +353,56 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = ({
                 <div className="text-right">
                   <span className="font-bold text-emerald-600 text-sm">+1 Credit</span>
                   <span className="block text-[10px] text-zinc-400">Preserved in wallet</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Where Credits Were Used (Credit Redemptions Log) */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-5 sm:p-7 shadow-xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+          <div>
+            <h2 className="text-base font-bold text-zinc-900">Where Your Credits Were Used</h2>
+            <p className="text-xs text-zinc-500">Every redeemed credit plate scheduled on your calendar</p>
+          </div>
+          <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+            {usedCredits.length} {usedCredits.length === 1 ? 'Credit Redeemed' : 'Credits Redeemed'}
+          </span>
+        </div>
+
+        {usedCredits.length === 0 ? (
+          <div className="py-10 text-center bg-zinc-50 rounded-2xl border border-dashed border-zinc-200">
+            <Utensils className="w-6 h-6 text-zinc-400 mx-auto mb-2" />
+            <p className="text-xs font-semibold text-zinc-700">No credits redeemed yet</p>
+            <p className="text-[11px] text-zinc-400 mt-0.5">
+              When you use any lunch credit, the scheduled date and meal choice will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-zinc-100 border border-zinc-200 rounded-2xl overflow-hidden">
+            {usedCredits.map((item) => (
+              <div key={item.id} className="p-4 flex items-center justify-between hover:bg-zinc-50/80 transition text-xs">
+                <div className="space-y-0.5">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-zinc-900">{item.dateStr}</span>
+                    <span className="text-[10px] font-bold uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                      ⭐ Credit Meal
+                    </span>
+                    {item.swallowChoice && (
+                      <span className="text-[10px] font-bold text-[#FF4C00] bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
+                        Swallow: {item.swallowChoice}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-zinc-700 font-semibold">{item.mealTitle}</p>
+                  <p className="text-[11px] text-zinc-400">Desk drop delivery between 11:00 AM – 12:00 PM</p>
+                </div>
+
+                <div className="text-right">
+                  <span className="font-bold text-zinc-800 text-sm">-1 Credit</span>
+                  <span className="block text-[10px] text-emerald-600 font-medium">{item.status}</span>
                 </div>
               </div>
             ))}

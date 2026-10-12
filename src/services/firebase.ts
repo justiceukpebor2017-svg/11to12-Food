@@ -535,6 +535,20 @@ export async function saveOrderToFirestore(order: any): Promise<void> {
 }
 
 /**
+ * Save Credit Redemption to Firestore
+ */
+export async function saveCreditRedemptionToFirestore(redemption: any): Promise<void> {
+  try {
+    const clean = sanitizeForFirestore(redemption);
+    const redRef = doc(db, 'credit_redemptions', redemption.id);
+    await setDoc(redRef, clean, { merge: true });
+    console.log('[Firebase] Credit redemption persisted to Firestore:', redemption.id);
+  } catch (e) {
+    console.error('[Firebase] Failed to save credit redemption to Firestore:', e);
+  }
+}
+
+/**
  * Real-time subscription to Customers collection via onSnapshot.
  * Acts like a security camera: immediately gives current data and
  * automatically pushes any changes from any device directly to the screen.

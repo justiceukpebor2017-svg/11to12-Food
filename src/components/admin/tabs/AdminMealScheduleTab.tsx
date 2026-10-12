@@ -1,13 +1,15 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   CustomerRecord,
   StructuredMeal,
   calculateMealPrice,
   PER_DAY_FEE,
+  CreditRedemptionOrder,
 } from '../../../types';
 import { getStructuredMealForDate, updateCustomMealForDate, subscribeMenuChanges } from '../../../data/menuRotation';
 import { exportToCsv } from '../../../utils/csvExport';
 import { downloadMealExcelTemplate, parseAndApplyMealSpreadsheet } from '../../../utils/mealExcelService';
+import { liveSync } from '../../../services/liveSyncService';
 import {
   CalendarDays,
   Search,
@@ -33,24 +35,44 @@ import {
 
 interface AdminMealScheduleTabProps {
   customers: CustomerRecord[];
+  creditRedemptions?: CreditRedemptionOrder[];
   onOpenCustomerProfile?: (customer: CustomerRecord) => void;
   initialDate?: string;
 }
 
 export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
   customers,
+  creditRedemptions = [],
   onOpenCustomerProfile,
   initialDate,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [, setMenuUpdateVersion] = useState(0);
+  const [syncVersion, setSyncVersion] = useState(0);
 
   useEffect(() => {
-    const unsub = subscribeMenuChanges(() => {
+    const unsubMenu = subscribeMenuChanges(() => {
       setMenuUpdateVersion((v) => v + 1);
     });
-    return () => unsub();
+    const unsubLive = liveSync.subscribe(() => {
+      setSyncVersion((v) => v + 1);
+    });
+    const handleStorageChange = (e: StorageEvent) => {
+      if (
+        e.key === '11to12_persistent_credit_redemptions_v1' ||
+        e.key === '11to12_persistent_customers_v1' ||
+        e.key === '11to12_persistent_user_profile_v1'
+      ) {
+        setSyncVersion((v) => v + 1);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      unsubMenu();
+      unsubLive();
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const formatYmd = (d: Date) => {
@@ -146,43 +168,154 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
     setTimeout(() => setImportStatus(null), 4000);
   };
 
-  // Filter ONLY confirmed customers with active meal on this date
-  // Logic:
-  // 1. Confirmed payment / Active status
-  // 2. Selected this dateStr
-  // 3. Has NOT skipped this dateStr
+  // Filter and compile EVERY customer receiving food on this date (Main Meals + Credit Plates)
+  // "Food is food. It should be updated real time."
   const deliveryListForDate = useMemo(() => {
+    const list: Array<{
+      id: string;
+      customer: CustomerRecord;
+      name: string;
+      phone: string;
+      email: string;
+      primaryAddress: string;
+      secondAddress: string;
+      mealTitle: string;
+      swallowChoice?: string;
+      orderRef: string;
+      mealType: 'Main Scheduled' | '⭐ Credit Plate';
+      isCredit: boolean;
+      portions: number;
+    }> = [];
+
+    // 1. Confirmed / Active customers who selected this date and did not skip
     const confirmed = customers.filter(
       (c) => c.status === 'Active' || c.paymentStatus === 'Paid'
     );
 
-    return confirmed
-      .filter((cust) => {
-        // Customer selected this date
-        const hasDate = (cust.selectedDays || []).some((d) => d.dateStr === selectedDate);
-        if (!hasDate) return false;
+    confirmed.forEach((cust) => {
+      const hasDate = (cust.selectedDays || []).some((d) => d.dateStr === selectedDate);
+      const isSkipped = (cust.skippedDates || []).includes(selectedDate);
 
-        // Customer did NOT skip this date
-        const isSkipped = (cust.skippedDates || []).includes(selectedDate);
-        if (isSkipped) return false;
-
-        return true;
-      })
-      .map((cust) => {
+      if (hasDate && !isSkipped) {
         const selectedDay = cust.selectedDays.find((d) => d.dateStr === selectedDate);
-        return {
+        list.push({
+          id: `main-${cust.id}-${selectedDate}`,
           customer: cust,
           name: cust.fullName,
           phone: cust.phone,
           email: cust.email,
           primaryAddress: cust.officeAddress,
           secondAddress: cust.secondAddress || '—',
-          mealTitle: mealForDate?.mealName || selectedDay?.meal.mealName || 'Standard Meal',
+          mealTitle: mealForDate?.mealName || selectedDay?.meal?.mealName || 'Standard Meal',
           swallowChoice: selectedDay?.selectedSwallow,
           orderRef: cust.orderRef || cust.id,
-        };
+          mealType: 'Main Scheduled',
+          isCredit: false,
+          portions: 1,
+        });
+      }
+    });
+
+    // 2. Customers who used Credit on this date ("Food is food!")
+    // Gather all credit redemptions from prop, localStorage, and from customer records
+    let localRedemptions: CreditRedemptionOrder[] = [];
+    try {
+      const raw = localStorage.getItem('11to12_persistent_credit_redemptions_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) localRedemptions = parsed;
+      }
+    } catch {}
+
+    const allRedemptionOrders: CreditRedemptionOrder[] = [
+      ...(creditRedemptions || []),
+      ...localRedemptions,
+      ...customers.flatMap((c) => (c as any).creditRedemptions || []),
+    ];
+
+    const processedKeys = new Set<string>();
+
+    allRedemptionOrders.forEach((order) => {
+      if (!order || !order.items) return;
+      (order.items || []).forEach((item, itemIdx) => {
+        if (item.dateStr === selectedDate) {
+          const uniqueKey = `${order.id}-${item.dateStr}-${itemIdx}`;
+          if (processedKeys.has(uniqueKey)) return;
+          processedKeys.add(uniqueKey);
+
+          const matchedCust = customers.find(
+            (c) =>
+              c.id === order.userId ||
+              (c.email && order.email && c.email.toLowerCase() === (order.email || '').toLowerCase()) ||
+              (c.fullName && order.userName && c.fullName.toLowerCase() === order.userName.toLowerCase())
+          );
+
+          list.push({
+            id: `credit-${uniqueKey}`,
+            customer: matchedCust || ({
+              id: order.userId || `cust-${Date.now()}`,
+              fullName: order.userName || 'Subscriber',
+              email: order.email || '',
+              phone: order.userPhone || '',
+              officeAddress: order.officeAddress || 'Desk Drop',
+              secondAddress: '—',
+              selectedDays: [],
+              status: 'Active',
+              paymentStatus: 'Paid',
+              planName: 'Credit Meal',
+              totalDays: 1,
+              subtotalNGN: 0,
+              discountNGN: 0,
+              finalTotalNGN: 0,
+              createdAt: order.submittedAt || new Date().toISOString(),
+              isPasswordSet: true,
+              company: order.company || '',
+            } as CustomerRecord),
+            name: order.userName || matchedCust?.fullName || 'Subscriber',
+            phone: order.userPhone || matchedCust?.phone || '—',
+            email: matchedCust?.email || (order as any).email || '—',
+            primaryAddress: order.officeAddress || matchedCust?.officeAddress || 'Desk Drop',
+            secondAddress: matchedCust?.secondAddress || '—',
+            mealTitle: item.dishName || mealForDate?.mealName || 'Redeemed Credit Plate',
+            swallowChoice: item.swallowChoice,
+            orderRef: order.id,
+            mealType: '⭐ Credit Plate',
+            isCredit: true,
+            portions: Math.max(1, item.portions || 1),
+          });
+        }
       });
-  }, [customers, selectedDate, mealForDate]);
+    });
+
+    // 3. Also check if any customer has selectedDate in creditUsedDates or extraPlateDates
+    customers.forEach((cust) => {
+      const usedDates = (cust.creditUsedDates || []).concat(cust.extraPlateDates || []);
+      if (usedDates.includes(selectedDate)) {
+        const alreadyInList = list.some(
+          (it) => it.isCredit && (it.customer.id === cust.id || Boolean(cust.email && it.customer.email && it.customer.email.toLowerCase() === cust.email.toLowerCase()))
+        );
+        if (!alreadyInList) {
+          list.push({
+            id: `credit-date-${cust.id}-${selectedDate}`,
+            customer: cust,
+            name: cust.fullName,
+            phone: cust.phone,
+            email: cust.email,
+            primaryAddress: cust.officeAddress,
+            secondAddress: cust.secondAddress || '—',
+            mealTitle: mealForDate?.mealName || 'Redeemed Credit Plate',
+            swallowChoice: undefined,
+            orderRef: cust.orderRef || cust.id,
+            mealType: '⭐ Credit Plate',
+            isCredit: true,
+            portions: 1,
+          });
+        }
+      }
+    });
+
+    return list;
+  }, [customers, creditRedemptions, selectedDate, mealForDate, syncVersion]);
 
   // Search filtered within delivery list
   const filteredDeliveryList = useMemo(() => {
@@ -194,11 +327,22 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
         item.phone.toLowerCase().includes(q) ||
         item.email.toLowerCase().includes(q) ||
         item.primaryAddress.toLowerCase().includes(q) ||
-        item.secondAddress.toLowerCase().includes(q)
+        item.secondAddress.toLowerCase().includes(q) ||
+        item.mealType.toLowerCase().includes(q)
     );
   }, [deliveryListForDate, searchQuery]);
 
-  const totalConfirmedLunches = deliveryListForDate.length;
+  const totalConfirmedLunches = useMemo(() => {
+    return deliveryListForDate.reduce((acc, it) => acc + it.portions, 0);
+  }, [deliveryListForDate]);
+
+  const mainMealsCount = useMemo(() => {
+    return deliveryListForDate.filter((it) => !it.isCredit).reduce((acc, it) => acc + it.portions, 0);
+  }, [deliveryListForDate]);
+
+  const creditMealsCount = useMemo(() => {
+    return deliveryListForDate.filter((it) => it.isCredit).reduce((acc, it) => acc + it.portions, 0);
+  }, [deliveryListForDate]);
 
   // Date shifting (guarded to never go before Dec 7, 2026 launch)
   const handleShiftDate = (days: number) => {
@@ -217,23 +361,27 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
   const handleDownloadCsv = () => {
     const headers = [
       'Customer Name',
+      'Meal Type',
       'Phone Number',
       'Email',
       'Primary Delivery Address',
       'Second Delivery Address',
       'Meal',
       'Swallow Choice',
+      'Portions',
       'Customer Reference',
     ];
 
     const rows = deliveryListForDate.map((item) => [
       item.name,
+      item.mealType,
       item.phone,
       item.email,
       item.primaryAddress,
       item.secondAddress,
       item.mealTitle,
       item.swallowChoice || 'Standard',
+      item.portions,
       item.orderRef,
     ]);
 
@@ -573,18 +721,25 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
           <div className="bg-zinc-950 text-white rounded-2xl p-5 flex flex-col justify-between shadow-xs">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-zinc-400">Total Confirmed Lunches</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
-                Active & Unskipped
-              </span>
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+                  {mainMealsCount} Main
+                </span>
+                {creditMealsCount > 0 && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-[#FF4C00]">
+                    +{creditMealsCount} Credit
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="mt-3">
               <div className="flex items-baseline space-x-2">
                 <span className="text-4xl font-black text-white">{totalConfirmedLunches}</span>
-                <span className="text-xs text-zinc-400">meals to prepare</span>
+                <span className="text-xs text-zinc-400">total meals to cook & deliver</span>
               </div>
               <p className="text-[11px] text-zinc-500 mt-1">
-                Delivered between 11:00 AM – 12:00 PM
+                Desk drop delivery window: 11:00 AM – 12:00 PM
               </p>
             </div>
           </div>
@@ -596,10 +751,10 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-bold text-zinc-900">
-                Customer Delivery List ({totalConfirmedLunches})
+                Customer Delivery List ({totalConfirmedLunches} Meals)
               </h3>
               <p className="text-xs text-zinc-500">
-                Every confirmed subscriber receiving lunch at their workstation on {selectedDate}
+                Every confirmed subscriber receiving food on {selectedDate} (Main Scheduled & Credit Plates)
               </p>
             </div>
 
@@ -623,7 +778,7 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
               <p className="text-[11px] text-zinc-400 mt-0.5">
                 {searchQuery
                   ? 'No recipients match your search.'
-                  : 'No confirmed customers have selected this date (or they have skipped it).'}
+                  : 'No confirmed customers or credit meals scheduled for this date.'}
               </p>
             </div>
           ) : (
@@ -634,29 +789,38 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
                     <tr>
                       <th className="py-3 px-4">#</th>
                       <th className="py-3 px-4">Customer</th>
+                      <th className="py-3 px-4">Meal Type</th>
                       <th className="py-3 px-4">Phone Number</th>
-                      <th className="py-3 px-4">Email</th>
                       <th className="py-3 px-4">Primary Delivery Address</th>
                       <th className="py-3 px-4">Second Delivery Address</th>
                       <th className="py-3 px-4">Meal & Choice</th>
+                      <th className="py-3 px-4">Portions</th>
                       <th className="py-3 px-4">Reference</th>
                       <th className="py-3 px-4 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
                     {filteredDeliveryList.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-zinc-50/80 transition">
+                      <tr key={item.id} className="hover:bg-zinc-50/80 transition">
                         <td className="py-3.5 px-4 font-mono text-zinc-400 text-[11px]">
                           {idx + 1}
                         </td>
                         <td className="py-3.5 px-4 font-bold text-zinc-900">
                           {item.name}
                         </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              item.isCredit
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-orange-50 text-[#FF4C00] border-orange-200'
+                            }`}
+                          >
+                            {item.mealType}
+                          </span>
+                        </td>
                         <td className="py-3.5 px-4 font-mono text-zinc-700 text-[11px]">
                           {item.phone}
-                        </td>
-                        <td className="py-3.5 px-4 text-zinc-500">
-                          {item.email}
                         </td>
                         <td className="py-3.5 px-4 font-medium text-zinc-800 max-w-[200px] truncate" title={item.primaryAddress}>
                           {item.primaryAddress}
@@ -667,10 +831,13 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
                         <td className="py-3.5 px-4">
                           <span className="font-semibold text-zinc-900">{item.mealTitle}</span>
                           {item.swallowChoice && (
-                            <span className="ml-1 text-[10px] font-bold text-[#FF4C00] bg-orange-50 px-1.5 py-0.5 rounded">
-                              {item.swallowChoice}
+                            <span className="ml-1 text-[10px] font-bold text-[#FF4C00] bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
+                              Swallow: {item.swallowChoice}
                             </span>
                           )}
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-zinc-800">
+                          {item.portions} plate{item.portions > 1 ? 's' : ''}
                         </td>
                         <td className="py-3.5 px-4 font-mono text-zinc-400 text-[10px] truncate max-w-[100px]" title={item.orderRef}>
                           {item.orderRef}

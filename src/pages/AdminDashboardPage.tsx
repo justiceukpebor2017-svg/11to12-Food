@@ -73,6 +73,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   submittedOrders = [],
   customers = [],
   waitlistLeads = [],
+  creditRedemptions = [],
   onUpdateWaitlistLead,
   onDeleteWaitlistLead,
   onUpdateCustomer,
@@ -382,6 +383,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         {activeTab === 'meal-schedule' && (
           <AdminMealScheduleTab
             customers={customers}
+            creditRedemptions={creditRedemptions}
             onOpenCustomerProfile={(c) => {
               setSelectedCustomerProfile(c);
               setActiveTab('customers');

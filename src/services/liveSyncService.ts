@@ -65,6 +65,23 @@ class LiveSyncService {
 
   constructor() {
     if (typeof window !== 'undefined') {
+      try {
+        const savedCust = localStorage.getItem('11to12_persistent_customers_v1');
+        if (savedCust) {
+          const parsed = JSON.parse(savedCust);
+          if (Array.isArray(parsed) && parsed.length > 0) this.state.customers = parsed;
+        }
+        const savedOrders = localStorage.getItem('11to12_persistent_submitted_orders_v1');
+        if (savedOrders) {
+          const parsed = JSON.parse(savedOrders);
+          if (Array.isArray(parsed) && parsed.length > 0) this.state.submittedOrders = parsed;
+        }
+        const savedCredits = localStorage.getItem('11to12_persistent_credit_redemptions_v1');
+        if (savedCredits) {
+          const parsed = JSON.parse(savedCredits);
+          if (Array.isArray(parsed) && parsed.length > 0) this.state.creditRedemptions = parsed;
+        }
+      } catch {}
       this.init();
     }
   }
@@ -138,11 +155,30 @@ class LiveSyncService {
     }
 
     if (data.type === 'INITIAL_SYNC' && data.db) {
-      this.state.waitlistLeads = data.db.waitlistLeads || [];
-      this.state.customers = data.db.customers || [];
-      this.state.submittedOrders = data.db.submittedOrders || [];
-      this.state.creditRedemptions = data.db.creditRedemptions || [];
-      this.state.announcements = data.db.announcements || [];
+      if (Array.isArray(data.db.waitlistLeads) && data.db.waitlistLeads.length > 0) {
+        this.state.waitlistLeads = data.db.waitlistLeads;
+      }
+      if (Array.isArray(data.db.customers) && data.db.customers.length > 0) {
+        const map = new Map<string, CustomerRecord>();
+        this.state.customers.forEach((c) => map.set(c.id, c));
+        data.db.customers.forEach((c: CustomerRecord) => map.set(c.id, c));
+        this.state.customers = Array.from(map.values());
+      }
+      if (Array.isArray(data.db.submittedOrders) && data.db.submittedOrders.length > 0) {
+        const map = new Map<string, OrderSubmission>();
+        this.state.submittedOrders.forEach((o) => map.set(o.id, o));
+        data.db.submittedOrders.forEach((o: OrderSubmission) => map.set(o.id, o));
+        this.state.submittedOrders = Array.from(map.values());
+      }
+      if (Array.isArray(data.db.creditRedemptions) && data.db.creditRedemptions.length > 0) {
+        const map = new Map<string, CreditRedemptionOrder>();
+        this.state.creditRedemptions.forEach((r) => map.set(r.id, r));
+        data.db.creditRedemptions.forEach((r: CreditRedemptionOrder) => map.set(r.id, r));
+        this.state.creditRedemptions = Array.from(map.values());
+      }
+      if (data.db.announcements && Array.isArray(data.db.announcements)) {
+        this.state.announcements = data.db.announcements;
+      }
       if (data.db.testimonials && Array.isArray(data.db.testimonials)) {
         this.state.testimonials = data.db.testimonials;
       }
@@ -203,6 +239,11 @@ class LiveSyncService {
       }
     } else if (data.type === 'ORDER_DELETED' && data.payload) {
       this.state.submittedOrders = this.state.submittedOrders.filter((o) => o.id !== data.payload.id);
+    } else if (data.type === 'CREDIT_REDEEMED' && data.payload) {
+      const exists = this.state.creditRedemptions.some((r) => r.id === data.payload.id);
+      if (!exists) {
+        this.state.creditRedemptions = [data.payload, ...this.state.creditRedemptions];
+      }
     } else if (data.type === 'LAUNCH_SETTINGS_UPDATED' && data.payload) {
       this.state.launchSettings = data.payload;
       updateLaunchConfig(data.payload);
@@ -243,12 +284,33 @@ class LiveSyncService {
       if (res.ok) {
         const json = await safeParseJson(res);
         if (json?.db) {
-          this.state.waitlistLeads = json.db.waitlistLeads || [];
-          this.state.customers = json.db.customers || [];
-          this.state.submittedOrders = json.db.submittedOrders || [];
-          this.state.creditRedemptions = json.db.creditRedemptions || [];
-          this.state.announcements = json.db.announcements || [];
-          this.state.testimonials = json.db.testimonials || [];
+          if (Array.isArray(json.db.waitlistLeads) && json.db.waitlistLeads.length > 0) {
+            this.state.waitlistLeads = json.db.waitlistLeads;
+          }
+          if (Array.isArray(json.db.customers) && json.db.customers.length > 0) {
+            const map = new Map<string, CustomerRecord>();
+            this.state.customers.forEach((c) => map.set(c.id, c));
+            json.db.customers.forEach((c: CustomerRecord) => map.set(c.id, c));
+            this.state.customers = Array.from(map.values());
+          }
+          if (Array.isArray(json.db.submittedOrders) && json.db.submittedOrders.length > 0) {
+            const map = new Map<string, OrderSubmission>();
+            this.state.submittedOrders.forEach((o) => map.set(o.id, o));
+            json.db.submittedOrders.forEach((o: OrderSubmission) => map.set(o.id, o));
+            this.state.submittedOrders = Array.from(map.values());
+          }
+          if (Array.isArray(json.db.creditRedemptions) && json.db.creditRedemptions.length > 0) {
+            const map = new Map<string, CreditRedemptionOrder>();
+            this.state.creditRedemptions.forEach((r) => map.set(r.id, r));
+            json.db.creditRedemptions.forEach((r: CreditRedemptionOrder) => map.set(r.id, r));
+            this.state.creditRedemptions = Array.from(map.values());
+          }
+          if (Array.isArray(json.db.announcements) && json.db.announcements.length > 0) {
+            this.state.announcements = json.db.announcements;
+          }
+          if (Array.isArray(json.db.testimonials) && json.db.testimonials.length > 0) {
+            this.state.testimonials = json.db.testimonials;
+          }
           if (json.db.customMeals && typeof json.db.customMeals === 'object') {
             Object.assign(customMealOverrides, json.db.customMeals);
             try {
@@ -746,6 +808,33 @@ class LiveSyncService {
     }
 
     return this.state.launchSettings;
+  }
+
+  /**
+   * Records a credit redemption order and broadcasts across all devices
+   */
+  public async addCreditRedemption(redemption: CreditRedemptionOrder): Promise<CreditRedemptionOrder> {
+    try {
+      const res = await fetch(apiUrl('/api/credit-redemptions'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(redemption),
+      });
+      const data = await safeParseJson(res);
+      if (res.ok && data) {
+        this.state.creditRedemptions = [data, ...this.state.creditRedemptions.filter((r) => r.id !== data.id)];
+        this.notify();
+        return data;
+      }
+    } catch (e) {
+      console.warn('[LiveSync] Network addCreditRedemption notice:', e);
+    }
+    this.state.creditRedemptions = [redemption, ...this.state.creditRedemptions.filter((r) => r.id !== redemption.id)];
+    try {
+      localStorage.setItem('11to12_persistent_credit_redemptions_v1', JSON.stringify(this.state.creditRedemptions));
+    } catch {}
+    this.notify();
+    return redemption;
   }
 
   /**

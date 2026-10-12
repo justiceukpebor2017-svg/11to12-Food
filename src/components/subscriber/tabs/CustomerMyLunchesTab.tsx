@@ -85,7 +85,10 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
     const allRedemptions: CreditRedemptionOrder[] = [
       ...(userProfile.creditRedemptions || []),
       ...(creditRedemptions || []).filter(
-        (r) => r.userId === userProfile.id || (userProfile.email && r.userName === userProfile.name)
+        (r) =>
+          r.userId === userProfile.id ||
+          Boolean(r.email && userProfile.email && r.email.toLowerCase() === userProfile.email.toLowerCase()) ||
+          Boolean(userProfile.name && r.userName && r.userName.toLowerCase() === userProfile.name.toLowerCase())
       ),
     ];
 
@@ -122,6 +125,20 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
           });
         }
       });
+    });
+
+    // Fallback: also ensure any dates in userProfile.creditUsedDates are scheduled
+    (userProfile.creditUsedDates || []).forEach((d) => {
+      if (!creditPlatesByDate[d]) {
+        creditPlatesByDate[d] = [
+          {
+            redemptionId: `credit-date-${d}`,
+            dishName: getStructuredMealForDateStr(d)?.mealName || 'Chef Fresh Daily Special',
+            swallowChoice: undefined,
+            index: 1,
+          },
+        ];
+      }
     });
 
     // Collect all unique dates across selectedDays and credit redemptions
