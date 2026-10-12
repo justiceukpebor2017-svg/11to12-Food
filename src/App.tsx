@@ -78,7 +78,7 @@ import {
   confirmOrderInFirestore,
   logoutSubscriberAccount,
 } from './services/firebase';
-import { isOrderPendingVerification } from './utils/finance';
+import { isOrderPendingVerification, recordOrderAsConfirmed, getConfirmedOrderIds } from './utils/finance';
 import { getLaunchSettings, updateLaunchConfig, subscribeLaunchConfig } from './config/launchConfig';
 
 // Storage Keys to safeguard existing real dashboard users across updates and refreshes
@@ -325,7 +325,6 @@ export default function App() {
           try {
             localStorage.setItem(APP_STORAGE_KEYS.USER_PROFILE, JSON.stringify(userProfile));
           } catch (e) {}
-          handleUpdateProfile(userProfile);
         }
       } else if (viewMode === 'admin') {
         try {
@@ -355,18 +354,55 @@ export default function App() {
         setCustomers((prev) => {
           const map = new Map<string, CustomerRecord>();
           prev.forEach((c) => map.set(c.id, c));
-          liveState.customers.forEach((c) => map.set(c.id, c));
-          return Array.from(map.values());
+          liveState.customers.forEach((incoming) => {
+            const existing =
+              map.get(incoming.id) ||
+              Array.from(map.values()).find(
+                (c) =>
+                  Boolean(incoming.email && c.email && c.email.trim().toLowerCase() === incoming.email.trim().toLowerCase())
+              );
+            if (existing) {
+              const existingDays = existing.selectedDays || [];
+              const incomingDays = incoming.selectedDays || [];
+              let mergedDays = incomingDays;
+              if (existingDays.length > incomingDays.length) {
+                const dateMap = new Map<string, SelectedLunchDay>();
+                incomingDays.forEach((d) => dateMap.set(d.dateStr, d));
+                existingDays.forEach((d) => dateMap.set(d.dateStr, d));
+                mergedDays = Array.from(dateMap.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+              }
+              const mergedCust: CustomerRecord = {
+                ...incoming,
+                ...existing,
+                selectedDays: mergedDays,
+                totalDays: Math.max(existing.totalDays || 0, incoming.totalDays || 0, mergedDays.length),
+                status: (existing.status === 'Active' || incoming.status === 'Active') ? 'Active' : incoming.status,
+                paymentStatus: (existing.paymentStatus === 'Paid' || incoming.paymentStatus === 'Paid') ? 'Paid' : incoming.paymentStatus,
+              };
+              map.set(existing.id, mergedCust);
+              if (incoming.id !== existing.id) {
+                map.set(incoming.id, mergedCust);
+              }
+            } else {
+              map.set(incoming.id, incoming);
+            }
+          });
+          const merged = Array.from(map.values());
+          try {
+            localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(merged));
+          } catch {}
+          return merged;
         });
       }
       if (liveState.submittedOrders && Array.isArray(liveState.submittedOrders)) {
         if (liveState.submittedOrders.length > 0) {
           setSubmittedOrders((prev) => {
+            const confirmedIds = getConfirmedOrderIds();
             const map = new Map<string, OrderSubmission>();
             prev.forEach((o) => map.set(o.id, o));
             liveState.submittedOrders.forEach((so) => {
               const existing = map.get(so.id);
-              if (existing?.paymentStatus === 'Confirmed' && so.paymentStatus !== 'Confirmed') {
+              if (confirmedIds.has(so.id) || (existing?.paymentStatus === 'Confirmed' && so.paymentStatus !== 'Confirmed')) {
                 map.set(so.id, { ...so, paymentStatus: 'Confirmed' });
               } else {
                 map.set(so.id, so);
@@ -456,7 +492,39 @@ export default function App() {
         setCustomers((prev) => {
           const map = new Map<string, CustomerRecord>();
           prev.forEach((c) => map.set(c.id, c));
-          firestoreCustomers.forEach((c) => map.set(c.id, c));
+          firestoreCustomers.forEach((incoming) => {
+            const existing =
+              map.get(incoming.id) ||
+              Array.from(map.values()).find(
+                (c) =>
+                  Boolean(incoming.email && c.email && c.email.trim().toLowerCase() === incoming.email.trim().toLowerCase())
+              );
+            if (existing) {
+              const existingDays = existing.selectedDays || [];
+              const incomingDays = incoming.selectedDays || [];
+              let mergedDays = incomingDays;
+              if (existingDays.length > incomingDays.length) {
+                const dateMap = new Map<string, SelectedLunchDay>();
+                incomingDays.forEach(d => dateMap.set(d.dateStr, d));
+                existingDays.forEach(d => dateMap.set(d.dateStr, d));
+                mergedDays = Array.from(dateMap.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+              }
+              const mergedCust: CustomerRecord = {
+                ...incoming,
+                ...existing,
+                selectedDays: mergedDays,
+                totalDays: Math.max(existing.totalDays || 0, incoming.totalDays || 0, mergedDays.length),
+                status: (existing.status === 'Active' || incoming.status === 'Active') ? 'Active' : incoming.status,
+                paymentStatus: (existing.paymentStatus === 'Paid' || incoming.paymentStatus === 'Paid') ? 'Paid' : incoming.paymentStatus,
+              };
+              map.set(existing.id, mergedCust);
+              if (incoming.id !== existing.id) {
+                map.set(incoming.id, mergedCust);
+              }
+            } else {
+              map.set(incoming.id, incoming);
+            }
+          });
           const merged = Array.from(map.values());
           try {
             localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(merged));
@@ -483,6 +551,7 @@ export default function App() {
       }));
       if (firestoreOrders.length > 0) {
         setSubmittedOrders((prev) => {
+          const confirmedIds = getConfirmedOrderIds();
           const map = new Map<string, OrderSubmission>();
           prev.forEach((o) => map.set(o.id, o));
 
@@ -490,13 +559,9 @@ export default function App() {
             const existing = map.get(fo.id);
             // If already confirmed locally or belongs to an active confirmed customer, keep Confirmed!
             const isAlreadyConfirmed =
+              confirmedIds.has(fo.id) ||
               existing?.paymentStatus === 'Confirmed' ||
-              customers.some(
-                (c) => c.orderRef === fo.id && (c.paymentStatus === 'Paid' || c.status === 'Active')
-              ) ||
-              (!fo.isTopUp && fo.email && customers.some(
-                (c) => (c.email || '').trim().toLowerCase() === fo.email.trim().toLowerCase() && (c.paymentStatus === 'Paid' || c.status === 'Active')
-              ));
+              !isOrderPendingVerification(fo, customers);
 
             if (isAlreadyConfirmed) {
               map.set(fo.id, { ...fo, paymentStatus: 'Confirmed' });
@@ -524,6 +589,39 @@ export default function App() {
       unsubscribe();
     };
   }, [customers]);
+
+  // Real-time synchronization: Keep active subscriber's userProfile synchronized with customers state
+  // When an admin confirms extra meal days or changes meals, userProfile reflects it immediately
+  useEffect(() => {
+    if (!userProfile || !userProfile.email) return;
+    const userEmail = userProfile.email.trim().toLowerCase();
+    const matchedCust = customers.find(
+      (c) =>
+        (c.id && c.id === userProfile.id) ||
+        (c.email && c.email.trim().toLowerCase() === userEmail)
+    );
+    if (!matchedCust) return;
+
+    const custDays = matchedCust.selectedDays || [];
+    const profDays = userProfile.selectedDays || [];
+
+    if (custDays.length > profDays.length || matchedCust.totalDays > (userProfile.totalSubscribedDays || 0)) {
+      setUserProfile((prev) => {
+        const nextProfile: UserProfile = {
+          ...prev,
+          selectedDays: custDays,
+          totalSubscribedDays: Math.max(matchedCust.totalDays, custDays.length),
+          planName: matchedCust.planName || `${custDays.length} Workday Lunch Plan`,
+          creditsBalance: matchedCust.creditsBalance ?? prev.creditsBalance,
+          skippedDates: matchedCust.skippedDates || prev.skippedDates,
+        };
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.USER_PROFILE, JSON.stringify(nextProfile));
+        } catch {}
+        return nextProfile;
+      });
+    }
+  }, [customers, userProfile?.id, userProfile?.email]);
 
   // Listen to real Firebase Authentication state
   useEffect(() => {
@@ -940,12 +1038,23 @@ export default function App() {
 
   // Admin confirms paid top-up order and synchronizes the added meal days to customer's calendar & production
   const handleConfirmTopUpOrder = (orderId: string) => {
+    // 1. Permanently record as confirmed so no refresh, re-login or snapshot will ever regress it
+    recordOrderAsConfirmed(orderId);
+
+    // Dismiss notification badge for this order permanently
+    try {
+      const stored = localStorage.getItem('11to12_dismissed_admin_notifications');
+      const set = new Set(stored ? JSON.parse(stored) : []);
+      set.add(`order-${orderId}`);
+      set.add(`notif-order-${orderId}`);
+      localStorage.setItem('11to12_dismissed_admin_notifications', JSON.stringify(Array.from(set)));
+    } catch {}
+
     const order = submittedOrders.find((o) => o.id === orderId);
-    if (!order) return;
 
     liveSync.confirmOrderPayment(orderId);
 
-    // 1. Mark order payment as Confirmed
+    // 2. Mark order payment as Confirmed in state and local storage
     setSubmittedOrders((prev) => {
       const next = prev.map((o) => (o.id === orderId ? { ...o, paymentStatus: 'Confirmed' as const } : o));
       try {
@@ -957,7 +1066,9 @@ export default function App() {
     // Persist confirmed status to Firestore immediately so it never reverts on snapshot updates
     confirmOrderInFirestore(orderId).catch(() => {});
 
-    // 2. Locate customer by orderRef, email, or memberCode
+    if (!order) return;
+
+    // 3. Locate customer by orderRef, email, or memberCode
     const custIdx = customers.findIndex(
       (c) =>
         (order.id && c.orderRef === order.id) ||
@@ -970,17 +1081,18 @@ export default function App() {
       const existingDays = cust.selectedDays || [];
       const newDays = order.selectedDays || [];
 
-      // Deduplicate by dateStr
-      const existingDateSet = new Set(existingDays.map((d) => d.dateStr));
-      const daysToAdd = newDays.filter((d) => !existingDateSet.has(d.dateStr));
-      const mergedDays = [...existingDays, ...daysToAdd].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+      // Deduplicate and merge by dateStr
+      const dateMap = new Map<string, SelectedLunchDay>();
+      existingDays.forEach((d) => dateMap.set(d.dateStr, d));
+      newDays.forEach((d) => dateMap.set(d.dateStr, d));
+      const mergedDays = Array.from(dateMap.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 
       const updatedCust: CustomerRecord = {
         ...cust,
         selectedDays: mergedDays,
         totalDays: mergedDays.length,
-        finalTotalNGN: (cust.finalTotalNGN || 0) + order.finalTotalNGN,
-        subtotalNGN: (cust.subtotalNGN || 0) + order.subtotalNGN,
+        finalTotalNGN: (cust.finalTotalNGN || 0) + (order.finalTotalNGN || 0),
+        subtotalNGN: (cust.subtotalNGN || 0) + (order.subtotalNGN || 0),
         planName: `${mergedDays.length} Workday Lunch Plan`,
         status: 'Active',
         paymentStatus: 'Paid',
@@ -1003,12 +1115,18 @@ export default function App() {
         (userProfile.email && cust.email && userProfile.email.toLowerCase() === cust.email.toLowerCase()) ||
         userProfile.id === cust.id
       ) {
-        setUserProfile((prev) => ({
-          ...prev,
-          selectedDays: mergedDays,
-          totalSubscribedDays: mergedDays.length,
-          planName: `${mergedDays.length} Workday Lunch Plan`,
-        }));
+        setUserProfile((prev) => {
+          const nextProf: UserProfile = {
+            ...prev,
+            selectedDays: mergedDays,
+            totalSubscribedDays: mergedDays.length,
+            planName: `${mergedDays.length} Workday Lunch Plan`,
+          };
+          try {
+            localStorage.setItem(APP_STORAGE_KEYS.USER_PROFILE, JSON.stringify(nextProf));
+          } catch {}
+          return nextProf;
+        });
       }
     } else {
       // If customer was not yet recorded, register them as an active customer in Customers nav
@@ -1052,7 +1170,7 @@ export default function App() {
       saveCustomerToFirestore(newCustomer).catch(() => {});
     }
 
-    // 3. Post confirmation announcement and clear previous pending verification announcements
+    // 4. Post confirmation announcement and clear previous pending verification announcements
     const confirmedAnnouncement: AdminAnnouncement = {
       id: `ann-${Date.now()}`,
       title: `✅ Payment Confirmed: ${order.fullName}`,
@@ -1087,19 +1205,37 @@ export default function App() {
       );
       if (idx >= 0) {
         const copy = [...prev];
+        const currentCust = copy[idx];
+
+        // Never drop confirmed meal days or shrink totalDays
+        const existingDays = currentCust.selectedDays || [];
+        const incomingDays = updated.selectedDays || [];
+        let finalDays = existingDays;
+        if (incomingDays.length >= existingDays.length) {
+          finalDays = incomingDays;
+        } else if (incomingDays.length > 0) {
+          const dateMap = new Map<string, SelectedLunchDay>();
+          existingDays.forEach((d) => dateMap.set(d.dateStr, d));
+          incomingDays.forEach((d) => dateMap.set(d.dateStr, d));
+          finalDays = Array.from(dateMap.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+        }
+
+        const finalTotalDays = Math.max(currentCust.totalDays || 0, finalDays.length, updated.totalSubscribedDays || 0);
+
         const updatedCust: CustomerRecord = {
-          ...copy[idx],
-          fullName: updated.name,
-          phone: updated.phone,
-          company: updated.company,
-          officeAddress: updated.address,
-          secondAddress: updated.secondAddress,
-          creditsBalance: updated.creditsBalance,
-          skippedDates: updated.skippedDates || [],
-          creditUsedDates: updated.creditUsedDates || copy[idx].creditUsedDates || [],
-          creditRedemptions: updated.creditRedemptions || copy[idx].creditRedemptions || [],
-          selectedDays: updated.selectedDays || copy[idx].selectedDays,
-          totalDays: updated.selectedDays?.length || copy[idx].totalDays,
+          ...currentCust,
+          fullName: updated.name || currentCust.fullName,
+          phone: updated.phone || currentCust.phone,
+          company: updated.company || currentCust.company,
+          officeAddress: updated.address || currentCust.officeAddress,
+          secondAddress: updated.secondAddress || currentCust.secondAddress,
+          creditsBalance: updated.creditsBalance ?? currentCust.creditsBalance,
+          skippedDates: updated.skippedDates || currentCust.skippedDates || [],
+          creditUsedDates: updated.creditUsedDates || currentCust.creditUsedDates || [],
+          creditRedemptions: updated.creditRedemptions || currentCust.creditRedemptions || [],
+          selectedDays: finalDays,
+          totalDays: finalTotalDays,
+          planName: `${finalTotalDays} Workday Lunch Plan`,
         };
         copy[idx] = updatedCust;
         liveSync.updateCustomer(updatedCust.id, updatedCust).catch(() => {});

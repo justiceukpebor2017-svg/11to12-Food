@@ -381,18 +381,69 @@ export function addCustomerRecord(customer: CustomerRecord): {
 }
 
 /**
- * Updates a customer record
+ * Updates a customer record with upsert fallback and meal-day regression prevention
  */
 export function updateCustomerRecord(id: string, patch: Partial<CustomerRecord>): CustomerRecord | null {
   const normId = id.trim().toLowerCase();
   const index = dbState.customers.findIndex(
-    (c) => c.id === id || normalizeEmail(c.email) === normId || c.id.toLowerCase() === normId
+    (c) =>
+      c.id === id ||
+      c.id.toLowerCase() === normId ||
+      (patch.email && normalizeEmail(c.email) === normalizeEmail(patch.email)) ||
+      normalizeEmail(c.email) === normId
   );
-  if (index === -1) return null;
+
+  if (index === -1) {
+    // Upsert customer if they don't exist yet in the server database
+    const newCust: CustomerRecord = {
+      id: id,
+      fullName: patch.fullName || 'Valued Subscriber',
+      email: patch.email || '',
+      phone: patch.phone || '',
+      company: patch.company || '',
+      officeAddress: patch.officeAddress || '',
+      secondAddress: patch.secondAddress || '',
+      floorSuite: patch.floorSuite || '',
+      deliveryArea: patch.deliveryArea || 'Victoria Island',
+      status: patch.status || 'Active',
+      paymentStatus: patch.paymentStatus || 'Paid',
+      planName: patch.planName || 'Lunch Plan',
+      totalDays: patch.totalDays || patch.selectedDays?.length || 0,
+      creditsBalance: patch.creditsBalance || 0,
+      selectedDays: patch.selectedDays || [],
+      subtotalNGN: patch.subtotalNGN || 0,
+      discountNGN: patch.discountNGN || 0,
+      finalTotalNGN: patch.finalTotalNGN || 0,
+      createdAt: patch.createdAt || new Date().toISOString(),
+      ...patch,
+    };
+    dbState.customers.unshift(newCust);
+    saveLiveDatabase();
+    broadcastLiveUpdate('CUSTOMER_CREATED', newCust);
+    return newCust;
+  }
+
+  // Prevent regression: NEVER reduce totalDays or drop selectedDays if existing already has more
+  const existing = dbState.customers[index];
+  const existingDays = existing.selectedDays || [];
+  const incomingDays = patch.selectedDays || [];
+  let finalDays = existingDays;
+  if (incomingDays.length >= existingDays.length) {
+    finalDays = incomingDays;
+  } else if (incomingDays.length > 0) {
+    const dateMap = new Map<string, any>();
+    existingDays.forEach((d) => dateMap.set(d.dateStr, d));
+    incomingDays.forEach((d) => dateMap.set(d.dateStr, d));
+    finalDays = Array.from(dateMap.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+  }
 
   dbState.customers[index] = {
-    ...dbState.customers[index],
+    ...existing,
     ...patch,
+    selectedDays: finalDays,
+    totalDays: Math.max(existing.totalDays || 0, patch.totalDays || 0, finalDays.length),
+    status: (existing.status === 'Active' || patch.status === 'Active') ? 'Active' : (patch.status || existing.status),
+    paymentStatus: (existing.paymentStatus === 'Paid' || patch.paymentStatus === 'Paid') ? 'Paid' : (patch.paymentStatus || existing.paymentStatus),
   };
 
   saveLiveDatabase();
@@ -417,30 +468,70 @@ export function deleteCustomerRecord(id: string): boolean {
 }
 
 /**
- * Adds an order submission
+ * Adds an order submission (deduplicates by ID and preserves confirmed status)
  */
 export function addOrderSubmission(order: OrderSubmission): OrderSubmission {
-  dbState.submittedOrders.unshift(order);
+  const existingIdx = dbState.submittedOrders.findIndex(
+    (o) => o.id.toLowerCase() === (order.id || '').toLowerCase()
+  );
+  if (existingIdx !== -1) {
+    // If existing order was already Confirmed, do not regress to Pending Verification
+    if (dbState.submittedOrders[existingIdx].paymentStatus === 'Confirmed') {
+      order.paymentStatus = 'Confirmed';
+    }
+    dbState.submittedOrders[existingIdx] = order;
+  } else {
+    dbState.submittedOrders.unshift(order);
+  }
   saveLiveDatabase();
   broadcastLiveUpdate('ORDER_SUBMITTED', order);
   return order;
 }
 
 /**
- * Confirms order payment
+ * Confirms order payment permanently in server database
  */
 export function confirmOrderPaymentInDb(orderId: string): { order?: OrderSubmission; customer?: CustomerRecord } | null {
-  const orderIndex = dbState.submittedOrders.findIndex((o) => o.id === orderId);
-  if (orderIndex === -1) return null;
+  const normId = (orderId || '').trim().toLowerCase();
+  let matchedOrder = dbState.submittedOrders.find((o) => o.id.toLowerCase() === normId);
 
-  dbState.submittedOrders[orderIndex].paymentStatus = 'Confirmed';
-  const order = dbState.submittedOrders[orderIndex];
+  // Mark all matching instances as Confirmed
+  dbState.submittedOrders = dbState.submittedOrders.map((o) => {
+    if (o.id.toLowerCase() === normId) {
+      return { ...o, paymentStatus: 'Confirmed' as const };
+    }
+    return o;
+  });
+
+  if (!matchedOrder) {
+    matchedOrder = {
+      id: orderId,
+      fullName: 'Confirmed Subscriber',
+      email: '',
+      phone: '',
+      company: 'Desk Drop Client',
+      officeAddress: 'Office',
+      selectedDays: [],
+      totalDays: 0,
+      subtotalNGN: 0,
+      discountNGN: 0,
+      finalTotalNGN: 0,
+      submittedAt: new Date().toISOString(),
+      paymentStatus: 'Confirmed',
+    };
+    dbState.submittedOrders.unshift(matchedOrder);
+  } else {
+    matchedOrder.paymentStatus = 'Confirmed';
+  }
+
+  const order = matchedOrder;
 
   // Match corresponding customer
   const custIndex = dbState.customers.findIndex(
     (c) =>
       c.orderRef === orderId ||
-      normalizeEmail(c.email) === normalizeEmail(order.email) ||
+      c.orderRef?.toLowerCase() === normId ||
+      (order.email && normalizeEmail(c.email) === normalizeEmail(order.email)) ||
       (order.memberCode && c.memberCode === order.memberCode)
   );
 
@@ -449,21 +540,22 @@ export function confirmOrderPaymentInDb(orderId: string): { order?: OrderSubmiss
     const existing = dbState.customers[custIndex];
     const existingDays = existing.selectedDays || [];
     const newDays = order.selectedDays || [];
-    const existingDateSet = new Set(existingDays.map((d) => d.dateStr));
-    const daysToAdd = newDays.filter((d) => !existingDateSet.has(d.dateStr));
-    const mergedDays = [...existingDays, ...daysToAdd].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+    const dateMap = new Map<string, any>();
+    existingDays.forEach((d) => dateMap.set(d.dateStr, d));
+    newDays.forEach((d) => dateMap.set(d.dateStr, d));
+    const mergedDays = Array.from(dateMap.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 
     dbState.customers[custIndex] = {
       ...existing,
       paymentStatus: 'Paid',
       status: 'Active',
-      totalDays: mergedDays.length,
+      totalDays: Math.max(existing.totalDays || 0, mergedDays.length),
       selectedDays: mergedDays,
-      finalTotalNGN: (existing.finalTotalNGN || 0) + (order.isTopUp ? order.finalTotalNGN : 0),
+      finalTotalNGN: (existing.finalTotalNGN || 0) + (order.isTopUp ? order.finalTotalNGN : (order.finalTotalNGN || 0)),
     };
     updatedCustomer = dbState.customers[custIndex];
-  } else {
-    // If customer doesn't exist yet, register them as active
+  } else if (order.email) {
+    // If customer record doesn't exist yet, register them as active
     const newCust: CustomerRecord = {
       id: `cust-${order.id || Date.now()}`,
       fullName: order.fullName,

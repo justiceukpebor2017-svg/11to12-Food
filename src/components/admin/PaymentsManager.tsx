@@ -12,7 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { OrderSubmission, CustomerRecord } from '../../types';
-import { computeFinancialLedger } from '../../utils/finance';
+import { computeFinancialLedger, recordOrderAsConfirmed } from '../../utils/finance';
 
 interface PaymentsManagerProps {
   submittedOrders: OrderSubmission[];
@@ -257,7 +257,8 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                if (tx.reference.startsWith('ORD-')) {
+                                if (tx.reference) {
+                                  recordOrderAsConfirmed(tx.reference);
                                   onConfirmOrderPayment(tx.reference);
                                 }
                                 setInitialTransactions((prev) =>

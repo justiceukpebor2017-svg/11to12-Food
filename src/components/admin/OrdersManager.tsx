@@ -26,7 +26,7 @@ import { getStructuredMealForDate } from '../../data/menuRotation';
 import { subscribeToOrders, deleteOrderFromFirestore } from '../../services/firebase';
 import { liveSync } from '../../services/liveSyncService';
 import { LAUNCH_CONFIG, subscribeLaunchConfig } from '../../config/launchConfig';
-import { isOrderPendingVerification } from '../../utils/finance';
+import { isOrderPendingVerification, getConfirmedOrderIds, recordOrderAsConfirmed } from '../../utils/finance';
 
 interface OrdersManagerProps {
   orders: OrderSubmission[];
@@ -88,17 +88,31 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
   }, []);
 
   const ordersList = React.useMemo(() => {
+    const confirmedIds = getConfirmedOrderIds();
     const map = new Map<string, OrderSubmission>();
     (orders || []).forEach((o) => {
-      if (o && o.id) map.set(o.id, o);
+      if (o && o.id) {
+        if (confirmedIds.has(o.id) || !isOrderPendingVerification(o, customers)) {
+          map.set(o.id, { ...o, paymentStatus: 'Confirmed' });
+        } else {
+          map.set(o.id, o);
+        }
+      }
     });
     (liveOrders || []).forEach((o) => {
-      if (o && o.id) map.set(o.id, o);
+      if (o && o.id) {
+        const existing = map.get(o.id);
+        if (confirmedIds.has(o.id) || existing?.paymentStatus === 'Confirmed' || !isOrderPendingVerification(o, customers)) {
+          map.set(o.id, { ...o, paymentStatus: 'Confirmed' });
+        } else {
+          map.set(o.id, o);
+        }
+      }
     });
     return Array.from(map.values()).sort((a, b) => {
       return new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime();
     });
-  }, [orders, liveOrders]);
+  }, [orders, liveOrders, customers]);
 
   const currentMeal = getStructuredMealForDate(selectedDate);
 
@@ -810,17 +824,18 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (sub.isTopUp || isOrderCustomerLinked(sub)) {
-                                    if (onConfirmTopUpOrder) {
-                                      onConfirmTopUpOrder(sub.id);
+                                    recordOrderAsConfirmed(sub.id);
+                                    if (sub.isTopUp || isOrderCustomerLinked(sub)) {
+                                      if (onConfirmTopUpOrder) {
+                                        onConfirmTopUpOrder(sub.id);
+                                      } else {
+                                        onConfirmPayment(sub.id);
+                                      }
+                                      setToastMessage(`✓ Confirmed payment and added ${sub.totalDays} meal days to ${sub.fullName}'s calendar!`);
                                     } else {
                                       onConfirmPayment(sub.id);
+                                      setToastMessage(`✓ Confirmed payment for ${sub.fullName} (${sub.id})!`);
                                     }
-                                    setToastMessage(`✓ Confirmed payment and added ${sub.totalDays} meal days to ${sub.fullName}'s calendar!`);
-                                  } else {
-                                    onConfirmPayment(sub.id);
-                                    setToastMessage(`✓ Confirmed payment for ${sub.fullName} (${sub.id})!`);
-                                  }
                                   setLiveOrders((prev) =>
                                     prev.map((o) => (o.id === sub.id ? { ...o, paymentStatus: 'Confirmed' } : o))
                                   );
