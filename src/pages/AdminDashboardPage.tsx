@@ -22,6 +22,7 @@ import { AdminMealScheduleTab } from '../components/admin/tabs/AdminMealSchedule
 import { AdminSettingsTab } from '../components/admin/tabs/AdminSettingsTab';
 import { Menu, X, Bell, Trash2, Rocket } from 'lucide-react';
 import { LAUNCH_CONFIG } from '../config/launchConfig';
+import { isOrderPendingVerification } from '../utils/finance';
 
 const DISMISSED_NOTIFS_KEY = '11to12_dismissed_admin_notifications';
 
@@ -127,12 +128,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
     // Pending orders
     (submittedOrders || [])
-      .filter((o) => o.paymentStatus === 'Pending Verification' && !dismissedNotifIds.has(`order-${o.id}`))
+      .filter((o) => isOrderPendingVerification(o, customers) && !dismissedNotifIds.has(`order-${o.id}`))
       .forEach((o) => {
         list.push({
           id: `order-${o.id}`,
-          title: `Pending Payment: ${o.fullName}`,
-          subtitle: `${o.totalDays} Lunches • ₦${(o.finalTotalNGN || 0).toLocaleString()} awaiting verification`,
+          title: o.isTopUp ? `⚡ Top-Up Payment: ${o.fullName}` : `Pending Payment: ${o.fullName}`,
+          subtitle: `${o.totalDays} ${o.totalDays === 1 ? 'Lunch' : 'Lunches'} • ₦${(o.finalTotalNGN || 0).toLocaleString()} awaiting verification`,
           tab: 'pending-payments',
           type: 'order',
           time: o.submittedAt,
@@ -155,10 +156,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       });
 
     return list;
-  }, [submittedOrders, waitlistLeads, dismissedNotifIds]);
+  }, [submittedOrders, customers, waitlistLeads, dismissedNotifIds]);
 
-  const pendingOrdersCount = submittedOrders.filter(
-    (o) => o.paymentStatus === 'Pending Verification'
+  const pendingOrdersCount = submittedOrders.filter((o) =>
+    isOrderPendingVerification(o, customers)
   ).length;
 
   return (

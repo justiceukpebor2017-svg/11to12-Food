@@ -75,8 +75,10 @@ import {
   subscribeToLaunchSettings,
   saveLaunchSettingsToFirestore,
   saveOrderToFirestore,
+  confirmOrderInFirestore,
   logoutSubscriberAccount,
 } from './services/firebase';
+import { isOrderPendingVerification } from './utils/finance';
 import { getLaunchSettings, updateLaunchConfig, subscribeLaunchConfig } from './config/launchConfig';
 
 // Storage Keys to safeguard existing real dashboard users across updates and refreshes
@@ -359,7 +361,23 @@ export default function App() {
       }
       if (liveState.submittedOrders && Array.isArray(liveState.submittedOrders)) {
         if (liveState.submittedOrders.length > 0) {
-          setSubmittedOrders(liveState.submittedOrders);
+          setSubmittedOrders((prev) => {
+            const map = new Map<string, OrderSubmission>();
+            prev.forEach((o) => map.set(o.id, o));
+            liveState.submittedOrders.forEach((so) => {
+              const existing = map.get(so.id);
+              if (existing?.paymentStatus === 'Confirmed' && so.paymentStatus !== 'Confirmed') {
+                map.set(so.id, { ...so, paymentStatus: 'Confirmed' });
+              } else {
+                map.set(so.id, so);
+              }
+            });
+            const merged = Array.from(map.values());
+            try {
+              localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
         }
       }
       if (liveState.creditRedemptions && Array.isArray(liveState.creditRedemptions) && liveState.creditRedemptions.length > 0) {
@@ -464,7 +482,39 @@ export default function App() {
         id: d.id,
       }));
       if (firestoreOrders.length > 0) {
-        setSubmittedOrders(firestoreOrders);
+        setSubmittedOrders((prev) => {
+          const map = new Map<string, OrderSubmission>();
+          prev.forEach((o) => map.set(o.id, o));
+
+          firestoreOrders.forEach((fo) => {
+            const existing = map.get(fo.id);
+            // If already confirmed locally or belongs to an active confirmed customer, keep Confirmed!
+            const isAlreadyConfirmed =
+              existing?.paymentStatus === 'Confirmed' ||
+              customers.some(
+                (c) => c.orderRef === fo.id && (c.paymentStatus === 'Paid' || c.status === 'Active')
+              ) ||
+              (!fo.isTopUp && fo.email && customers.some(
+                (c) => (c.email || '').trim().toLowerCase() === fo.email.trim().toLowerCase() && (c.paymentStatus === 'Paid' || c.status === 'Active')
+              ));
+
+            if (isAlreadyConfirmed) {
+              map.set(fo.id, { ...fo, paymentStatus: 'Confirmed' });
+              // Self-heal Firestore if Firestore was still showing unverified
+              if (fo.paymentStatus !== 'Confirmed') {
+                confirmOrderInFirestore(fo.id).catch(() => {});
+              }
+            } else {
+              map.set(fo.id, fo);
+            }
+          });
+
+          const merged = Array.from(map.values());
+          try {
+            localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
       }
     }, (error) => {
       console.warn('[Firestore onSnapshot orders error]:', error);
@@ -473,7 +523,7 @@ export default function App() {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [customers]);
 
   // Listen to real Firebase Authentication state
   useEffect(() => {
@@ -904,6 +954,9 @@ export default function App() {
       return next;
     });
 
+    // Persist confirmed status to Firestore immediately so it never reverts on snapshot updates
+    confirmOrderInFirestore(orderId).catch(() => {});
+
     // 2. Locate customer by orderRef, email, or memberCode
     const custIdx = customers.findIndex(
       (c) =>
@@ -999,7 +1052,7 @@ export default function App() {
       saveCustomerToFirestore(newCustomer).catch(() => {});
     }
 
-    // 3. Post confirmation announcement
+    // 3. Post confirmation announcement and clear previous pending verification announcements
     const confirmedAnnouncement: AdminAnnouncement = {
       id: `ann-${Date.now()}`,
       title: `✅ Payment Confirmed: ${order.fullName}`,
@@ -1008,7 +1061,15 @@ export default function App() {
       active: true,
       postedAt: new Date().toISOString(),
     };
-    setAnnouncements((prev) => [confirmedAnnouncement, ...prev]);
+    setAnnouncements((prev) => {
+      const filtered = prev.filter(
+        (a) =>
+          !a.id.includes(orderId) &&
+          !a.message?.includes(orderId) &&
+          !(a.title?.includes(order.fullName) && a.title?.includes('Top-Up'))
+      );
+      return [confirmedAnnouncement, ...filtered];
+    });
   };
 
   const handleUpdateProfile = (updated: UserProfile) => {

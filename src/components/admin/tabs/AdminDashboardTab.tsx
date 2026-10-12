@@ -9,6 +9,7 @@ import { AdminTab } from '../AdminSidebar';
 import { getStructuredMealForDate } from '../../../data/menuRotation';
 import { exportToCsv } from '../../../utils/csvExport';
 import { LAUNCH_CONFIG } from '../../../config/launchConfig';
+import { isOrderPendingVerification } from '../../../utils/finance';
 import {
   Users,
   CreditCard,
@@ -62,8 +63,8 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
   // Calculate Counts
   const waitlistCount = waitlistLeads.length;
   const pendingOrders = useMemo(
-    () => submittedOrders.filter((o) => o.paymentStatus !== 'Confirmed'),
-    [submittedOrders]
+    () => submittedOrders.filter((o) => isOrderPendingVerification(o, customers)),
+    [submittedOrders, customers]
   );
   const pendingPaymentCount = pendingOrders.length;
   const confirmedCustomers = useMemo(

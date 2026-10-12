@@ -447,14 +447,53 @@ export function confirmOrderPaymentInDb(orderId: string): { order?: OrderSubmiss
   let updatedCustomer: CustomerRecord | undefined;
   if (custIndex !== -1) {
     const existing = dbState.customers[custIndex];
-    const newSelectedDays = [...existing.selectedDays, ...order.selectedDays];
+    const existingDays = existing.selectedDays || [];
+    const newDays = order.selectedDays || [];
+    const existingDateSet = new Set(existingDays.map((d) => d.dateStr));
+    const daysToAdd = newDays.filter((d) => !existingDateSet.has(d.dateStr));
+    const mergedDays = [...existingDays, ...daysToAdd].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+
     dbState.customers[custIndex] = {
       ...existing,
       paymentStatus: 'Paid',
-      totalDays: existing.totalDays + order.totalDays,
-      selectedDays: newSelectedDays,
+      status: 'Active',
+      totalDays: mergedDays.length,
+      selectedDays: mergedDays,
+      finalTotalNGN: (existing.finalTotalNGN || 0) + (order.isTopUp ? order.finalTotalNGN : 0),
     };
     updatedCustomer = dbState.customers[custIndex];
+  } else {
+    // If customer doesn't exist yet, register them as active
+    const newCust: CustomerRecord = {
+      id: `cust-${order.id || Date.now()}`,
+      fullName: order.fullName,
+      email: order.email,
+      phone: order.phone,
+      company: order.company,
+      officeAddress: order.officeAddress,
+      secondAddress: order.secondAddress || '',
+      floorSuite: order.floorSuite || '',
+      deliveryArea: order.deliveryArea || 'Victoria Island',
+      status: 'Active',
+      paymentStatus: 'Paid',
+      planName: `${order.totalDays} Workday Lunch Plan`,
+      totalDays: order.totalDays,
+      creditsBalance: 0,
+      selectedDays: order.selectedDays || [],
+      subtotalNGN: order.subtotalNGN,
+      discountNGN: order.discountNGN,
+      finalTotalNGN: order.finalTotalNGN,
+      orderRef: order.id,
+      memberCode: order.memberCode,
+      createdAt: order.submittedAt || new Date().toISOString(),
+      isPasswordSet: true,
+      defaultPassword: 'DeskDrop#842',
+      password: 'DeskDrop#842',
+      isDefaultPassword: true,
+      mustChangePassword: true,
+    };
+    dbState.customers.unshift(newCust);
+    updatedCustomer = newCust;
   }
 
   saveLiveDatabase();

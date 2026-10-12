@@ -26,6 +26,7 @@ import { getStructuredMealForDate } from '../../data/menuRotation';
 import { subscribeToOrders, deleteOrderFromFirestore } from '../../services/firebase';
 import { liveSync } from '../../services/liveSyncService';
 import { LAUNCH_CONFIG, subscribeLaunchConfig } from '../../config/launchConfig';
+import { isOrderPendingVerification } from '../../utils/finance';
 
 interface OrdersManagerProps {
   orders: OrderSubmission[];
@@ -313,7 +314,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
               }`}
             >
               <span>Submissions & Invoices</span>
-              {ordersList.filter((o) => o.paymentStatus === 'Pending Verification').length > 0 && (
+              {ordersList.filter((o) => isOrderPendingVerification(o, customers)).length > 0 && (
                 <span className="w-2 h-2 rounded-full bg-[#FF4C00]" />
               )}
             </button>
@@ -769,7 +770,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                         </td>
 
                         <td className="py-4 px-4 whitespace-nowrap">
-                          {sub.paymentStatus === 'Confirmed' ? (
+                          {!isOrderPendingVerification(sub, customers) ? (
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">
                               ✓ Verified
                             </span>
@@ -805,7 +806,7 @@ export const OrdersManager: React.FC<OrdersManagerProps> = ({
                               </button>
                             )}
 
-                            {sub.paymentStatus !== 'Confirmed' && (
+                            {isOrderPendingVerification(sub, customers) && (
                               <button
                                 type="button"
                                 onClick={() => {

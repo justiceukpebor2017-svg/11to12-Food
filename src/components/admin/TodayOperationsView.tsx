@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { OrderSubmission, CustomerRecord, WaitlistLead } from '../../types';
 import { AdminTab } from './AdminSidebar';
-import { computeFinancialLedger } from '../../utils/finance';
+import { computeFinancialLedger, isOrderPendingVerification } from '../../utils/finance';
 
 const DISMISSED_NOTIFICATIONS_STORAGE_KEY = '11to12_dismissed_admin_notifications';
 
@@ -73,7 +73,7 @@ export const TodayOperationsView: React.FC<TodayOperationsViewProps> = ({
   // Calculate unified live financials matching Revenue Collected across ledger
   const financials = computeFinancialLedger(submittedOrders, customers);
   const pendingOrders = submittedOrders.filter(
-    (o) => o.paymentStatus === 'Pending Verification' && !dismissedNotificationIds.has(`notif-order-${o.id}`)
+    (o) => isOrderPendingVerification(o, customers) && !dismissedNotificationIds.has(`notif-order-${o.id}`)
   );
 
   // Today's date (formatted)

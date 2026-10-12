@@ -535,6 +535,27 @@ export async function saveOrderToFirestore(order: any): Promise<void> {
 }
 
 /**
+ * Mark Order as Confirmed in Firestore so changes persist across all clients & reloads
+ */
+export async function confirmOrderInFirestore(orderId: string): Promise<void> {
+  try {
+    const orderRef = doc(db, 'orders', orderId);
+    await setDoc(
+      orderRef,
+      {
+        paymentStatus: 'Confirmed',
+        confirmedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    console.log('[Firebase] Order payment confirmed in Firestore:', orderId);
+  } catch (e) {
+    console.error('[Firebase] Failed to confirm order in Firestore:', e);
+    handleFirestoreError(e, OperationType.UPDATE, `orders/${orderId}`);
+  }
+}
+
+/**
  * Save Credit Redemption to Firestore
  */
 export async function saveCreditRedemptionToFirestore(redemption: any): Promise<void> {

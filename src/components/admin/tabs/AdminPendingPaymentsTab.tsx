@@ -7,6 +7,7 @@ import {
   formatCredentialEmailMessage,
   formatCredentialWhatsAppMessage,
 } from '../../../utils/credentialUtils';
+import { isOrderPendingVerification } from '../../../utils/finance';
 import {
   Search,
   CreditCard,
@@ -56,10 +57,10 @@ export const AdminPendingPaymentsTab: React.FC<AdminPendingPaymentsTabProps> = (
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [proofRequestNotice, setProofRequestNotice] = useState<string | null>(null);
 
-  // Filter only orders with pending payment
+  // Filter only orders genuinely awaiting payment verification
   const pendingOrders = useMemo(() => {
-    return orders.filter((o) => o.paymentStatus !== 'Confirmed');
-  }, [orders]);
+    return orders.filter((o) => isOrderPendingVerification(o, customers));
+  }, [orders, customers]);
 
   const filteredOrders = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
