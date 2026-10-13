@@ -201,6 +201,7 @@ export default function App() {
   const [selectedLunchDays, setSelectedLunchDays] = useState<SelectedLunchDay[]>([]);
   const [calculatedOrderSummary, setCalculatedOrderSummary] = useState<OrderSummary | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [planBuilderKey, setPlanBuilderKey] = useState(0);
 
   // Submitted Orders (persisted so invoices and remittances are retained)
   const [submittedOrders, setSubmittedOrders] = useState<OrderSubmission[]>(() => {
@@ -981,10 +982,10 @@ export default function App() {
     return () => unsub();
   }, [viewMode, userProfile.id, userProfile.email]);
 
-  // Safety watch: if active subscriber is recorded as deleted, force logout immediately
+  // Safety watch: if active subscriber record ID is recorded as deleted, force logout immediately
   useEffect(() => {
     if (viewMode !== 'subscriber') return;
-    if (isCustomerRecordedAsDeleted(userProfile.id, userProfile.email)) {
+    if (userProfile.id && isCustomerRecordedAsDeleted(userProfile.id)) {
       handleForceLogoutDueToAccountDeletion();
     }
   }, [customers, viewMode, userProfile.id, userProfile.email]);
@@ -1080,6 +1081,21 @@ export default function App() {
     setCalculatedOrderSummary(summary);
     setIsCheckoutOpen(true);
     trackBeginCheckout(summary.totalDays, summary.finalTotalNGN);
+  };
+
+  const handleCloseCheckout = () => {
+    setIsCheckoutOpen(false);
+    setSelectedLunchDays([]);
+    setCalculatedOrderSummary(null);
+    setPlanBuilderKey((prev) => prev + 1);
+
+    // Smoothly scroll back to the plan builder so the user can immediately select new dates or register for someone else
+    setTimeout(() => {
+      const el = document.getElementById('plan-builder') || document.getElementById('pricing') || document.getElementById('home');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 60);
   };
 
   const handleOrderSubmitted = async (order: OrderSubmission) => {
@@ -1493,7 +1509,7 @@ export default function App() {
             </div>
 
             {/* 3. Build Your Lunch Plan */}
-            <PlanBuilder onProceedToCheckout={handleProceedToCheckout} />
+            <PlanBuilder key={planBuilderKey} onProceedToCheckout={handleProceedToCheckout} />
 
             {/* 4. Deliveries Begin / Reserve Your Desk Drop Section */}
             <DeskDropWaitlistAndTeaser
@@ -1527,7 +1543,7 @@ export default function App() {
             {/* Payout & Registration Modal */}
             <CheckoutModal
               isOpen={isCheckoutOpen}
-              onClose={() => setIsCheckoutOpen(false)}
+              onClose={handleCloseCheckout}
               selectedDays={selectedLunchDays}
               summary={calculatedOrderSummary}
               onOrderSubmitted={handleOrderSubmitted}

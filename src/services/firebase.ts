@@ -30,6 +30,11 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { CustomerRecord, WaitlistLead, ActiveSessionRecord } from '../types';
+import {
+  recordCustomerAsDeleted,
+  isCustomerRecordedAsDeleted,
+  unrecordCustomerAsDeleted,
+} from '../utils/customerDeletions';
 
 // Set log level to error to avoid noisy debug logs
 try {
@@ -201,12 +206,6 @@ export async function registerSubscriberAccount(data: {
   return newCustomer;
 }
 
-import {
-  recordCustomerAsDeleted,
-  isCustomerRecordedAsDeleted,
-  unrecordCustomerAsDeleted,
-} from '../utils/customerDeletions';
-
 /**
  * Log in a subscriber via real Firebase Auth or verified Firestore/server customer record
  */
@@ -216,16 +215,6 @@ export async function loginSubscriberAccount(
 ): Promise<{ user: User | null; customer: CustomerRecord | null }> {
   const cleanEmail = email.trim().toLowerCase();
   const cleanPass = pass.trim();
-
-  // If this account was previously marked as deleted and not re-created, reject credentials immediately
-  if (isCustomerRecordedAsDeleted(undefined, cleanEmail)) {
-    try {
-      await fbSignOut(auth);
-    } catch {}
-    const err = new Error('This subscriber account has been removed by an administrator. Credentials are no longer active.');
-    (err as any).code = 'auth/user-not-found';
-    throw err;
-  }
 
   let fbUser: User | null = null;
   let authFailed = false;

@@ -124,6 +124,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setTimeout(() => setCopiedBank(null), 2500);
   };
 
+  const handleClose = () => {
+    setIsSubmitted(false);
+    setCreatedOrder(null);
+    setShowInvoiceSlip(false);
+    setFullName('');
+    setEmail('');
+    setPhone('');
+    setCompany('');
+    setOfficeAddress('');
+    setSecondAddress('');
+    setMemberCodeInput('');
+    setAppliedMemberCode(null);
+    setMemberCodeSuccess(null);
+    setMemberCodeError(null);
+    setCheckoutError(null);
+    onClose();
+  };
+
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setCheckoutError(null);
@@ -189,7 +207,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
 
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="p-2 rounded-full hover:bg-zinc-200 transition cursor-pointer text-zinc-500"
               title="Close"
             >
@@ -273,7 +291,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </a>
 
                 <button
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="px-6 py-3 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs uppercase tracking-wide transition cursor-pointer"
                 >
                   Close & Return Home
@@ -584,13 +602,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <span>Registering Order & Generating Invoice...</span>
                     </div>
                   ) : (
-                    <span>I Have Made Transfer • Submit Order</span>
+                    <span>I Have Made Payment • Submit Order</span>
                   )}
                 </button>
 
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="w-full py-3 rounded-full border border-zinc-200 hover:bg-zinc-100 text-zinc-600 font-bold text-xs uppercase tracking-wide transition cursor-pointer"
                 >
                   Cancel & Go Back

@@ -562,6 +562,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
   return (
     <section id="pricing" className="py-20 bg-[#FAF7F2] border-t border-zinc-200/80 relative">
+      <div id="plan-builder" className="scroll-mt-24" />
       
       {/* 2-Second Floating Top Meal Preview Popup with Smooth Fade Out */}
       {activeMealPopup && (

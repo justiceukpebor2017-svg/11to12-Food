@@ -22,7 +22,6 @@ import {
   sendSubscriberPasswordReset,
   updateCustomerPasswordInFirestore,
 } from '../../services/firebase';
-import { isCustomerRecordedAsDeleted } from '../../utils/customerDeletions';
 
 interface SubscriberAuthModalProps {
   isOpen: boolean;
@@ -112,13 +111,6 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
 
       return false;
     };
-
-    // Check if account has been marked as deleted
-    if (isCustomerRecordedAsDeleted(undefined, cleanEmail)) {
-      setError('This subscriber account has been removed by the administrator. Credentials are no longer active.');
-      setIsLoading(false);
-      return;
-    }
 
     // Pre-check registered customer in active customers list
     const registeredCustomer = customers.find(

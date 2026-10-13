@@ -1,37 +1,37 @@
 /**
- * Customer Deletion & Account Invalidation Tracker
- * Ensures deleted customers are permanently purged across all browsers, tabs, and devices,
- * forcing immediate logout for active sessions and preventing resurrected state,
- * while allowing the email to be reused cleanly for new users.
+ * Customer Deletion & Inactive Account Purge Tracker
+ * Ensures specifically deleted customer record documents (by ID) are purged
+ * so old deleted records do not resurrect from stale client caches,
+ * and notifies active tabs to log off if their current session was removed.
+ *
+ * CRITICAL RULE: Emails are NEVER blacklisted!
+ * Any email address can ALWAYS be used freely to register for new meal plans.
  */
 
-const DELETED_CUSTOMERS_KEY = '11to12_deleted_customer_markers_v1';
+const DELETED_CUSTOMER_IDS_KEY = '11to12_deleted_customer_ids_v2';
 const DELETED_ACCOUNT_EVENT_KEY = '11to12_account_deleted_event';
 
-export interface DeletedCustomerMarker {
-  id?: string;
-  email?: string;
-  deletedAt: number;
-}
-
-export function getDeletedCustomerMarkers(): { ids: Set<string>; emails: Set<string> } {
-  if (typeof window === 'undefined') return { ids: new Set(), emails: new Set() };
+export function getDeletedCustomerMarkers(): { ids: Set<string> } {
+  if (typeof window === 'undefined') return { ids: new Set() };
   try {
-    const raw = localStorage.getItem(DELETED_CUSTOMERS_KEY);
+    const raw = localStorage.getItem(DELETED_CUSTOMER_IDS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return {
-        ids: new Set(parsed.ids || []),
-        emails: new Set((parsed.emails || []).map((e: string) => String(e).toLowerCase().trim())),
-      };
+      if (Array.isArray(parsed)) {
+        return { ids: new Set(parsed) };
+      }
+      if (parsed && Array.isArray(parsed.ids)) {
+        return { ids: new Set(parsed.ids) };
+      }
     }
   } catch {}
-  return { ids: new Set(), emails: new Set() };
+  return { ids: new Set() };
 }
 
 /**
- * Marks a customer ID and/or email as permanently deleted.
- * Prevents snapshots, SSE broadcasts, or stale localStorage from re-inserting them.
+ * Marks a specific deleted customer record ID so the deleted document is not re-inserted by stale caches.
+ * Also emits an instant cross-tab notification so any active session on that account logs out.
+ * Does NOT blacklist the email — the email can be used immediately to register again!
  */
 export function recordCustomerAsDeleted(id?: string, email?: string): void {
   if (typeof window === 'undefined') return;
@@ -40,19 +40,16 @@ export function recordCustomerAsDeleted(id?: string, email?: string): void {
   if (!cleanId && !cleanEmail) return;
 
   try {
-    const markers = getDeletedCustomerMarkers();
-    if (cleanId) markers.ids.add(cleanId);
-    if (cleanEmail) markers.emails.add(cleanEmail);
+    if (cleanId) {
+      const markers = getDeletedCustomerMarkers();
+      markers.ids.add(cleanId);
+      localStorage.setItem(
+        DELETED_CUSTOMER_IDS_KEY,
+        JSON.stringify(Array.from(markers.ids))
+      );
+    }
 
-    localStorage.setItem(
-      DELETED_CUSTOMERS_KEY,
-      JSON.stringify({
-        ids: Array.from(markers.ids),
-        emails: Array.from(markers.emails),
-      })
-    );
-
-    // Notify other tabs immediately via StorageEvent
+    // Notify other tabs immediately via StorageEvent to terminate active session if currently open
     localStorage.setItem(
       DELETED_ACCOUNT_EVENT_KEY,
       JSON.stringify({
@@ -65,41 +62,33 @@ export function recordCustomerAsDeleted(id?: string, email?: string): void {
 }
 
 /**
- * Checks whether an ID or email has been deleted and should not be displayed or permitted to log in.
+ * Checks whether a specific customer record document ID was deleted.
+ * Note: Only checks record ID to prevent resurrecting stale deleted records.
+ * Emails are NEVER blacklisted — any email address can be used to register again!
  */
-export function isCustomerRecordedAsDeleted(id?: string, email?: string): boolean {
-  if (typeof window === 'undefined') return false;
-  const cleanId = (id || '').trim();
-  const cleanEmail = (email || '').toLowerCase().trim();
-  if (!cleanId && !cleanEmail) return false;
+export function isCustomerRecordedAsDeleted(id?: string, _email?: string): boolean {
+  if (typeof window === 'undefined' || !id) return false;
+  const cleanId = String(id).trim();
+  if (!cleanId) return false;
 
   const markers = getDeletedCustomerMarkers();
-  if (cleanId && markers.ids.has(cleanId)) return true;
-  if (cleanEmail && markers.emails.has(cleanEmail)) return true;
-  return false;
+  return markers.ids.has(cleanId);
 }
 
 /**
- * Unrecords a customer email/ID when a NEW user is intentionally onboarded with that email.
- * This ensures the email is 100% reusable for a fresh subscriber.
+ * Unrecords a customer ID if needed.
  */
-export function unrecordCustomerAsDeleted(id?: string, email?: string): void {
-  if (typeof window === 'undefined') return;
-  const cleanId = (id || '').trim();
-  const cleanEmail = (email || '').toLowerCase().trim();
-  if (!cleanId && !cleanEmail) return;
+export function unrecordCustomerAsDeleted(id?: string, _email?: string): void {
+  if (typeof window === 'undefined' || !id) return;
+  const cleanId = String(id).trim();
+  if (!cleanId) return;
 
   try {
     const markers = getDeletedCustomerMarkers();
-    if (cleanId) markers.ids.delete(cleanId);
-    if (cleanEmail) markers.emails.delete(cleanEmail);
-
+    markers.ids.delete(cleanId);
     localStorage.setItem(
-      DELETED_CUSTOMERS_KEY,
-      JSON.stringify({
-        ids: Array.from(markers.ids),
-        emails: Array.from(markers.emails),
-      })
+      DELETED_CUSTOMER_IDS_KEY,
+      JSON.stringify(Array.from(markers.ids))
     );
   } catch {}
 }
