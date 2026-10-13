@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ViewMode,
   TimeWindow,
@@ -84,6 +84,7 @@ import {
   saveOrderToFirestore,
   confirmOrderInFirestore,
   logoutSubscriberAccount,
+  updateCustomerPasswordInFirestore,
 } from './services/firebase';
 import { isOrderPendingVerification, recordOrderAsConfirmed, getConfirmedOrderIds } from './utils/finance';
 import { getLaunchSettings, updateLaunchConfig, subscribeLaunchConfig } from './config/launchConfig';
@@ -158,6 +159,11 @@ export default function App() {
     }
     return INITIAL_USER_PROFILE;
   });
+
+  const userProfileRef = useRef(userProfile);
+  useEffect(() => {
+    userProfileRef.current = userProfile;
+  }, [userProfile]);
 
   const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>(INITIAL_ANNOUNCEMENTS);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(INITIAL_INVENTORY);
@@ -506,11 +512,11 @@ export default function App() {
           const delId = change.doc.id;
           const delEmail = removedData?.email;
           recordCustomerAsDeleted(delId, delEmail);
-          const currentId = userProfile.id;
-          const currentEmail = (userProfile.email || '').trim().toLowerCase();
+          const currentId = userProfileRef.current.id;
+          const currentEmail = (userProfileRef.current.email || '').trim().toLowerCase();
           if (
-            (delId && currentId === delId) ||
-            (delEmail && currentEmail === delEmail.trim().toLowerCase())
+            (delId && currentId && (currentId === delId || currentId.toLowerCase() === delId.toLowerCase())) ||
+            (delEmail && currentEmail && currentEmail === delEmail.trim().toLowerCase())
           ) {
             handleForceLogoutDueToAccountDeletion();
           }
@@ -824,37 +830,10 @@ export default function App() {
   };
 
   const handleSimulateUserLogin = (customer: CustomerRecord) => {
-    handlePasswordSet(customer, customer.password || customer.defaultPassword || 'DeskDrop#100');
+    handleCustomerLogin(customer);
   };
 
-  const handlePasswordSet = (customer: CustomerRecord, newPass: string) => {
-    const updatedCust: CustomerRecord = {
-      ...customer,
-      isPasswordSet: true,
-      password: newPass,
-      defaultPassword: '',
-      isDefaultPassword: false,
-      mustChangePassword: false,
-      passwordLastChangedAt: new Date().toISOString(),
-      status: 'Active',
-    };
-    liveSync.updateCustomer(updatedCust.id, updatedCust);
-    saveCustomerToFirestore(updatedCust).catch(() => {});
-    setCustomers((prev) => {
-      const exists = prev.some(
-        (c) => c.id === customer.id || Boolean(c.email && customer.email && c.email.toLowerCase() === customer.email.toLowerCase())
-      );
-      if (exists) {
-        return prev.map((c) =>
-          c.id === customer.id || Boolean(c.email && customer.email && c.email.toLowerCase() === customer.email.toLowerCase())
-            ? updatedCust
-            : c
-        );
-      }
-      return [updatedCust, ...prev];
-    });
-
-    // Synchronize into current userProfile and load all selected days and credits
+  const handleCustomerLogin = (customer: CustomerRecord) => {
     setUserProfile({
       id: customer.id,
       name: customer.fullName,
@@ -884,12 +863,46 @@ export default function App() {
       totalMealsReceived: 0,
       totalSubscribedDays: customer.totalDays,
       skipCount: (customer.skippedDates || []).length,
-      isPasswordSet: true,
+      isPasswordSet: customer.isPasswordSet,
       selectedDays: customer.selectedDays,
       pendingAddressChange: null,
     });
 
     setViewMode('subscriber');
+  };
+
+  const handlePasswordSet = (customer: CustomerRecord, newPass: string) => {
+    const cleanPass = newPass.trim();
+    const updatedCust: CustomerRecord = {
+      ...customer,
+      isPasswordSet: true,
+      password: cleanPass,
+      defaultPassword: '',
+      isDefaultPassword: false,
+      mustChangePassword: false,
+      passwordLastChangedAt: new Date().toISOString(),
+      status: 'Active',
+    };
+
+    liveSync.updateCustomer(updatedCust.id, updatedCust);
+    saveCustomerToFirestore(updatedCust).catch(() => {});
+    updateCustomerPasswordInFirestore(updatedCust.id, cleanPass).catch(() => {});
+
+    setCustomers((prev) => {
+      const cleanEmail = (customer.email || '').toLowerCase().trim();
+      const next = prev.map((c) =>
+        c.id === customer.id || Boolean(cleanEmail && c.email && c.email.toLowerCase().trim() === cleanEmail)
+          ? updatedCust
+          : c
+      );
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // Synchronize active userProfile
+    handleCustomerLogin(updatedCust);
   };
 
   // Real-Time Single Concurrent Session Management State
@@ -982,11 +995,27 @@ export default function App() {
     return () => unsub();
   }, [viewMode, userProfile.id, userProfile.email]);
 
-  // Safety watch: if active subscriber record ID is recorded as deleted, force logout immediately
+  // Safety watch: if active subscriber record ID is deleted or account is removed from customers, force logout immediately!
   useEffect(() => {
     if (viewMode !== 'subscriber') return;
-    if (userProfile.id && isCustomerRecordedAsDeleted(userProfile.id)) {
+    const cleanEmail = (userProfile.email || '').trim().toLowerCase();
+    const cleanId = (userProfile.id || '').trim();
+
+    if (cleanId && isCustomerRecordedAsDeleted(cleanId)) {
       handleForceLogoutDueToAccountDeletion();
+      return;
+    }
+
+    if (cleanEmail && customers.length > 0) {
+      const isStillInCustomers = customers.some(
+        (c) =>
+          (cleanId && c.id && (c.id === cleanId || c.id.toLowerCase() === cleanId.toLowerCase())) ||
+          (c.email && c.email.trim().toLowerCase() === cleanEmail)
+      );
+      if (!isStillInCustomers) {
+        console.warn('[App] Customer record removed by administrator. Forcing logout immediately.');
+        handleForceLogoutDueToAccountDeletion();
+      }
     }
   }, [customers, viewMode, userProfile.id, userProfile.email]);
 
@@ -1100,8 +1129,7 @@ export default function App() {
 
   const handleOrderSubmitted = async (order: OrderSubmission) => {
     trackOrderSubmitted(order);
-    // Paid order request goes under the Order nav ONLY (Pending Invoices).
-    // It will be moved to Customer nav automatically only once confirmed by admin.
+    // 1. Immediately store order in submittedOrders for invoices / verification
     setSubmittedOrders((prev) => {
       const exists = prev.some((o) => o.id === order.id);
       if (exists) {
@@ -1110,7 +1138,65 @@ export default function App() {
       return [order, ...prev];
     });
 
-    // Save to central live database and Firestore, and broadcast across all devices
+    // 2. Treat every checkout from home page as a stand-alone new customer
+    const cleanEmail = (order.email || '').trim().toLowerCase();
+    const defaultPassword = generateDefaultPassword();
+    let registeredCustomer: CustomerRecord | null = null;
+
+    setCustomers((prev) => {
+      registeredCustomer = {
+        id: `cust-${order.id || Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        fullName: order.fullName,
+        email: order.email,
+        phone: order.phone,
+        company: order.company,
+        officeAddress: order.officeAddress,
+        secondAddress: order.secondAddress || '',
+        floorSuite: order.floorSuite || '',
+        deliveryArea: order.deliveryArea || 'Victoria Island',
+        status: 'Active',
+        paymentStatus: 'Pending Verification',
+        planName: `${order.totalDays} Workday Lunch Plan`,
+        totalDays: order.totalDays,
+        creditsBalance: 0,
+        skippedDates: [],
+        creditUsedDates: [],
+        creditRedemptions: [],
+        selectedDays: order.selectedDays,
+        subtotalNGN: order.subtotalNGN,
+        discountNGN: order.discountNGN,
+        finalTotalNGN: order.finalTotalNGN,
+        orderRef: order.id,
+        memberCode: order.memberCode,
+        createdAt: order.submittedAt || new Date().toISOString(),
+        isPasswordSet: true,
+        defaultPassword: defaultPassword,
+        password: defaultPassword,
+        isDefaultPassword: true,
+        mustChangePassword: true,
+      };
+
+      unrecordCustomerAsDeleted(registeredCustomer.id, registeredCustomer.email);
+      // Ensure no stale record with this email lingers, creating this customer fresh
+      const filteredPrev = prev.filter(
+        (c) => !c.email || c.email.trim().toLowerCase() !== cleanEmail
+      );
+      const next = [registeredCustomer, ...filteredPrev];
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 3. Persist and broadcast customer to Firestore and liveSync
+    setTimeout(() => {
+      if (registeredCustomer) {
+        liveSync.registerCustomer(registeredCustomer).catch(() => {});
+        saveCustomerToFirestore(registeredCustomer).catch(() => {});
+      }
+    }, 0);
+
+    // 4. Save to central live database and Firestore, and broadcast across all devices
     try {
       await liveSync.submitOrder(order);
     } catch (e) {
@@ -1118,7 +1204,18 @@ export default function App() {
     }
     await saveOrderToFirestore(order).catch(() => {});
 
-    // Deduplicate: If this person was in the waitlist (by unique code or email), remove from waitlist so admin has 0 duplicates
+    // 5. Post urgent admin announcement alert
+    const newAnnouncement: AdminAnnouncement = {
+      id: `ann-${Date.now()}`,
+      title: `🔔 New Customer Payment: ${order.fullName}`,
+      message: `${order.fullName} (${order.company}) selected ${order.totalDays} meal days (₦${order.finalTotalNGN.toLocaleString()}) and submitted payment (Invoice #${order.id}). Default Login Password: ${defaultPassword}`,
+      type: 'warning',
+      active: true,
+      postedAt: new Date().toISOString(),
+    };
+    setAnnouncements((prev) => [newAnnouncement, ...prev]);
+
+    // 6. Deduplicate: If this person was in the waitlist (by unique code or email), remove from waitlist so admin has 0 duplicates
     setWaitlistLeads((prev) =>
       prev.filter((lead) => {
         const matchesCode = Boolean(order.memberCode && lead.memberCode && lead.memberCode.toUpperCase() === order.memberCode.toUpperCase());
@@ -1441,15 +1538,42 @@ export default function App() {
       setWaitlistLeads((prev) => prev.filter((l) => !l.email || l.email.trim().toLowerCase() !== cleanEmail));
     }
 
+    // 3b. Purge creditRedemptions so old skips and credits never pollute a future registration with this email
+    setCreditRedemptions((prev) => {
+      const next = prev.filter((r) => {
+        if (customerId && r.userId === customerId) return false;
+        if (cleanEmail && r.email && r.email.trim().toLowerCase() === cleanEmail) return false;
+        return true;
+      });
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.CREDIT_REDEMPTIONS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 3c. Purge submittedOrders for this email so future registrations start completely clean
+    setSubmittedOrders((prev) => {
+      const next = prev.filter((o) => {
+        if (cleanEmail && o.email && o.email.trim().toLowerCase() === cleanEmail) return false;
+        return true;
+      });
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
     // 4. Terminate active sessions across all devices and server
     await terminateCustomerSession(customerId, cleanEmail).catch(() => {});
     await liveSync.deleteCustomer(customerId, cleanEmail).catch(() => {});
     await deleteCustomerFromFirestore(customerId, cleanEmail).catch(() => {});
 
     // 5. If currently active user in this browser is this subscriber, log them off immediately!
+    const activeSubscriberId = userProfile.id || userProfileRef.current.id;
+    const activeSubscriberEmail = (userProfile.email || userProfileRef.current.email || '').trim().toLowerCase();
     const isCurrentSubscriber =
-      (userProfile.id && userProfile.id === customerId) ||
-      (cleanEmail && userProfile.email && userProfile.email.trim().toLowerCase() === cleanEmail);
+      (activeSubscriberId && activeSubscriberId === customerId) ||
+      (cleanEmail && activeSubscriberEmail && activeSubscriberEmail === cleanEmail);
 
     if (isCurrentSubscriber) {
       await handleForceLogoutDueToAccountDeletion();
@@ -1573,7 +1697,12 @@ export default function App() {
           onTopUpOrderSubmitted={handleTopUpOrderSubmitted}
           submittedOrders={submittedOrders}
           onChangePassword={(newPass) => {
-            const cust = customers.find((c) => c.id === userProfile.id || c.email === userProfile.email);
+            const activeEmail = (userProfile.email || '').trim().toLowerCase();
+            const cust = customers.find(
+              (c) =>
+                (userProfile.id && c.id === userProfile.id) ||
+                (activeEmail && c.email && c.email.trim().toLowerCase() === activeEmail)
+            );
             if (cust) {
               handlePasswordSet(cust, newPass);
             }
@@ -1665,25 +1794,13 @@ export default function App() {
           customers={customers}
           testimonials={liveTestimonials}
           onLoginSuccess={(customer) => {
-            handlePasswordSet(customer, customer.password || customer.defaultPassword || '');
+            handleCustomerLogin(customer);
             setShowSubscriberAuthModal(false);
           }}
           onUpdateCustomerPassword={(customerId, newPass) => {
             const cust = customers.find((c) => c.id === customerId);
             if (cust) {
-              const patched: CustomerRecord = {
-                ...cust,
-                password: newPass,
-                defaultPassword: '',
-                isDefaultPassword: false,
-                mustChangePassword: false,
-                isPasswordSet: true,
-                passwordLastChangedAt: new Date().toISOString(),
-                status: 'Active',
-              };
-              setCustomers((prev) => prev.map((c) => (c.id === customerId ? patched : c)));
-              liveSync.updateCustomer(customerId, patched);
-              saveCustomerToFirestore(patched).catch(() => {});
+              handlePasswordSet(cust, newPass);
             }
           }}
           onOpenAdminLogin={() => {

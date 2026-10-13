@@ -190,16 +190,16 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       }
 
       setIsLoading(false);
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+      if (err.code === 'auth/user-not-found' || err.message?.includes('credential is no longer active')) {
+        setError('No active subscriber account found with this email. This credential is no longer active.');
+      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
         setError('Incorrect password or email. Please verify your credentials or click "Forgot Password".');
-      } else if (err.code === 'auth/user-not-found') {
-        setError('No subscriber account found with this email. Only registered office members can access.');
       } else if (err.code === 'auth/invalid-email') {
         setError('Please enter a valid work email address.');
       } else if (err.code === 'auth/too-many-requests') {
         setError('Too many failed sign-in attempts. Please wait a moment or reset your password.');
       } else {
-        setError(err.message || 'Unable to authenticate. Please check your credentials.');
+        setError(err.message || 'Unable to authenticate. This credential is no longer active.');
       }
     }
   };

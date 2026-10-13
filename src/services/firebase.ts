@@ -482,7 +482,7 @@ export async function deleteCustomerFromFirestore(customerId: string, customerEm
     handleFirestoreError(e, OperationType.DELETE, `customers/${customerId}`);
   }
 
-  // Also query and remove any customer docs with this email
+  // Also query and remove any customer docs, orders, and credit redemptions with this email
   if (customerEmail) {
     try {
       const cleanEmail = customerEmail.trim().toLowerCase();
@@ -493,8 +493,22 @@ export async function deleteCustomerFromFirestore(customerId: string, customerEm
           await deleteDoc(d.ref).catch(() => {});
         }
       }
+
+      // Purge orders for this email
+      const qOrders = query(collection(db, 'orders'), where('email', '==', cleanEmail));
+      const snapsOrders = await getDocs(qOrders);
+      for (const d of snapsOrders.docs) {
+        await deleteDoc(d.ref).catch(() => {});
+      }
+
+      // Purge creditRedemptions for this email
+      const qCredits = query(collection(db, 'creditRedemptions'), where('email', '==', cleanEmail));
+      const snapsCredits = await getDocs(qCredits);
+      for (const d of snapsCredits.docs) {
+        await deleteDoc(d.ref).catch(() => {});
+      }
     } catch (e) {
-      console.warn('[Firebase] Delete customer by email notice:', e);
+      console.warn('[Firebase] Delete customer related docs notice:', e);
     }
   }
 

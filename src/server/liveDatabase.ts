@@ -3,6 +3,7 @@ import path from 'path';
 import { Response } from 'express';
 import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem, LaunchSettings, ActiveSessionRecord } from '../types';
 import { getStandardPhoneKey, normalizeEmail } from '../utils/phoneUtils';
+import { generateDefaultPassword } from '../utils/credentialUtils';
 
 export interface LiveDatabaseSchema {
   waitlistLeads: WaitlistLead[];
@@ -481,6 +482,19 @@ export function deleteCustomerRecord(id: string, emailHint?: string): boolean {
     dbState.waitlistLeads = dbState.waitlistLeads.filter(
       (l) => normalizeEmail(l.email) !== resolvedEmail
     );
+
+    // 2b. Purge previous submitted orders for this email so future registrations start completely fresh
+    dbState.submittedOrders = dbState.submittedOrders.filter(
+      (o) => normalizeEmail(o.email) !== resolvedEmail && o.id !== targetId
+    );
+
+    // 2c. Purge credit redemptions for this email/userId so future registrations start with 0 stale skips/credits
+    dbState.creditRedemptions = (dbState.creditRedemptions || []).filter(
+      (r) =>
+        normalizeEmail(r.email) !== resolvedEmail &&
+        r.userId !== targetId &&
+        r.userId !== resolvedId
+    );
   }
 
   // 3. Purge active sessions in live database so any active user session is terminated immediately
@@ -522,6 +536,68 @@ export function addOrderSubmission(order: OrderSubmission): OrderSubmission {
   } else {
     dbState.submittedOrders.unshift(order);
   }
+  // Also automatically register or update customer record in dbState so admin gets every new customer immediately
+  const cleanEmail = normalizeEmail(order.email);
+  if (cleanEmail) {
+    const custIdx = dbState.customers.findIndex(
+      (c) => normalizeEmail(c.email) === cleanEmail
+    );
+    if (custIdx === -1) {
+      const defPass = generateDefaultPassword();
+      const newCust: CustomerRecord = {
+        id: `cust-${order.id || Date.now()}`,
+        fullName: order.fullName,
+        email: order.email,
+        phone: order.phone,
+        company: order.company,
+        officeAddress: order.officeAddress,
+        secondAddress: order.secondAddress || '',
+        floorSuite: order.floorSuite || '',
+        deliveryArea: order.deliveryArea || 'Victoria Island',
+        status: 'Active',
+        paymentStatus: 'Pending Verification',
+        planName: `${order.totalDays} Workday Lunch Plan`,
+        totalDays: order.totalDays,
+        creditsBalance: 0,
+        selectedDays: order.selectedDays,
+        subtotalNGN: order.subtotalNGN,
+        discountNGN: order.discountNGN,
+        finalTotalNGN: order.finalTotalNGN,
+        orderRef: order.id,
+        memberCode: order.memberCode,
+        createdAt: order.submittedAt || new Date().toISOString(),
+        isPasswordSet: true,
+        defaultPassword: defPass,
+        password: defPass,
+        isDefaultPassword: true,
+        mustChangePassword: true,
+      };
+      dbState.customers.unshift(newCust);
+      broadcastLiveUpdate('CUSTOMER_REGISTERED', newCust);
+    } else {
+      // Merge selected days and update addresses if provided
+      const existing = dbState.customers[custIdx];
+      const existingDays = existing.selectedDays || [];
+      const newDays = order.selectedDays || [];
+      const dateMap = new Map();
+      existingDays.forEach((d) => dateMap.set(d.dateStr, d));
+      newDays.forEach((d) => dateMap.set(d.dateStr, d));
+      const mergedDays = Array.from(dateMap.values());
+
+      dbState.customers[custIdx] = {
+        ...existing,
+        selectedDays: mergedDays,
+        totalDays: mergedDays.length,
+        officeAddress: order.officeAddress || existing.officeAddress,
+        secondAddress: order.secondAddress || existing.secondAddress,
+        phone: order.phone || existing.phone,
+        company: order.company || existing.company,
+        orderRef: order.id,
+      };
+      broadcastLiveUpdate('CUSTOMER_UPDATED', dbState.customers[custIdx]);
+    }
+  }
+
   saveLiveDatabase();
   broadcastLiveUpdate('ORDER_SUBMITTED', order);
   return order;

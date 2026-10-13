@@ -145,12 +145,30 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setCheckoutError(null);
+
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+      setCheckoutError('Please provide your corporate email address to receive delivery notifications.');
+      return;
+    }
+
+    // Check if email already exists in active admin customers list
+    const existingActiveCustomer = customers.find(
+      (c) => c.email && c.email.trim().toLowerCase() === cleanEmail
+    );
+    if (existingActiveCustomer) {
+      setCheckoutError(
+        `This email (${cleanEmail}) is already registered as an active customer in 11 to 12. Each meal plan must use a unique email. If you already have an account, please log in to your Subscriber Portal to top up your plan, or use a different email address.`
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     const submission: OrderSubmission = {
       id: currentPreviewOrder.id,
       fullName: fullName.trim() || 'Valued Subscriber',
-      email: email.trim() || 'subscriber@company.ng',
+      email: cleanEmail,
       phone: phone.trim() || '+234 800 000 0000',
       company: company.trim() || 'Corporate Office',
       officeAddress: officeAddress.trim() || 'Desk Drop Location',

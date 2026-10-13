@@ -82,13 +82,13 @@ export const CustomerMyLunchesTab: React.FC<CustomerMyLunchesTabProps> = ({
     const skippedSet = new Set(userProfile.skippedDates || []);
 
     // Combine redemptions from userProfile and creditRedemptions prop
+    const cleanUserEmail = (userProfile.email || '').toLowerCase().trim();
     const allRedemptions: CreditRedemptionOrder[] = [
       ...(userProfile.creditRedemptions || []),
       ...(creditRedemptions || []).filter(
         (r) =>
-          r.userId === userProfile.id ||
-          Boolean(r.email && userProfile.email && r.email.toLowerCase() === userProfile.email.toLowerCase()) ||
-          Boolean(userProfile.name && r.userName && r.userName.toLowerCase() === userProfile.name.toLowerCase())
+          (userProfile.id && r.userId === userProfile.id) ||
+          Boolean(cleanUserEmail && r.email && r.email.toLowerCase().trim() === cleanUserEmail)
       ),
     ];
 

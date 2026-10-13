@@ -77,6 +77,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   creditRedemptions = [],
   onUpdateWaitlistLead,
   onDeleteWaitlistLead,
+  onAddCustomer,
   onUpdateCustomer,
   onDeleteCustomer,
   onDeleteOrder,
@@ -372,8 +373,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         {activeTab === 'customers' && (
           <AdminCustomersTab
             customers={customers}
+            onAddCustomer={onAddCustomer}
             onUpdateCustomer={onUpdateCustomer}
             onDeleteCustomer={onDeleteCustomer}
+            onConfirmOrderPayment={onConfirmOrderPayment}
             selectedCustomer={selectedCustomerProfile}
             onCloseCustomerProfile={() => setSelectedCustomerProfile(null)}
             onOpenCustomerProfile={(c) => setSelectedCustomerProfile(c)}
