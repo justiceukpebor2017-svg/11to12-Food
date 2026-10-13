@@ -49,8 +49,15 @@ import {
   claimActiveSession,
   releaseActiveSession,
   listenToSessionConflict,
+  listenToAccountDeletion,
+  terminateCustomerSession,
   getCurrentSessionToken,
 } from './services/sessionService';
+import {
+  recordCustomerAsDeleted,
+  isCustomerRecordedAsDeleted,
+  unrecordCustomerAsDeleted,
+} from './utils/customerDeletions';
 import { SessionConflictModal } from './components/common/SessionConflictModal';
 import { ShieldAlert } from 'lucide-react';
 import {
@@ -353,8 +360,15 @@ export default function App() {
       if (liveState.customers && Array.isArray(liveState.customers) && liveState.customers.length > 0) {
         setCustomers((prev) => {
           const map = new Map<string, CustomerRecord>();
-          prev.forEach((c) => map.set(c.id, c));
+          prev.forEach((c) => {
+            if (!isCustomerRecordedAsDeleted(c.id, c.email)) {
+              map.set(c.id, c);
+            }
+          });
           liveState.customers.forEach((incoming) => {
+            if (isCustomerRecordedAsDeleted(incoming.id, incoming.email)) {
+              return;
+            }
             const existing =
               map.get(incoming.id) ||
               Array.from(map.values()).find(
@@ -387,7 +401,9 @@ export default function App() {
               map.set(incoming.id, incoming);
             }
           });
-          const merged = Array.from(map.values());
+          const merged = Array.from(map.values()).filter(
+            (c) => !isCustomerRecordedAsDeleted(c.id, c.email)
+          );
           try {
             localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(merged));
           } catch {}
@@ -482,17 +498,45 @@ export default function App() {
   // Real-time onSnapshot camera stream: Listen to customers collection across all devices
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'customers'), (snapshot) => {
+      // 1. Process deletions directly from Firestore snapshot changes
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'removed') {
+          const removedData = change.doc.data() as CustomerRecord;
+          const delId = change.doc.id;
+          const delEmail = removedData?.email;
+          recordCustomerAsDeleted(delId, delEmail);
+          const currentId = userProfile.id;
+          const currentEmail = (userProfile.email || '').trim().toLowerCase();
+          if (
+            (delId && currentId === delId) ||
+            (delEmail && currentEmail === delEmail.trim().toLowerCase())
+          ) {
+            handleForceLogoutDueToAccountDeletion();
+          }
+        }
+      });
+
       if (snapshot.empty) return;
-      const firestoreCustomers: CustomerRecord[] = snapshot.docs.map((d) => ({
-        ...(d.data() as CustomerRecord),
-        id: d.id,
-      }));
+      const firestoreCustomers: CustomerRecord[] = snapshot.docs
+        .map((d) => ({
+          ...(d.data() as CustomerRecord),
+          id: d.id,
+        }))
+        .filter((c) => !isCustomerRecordedAsDeleted(c.id, c.email));
+
       // Merge into state safely without wiping locally saved customers
       if (firestoreCustomers.length > 0) {
         setCustomers((prev) => {
           const map = new Map<string, CustomerRecord>();
-          prev.forEach((c) => map.set(c.id, c));
+          prev.forEach((c) => {
+            if (!isCustomerRecordedAsDeleted(c.id, c.email)) {
+              map.set(c.id, c);
+            }
+          });
           firestoreCustomers.forEach((incoming) => {
+            if (isCustomerRecordedAsDeleted(incoming.id, incoming.email)) {
+              return;
+            }
             const existing =
               map.get(incoming.id) ||
               Array.from(map.values()).find(
@@ -525,7 +569,9 @@ export default function App() {
               map.set(incoming.id, incoming);
             }
           });
-          const merged = Array.from(map.values());
+          const merged = Array.from(map.values()).filter(
+            (c) => !isCustomerRecordedAsDeleted(c.id, c.email)
+          );
           try {
             localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(merged));
           } catch {}
@@ -764,6 +810,7 @@ export default function App() {
 
   // Customer Management Handlers
   const handleAddCustomer = (newCustomer: CustomerRecord) => {
+    unrecordCustomerAsDeleted(newCustomer.id, newCustomer.email);
     setCustomers((prev) => [newCustomer, ...prev]);
     liveSync.registerCustomer(newCustomer);
     saveCustomerToFirestore(newCustomer).catch(() => {});
@@ -893,6 +940,54 @@ export default function App() {
       }
     };
   }, [viewMode, userProfile.id, userProfile.email]);
+
+  const handleForceLogoutDueToAccountDeletion = async () => {
+    console.warn('[App] Customer account deleted by administrator. Forcing logout.');
+    setUserProfile(INITIAL_USER_PROFILE);
+    try {
+      localStorage.removeItem(APP_STORAGE_KEYS.USER_PROFILE);
+      localStorage.removeItem('11to12_active_view_mode');
+      localStorage.removeItem('11to12_subscriber_profile');
+      sessionStorage.removeItem('11to12_active_session_token_v1');
+    } catch {}
+
+    try {
+      await logoutSubscriberAccount();
+    } catch {}
+
+    try {
+      const token = getCurrentSessionToken() || '';
+      const custId = userProfile.id || userProfile.email || 'customer';
+      await releaseActiveSession(custId, token);
+    } catch {}
+
+    setViewMode('marketing');
+    setSessionConflict(null);
+    setSessionToast('Your subscriber account was removed by the administrator. Your active session has ended.');
+  };
+
+  // Listen for real-time account deletion across all devices and tabs
+  useEffect(() => {
+    if (viewMode !== 'subscriber') {
+      return;
+    }
+    const unsub = listenToAccountDeletion(
+      userProfile.id || '',
+      userProfile.email,
+      () => {
+        handleForceLogoutDueToAccountDeletion();
+      }
+    );
+    return () => unsub();
+  }, [viewMode, userProfile.id, userProfile.email]);
+
+  // Safety watch: if active subscriber is recorded as deleted, force logout immediately
+  useEffect(() => {
+    if (viewMode !== 'subscriber') return;
+    if (isCustomerRecordedAsDeleted(userProfile.id, userProfile.email)) {
+      handleForceLogoutDueToAccountDeletion();
+    }
+  }, [customers, viewMode, userProfile.id, userProfile.email]);
 
   const handleContinueUsingThisDevice = async () => {
     if (!sessionConflict) return;
@@ -1159,6 +1254,7 @@ export default function App() {
         isDefaultPassword: true,
         mustChangePassword: true,
       };
+      unrecordCustomerAsDeleted(newCustomer.id, newCustomer.email);
       setCustomers((prev) => {
         const next = [newCustomer, ...prev];
         try {
@@ -1305,10 +1401,43 @@ export default function App() {
     );
   };
 
-  const handleDeleteCustomer = async (customerId: string) => {
-    setCustomers((prev) => prev.filter((c) => c.id !== customerId));
-    await liveSync.deleteCustomer(customerId);
-    await deleteCustomerFromFirestore(customerId).catch(() => {});
+  const handleDeleteCustomer = async (customerId: string, email?: string) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+
+    // 1. Permanently record deletion in markers so snapshots & liveSync never restore it
+    recordCustomerAsDeleted(customerId, cleanEmail);
+
+    // 2. Remove from local customers state and localStorage
+    setCustomers((prev) => {
+      const next = prev.filter((c) => {
+        if (customerId && c.id === customerId) return false;
+        if (cleanEmail && c.email && c.email.trim().toLowerCase() === cleanEmail) return false;
+        return true;
+      });
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 3. Purge matching waitlist lead if any, ensuring the email is 100% free for new users
+    if (cleanEmail) {
+      setWaitlistLeads((prev) => prev.filter((l) => !l.email || l.email.trim().toLowerCase() !== cleanEmail));
+    }
+
+    // 4. Terminate active sessions across all devices and server
+    await terminateCustomerSession(customerId, cleanEmail).catch(() => {});
+    await liveSync.deleteCustomer(customerId, cleanEmail).catch(() => {});
+    await deleteCustomerFromFirestore(customerId, cleanEmail).catch(() => {});
+
+    // 5. If currently active user in this browser is this subscriber, log them off immediately!
+    const isCurrentSubscriber =
+      (userProfile.id && userProfile.id === customerId) ||
+      (cleanEmail && userProfile.email && userProfile.email.trim().toLowerCase() === cleanEmail);
+
+    if (isCurrentSubscriber) {
+      await handleForceLogoutDueToAccountDeletion();
+    }
   };
 
   const handleDeleteWaitlistLead = async (leadId: string) => {

@@ -37,6 +37,8 @@ import { generateDefaultPassword } from '../../utils/credentialUtils';
 import { CustomerCredentialsModal } from './CustomerCredentialsModal';
 import { saveCustomerToFirestore, deleteCustomerFromFirestore, deleteOrderFromFirestore, subscribeToCustomers } from '../../services/firebase';
 import { liveSync } from '../../services/liveSyncService';
+import { terminateCustomerSession } from '../../services/sessionService';
+import { recordCustomerAsDeleted, unrecordCustomerAsDeleted } from '../../utils/customerDeletions';
 
 interface CustomersManagerProps {
   submittedOrders: OrderSubmission[];
@@ -44,7 +46,7 @@ interface CustomersManagerProps {
   waitlistLeads?: WaitlistLead[];
   onAddCustomer?: (customer: CustomerRecord) => void;
   onUpdateCustomer?: (customer: CustomerRecord) => void;
-  onDeleteCustomer?: (customerId: string) => void;
+  onDeleteCustomer?: (customerId: string, customerEmail?: string) => void;
   onDeleteOrder?: (orderId: string) => void;
   onSimulateUserActivation?: (customer: CustomerRecord) => void;
   currentUserProfile?: UserProfile;
@@ -120,11 +122,14 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
   const handleConfirmDeleteCustomer = () => {
     if (!customerToDelete) return;
     const targetId = customerToDelete.id;
+    const targetEmail = customerToDelete.email;
+    recordCustomerAsDeleted(targetId, targetEmail);
+    terminateCustomerSession(targetId, targetEmail).catch(() => {});
     if (onDeleteCustomer) {
-      onDeleteCustomer(targetId);
+      onDeleteCustomer(targetId, targetEmail);
     }
-    deleteCustomerFromFirestore(targetId).catch(() => {});
-    liveSync.deleteCustomer(targetId).catch(() => {});
+    deleteCustomerFromFirestore(targetId, targetEmail).catch(() => {});
+    liveSync.deleteCustomer(targetId, targetEmail).catch(() => {});
     setInternalCustomers((prev) => prev.filter((c) => c.id !== targetId));
     setLiveFirestoreCustomers((prev) => prev.filter((c) => c.id !== targetId));
     if (selectedCustomer?.id === targetId) {
@@ -357,6 +362,8 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
       mustChangePassword: true,
       isPasswordSet: true,
     };
+
+    unrecordCustomerAsDeleted(newCustomer.id, newCustomer.email);
 
     if (externalOnAddCustomer) {
       externalOnAddCustomer(newCustomer);

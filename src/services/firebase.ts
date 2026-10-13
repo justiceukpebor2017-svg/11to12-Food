@@ -201,6 +201,12 @@ export async function registerSubscriberAccount(data: {
   return newCustomer;
 }
 
+import {
+  recordCustomerAsDeleted,
+  isCustomerRecordedAsDeleted,
+  unrecordCustomerAsDeleted,
+} from '../utils/customerDeletions';
+
 /**
  * Log in a subscriber via real Firebase Auth or verified Firestore/server customer record
  */
@@ -210,6 +216,16 @@ export async function loginSubscriberAccount(
 ): Promise<{ user: User | null; customer: CustomerRecord | null }> {
   const cleanEmail = email.trim().toLowerCase();
   const cleanPass = pass.trim();
+
+  // If this account was previously marked as deleted and not re-created, reject credentials immediately
+  if (isCustomerRecordedAsDeleted(undefined, cleanEmail)) {
+    try {
+      await fbSignOut(auth);
+    } catch {}
+    const err = new Error('This subscriber account has been removed by an administrator. Credentials are no longer active.');
+    (err as any).code = 'auth/user-not-found';
+    throw err;
+  }
 
   let fbUser: User | null = null;
   let authFailed = false;
@@ -283,7 +299,14 @@ export async function loginSubscriberAccount(
     return { user: fbUser, customer };
   }
 
-  const notFoundErr = new Error('No subscriber account found with this email. Only registered subscribers with confirmed reservations can log in.');
+  // If Firebase user exists but customer document was deleted by admin, sign out Firebase auth user
+  if (fbUser && !customer) {
+    try {
+      await fbSignOut(auth);
+    } catch {}
+  }
+
+  const notFoundErr = new Error('No active subscriber account found with this email. This credential is no longer active.');
   (notFoundErr as any).code = 'auth/user-not-found';
   throw notFoundErr;
 }
@@ -445,6 +468,9 @@ export async function deleteWaitlistLeadFromFirestore(leadId: string): Promise<v
  * Add or update Customer in Firestore (Cross-device and cross-browser persistence)
  */
 export async function saveCustomerToFirestore(customer: CustomerRecord): Promise<void> {
+  // If customer is being saved/created, clear any previous deletion markers for this id/email
+  unrecordCustomerAsDeleted(customer.id, customer.email);
+
   try {
     const cleanCustomer = sanitizeForFirestore(customer);
     const custRef = doc(db, 'customers', customer.id);
@@ -455,15 +481,41 @@ export async function saveCustomerToFirestore(customer: CustomerRecord): Promise
 }
 
 /**
- * Delete Customer from Firestore
+ * Delete Customer from Firestore (and purges any duplicate documents & active sessions for this account)
  */
-export async function deleteCustomerFromFirestore(customerId: string): Promise<void> {
+export async function deleteCustomerFromFirestore(customerId: string, customerEmail?: string): Promise<void> {
+  recordCustomerAsDeleted(customerId, customerEmail);
+
   try {
     const custRef = doc(db, 'customers', customerId);
     await deleteDoc(custRef);
   } catch (e) {
     handleFirestoreError(e, OperationType.DELETE, `customers/${customerId}`);
   }
+
+  // Also query and remove any customer docs with this email
+  if (customerEmail) {
+    try {
+      const cleanEmail = customerEmail.trim().toLowerCase();
+      const q = query(collection(db, 'customers'), where('email', '==', cleanEmail));
+      const snaps = await getDocs(q);
+      for (const d of snaps.docs) {
+        if (d.id !== customerId) {
+          await deleteDoc(d.ref).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn('[Firebase] Delete customer by email notice:', e);
+    }
+  }
+
+  // Purge any active session documents in Firestore so user cannot resume
+  try {
+    await deleteDoc(doc(db, 'sessions', customerId)).catch(() => {});
+    if (customerEmail) {
+      await deleteDoc(doc(db, 'sessions', customerEmail.trim().toLowerCase())).catch(() => {});
+    }
+  } catch {}
 }
 
 /**

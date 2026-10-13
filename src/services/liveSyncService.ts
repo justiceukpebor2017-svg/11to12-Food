@@ -59,6 +59,7 @@ class LiveSyncService {
 
   private listeners: Set<SyncListener> = new Set();
   private sessionListeners: Set<(event: { type: 'CLAIMED' | 'RELEASED'; session: any }) => void> = new Set();
+  private customerDeletedListeners: Set<(id: string, email?: string) => void> = new Set();
   private eventSource: EventSource | null = null;
   private pollInterval: any = null;
   private isConnected = false;
@@ -218,7 +219,23 @@ class LiveSyncService {
         c.id === data.payload.id ? data.payload : c
       );
     } else if (data.type === 'CUSTOMER_DELETED' && data.payload) {
-      this.state.customers = this.state.customers.filter((c) => c.id !== data.payload.id);
+      const delId = data.payload.id;
+      const delEmail = (data.payload.email || '').toLowerCase().trim();
+      this.state.customers = this.state.customers.filter((c) => {
+        if (delId && c.id === delId) return false;
+        if (delEmail && c.email && c.email.toLowerCase().trim() === delEmail) return false;
+        return true;
+      });
+      if (delEmail) {
+        this.state.waitlistLeads = this.state.waitlistLeads.filter(
+          (l) => !l.email || l.email.toLowerCase().trim() !== delEmail
+        );
+      }
+      this.customerDeletedListeners.forEach((listener) => {
+        try {
+          listener(delId, delEmail);
+        } catch {}
+      });
     } else if (data.type === 'TESTIMONIALS_UPDATED' && Array.isArray(data.payload)) {
       this.state.testimonials = data.payload;
     } else if (data.type === 'ORDER_SUBMITTED' && data.payload) {
@@ -634,22 +651,70 @@ class LiveSyncService {
   }
 
   /**
+   * Registers a callback for real-time customer deletion across all devices
+   */
+  public onCustomerDeleted(listener: (id: string, email?: string) => void): () => void {
+    this.customerDeletedListeners.add(listener);
+    return () => {
+      this.customerDeletedListeners.delete(listener);
+    };
+  }
+
+  /**
    * Completely removes a customer from central database and broadcasts across all devices
    */
-  public async deleteCustomer(id: string): Promise<boolean> {
+  public async deleteCustomer(id: string, email?: string): Promise<boolean> {
+    const cleanEmail = (email || '').toLowerCase().trim();
     try {
-      const res = await fetch(apiUrl(`/api/customers/${encodeURIComponent(id)}`), {
+      const url = cleanEmail
+        ? apiUrl(`/api/customers/${encodeURIComponent(id)}?email=${encodeURIComponent(cleanEmail)}`)
+        : apiUrl(`/api/customers/${encodeURIComponent(id)}`);
+      const res = await fetch(url, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail }),
       });
       if (res.ok) {
-        this.state.customers = this.state.customers.filter((c) => c.id !== id);
+        this.state.customers = this.state.customers.filter((c) => {
+          if (c.id === id) return false;
+          if (cleanEmail && c.email && c.email.toLowerCase().trim() === cleanEmail) return false;
+          return true;
+        });
+        if (cleanEmail) {
+          this.state.waitlistLeads = this.state.waitlistLeads.filter(
+            (l) => !l.email || l.email.toLowerCase().trim() !== cleanEmail
+          );
+        }
+        this.customerDeletedListeners.forEach((fn) => {
+          try {
+            fn(id, cleanEmail);
+          } catch {}
+        });
         this.notify();
         return true;
       }
     } catch (e) {
       console.error('[LiveSync] deleteCustomer error:', e);
     }
-    return false;
+
+    // Graceful local fallback
+    this.state.customers = this.state.customers.filter((c) => {
+      if (c.id === id) return false;
+      if (cleanEmail && c.email && c.email.toLowerCase().trim() === cleanEmail) return false;
+      return true;
+    });
+    if (cleanEmail) {
+      this.state.waitlistLeads = this.state.waitlistLeads.filter(
+        (l) => !l.email || l.email.toLowerCase().trim() !== cleanEmail
+      );
+    }
+    this.customerDeletedListeners.forEach((fn) => {
+      try {
+        fn(id, cleanEmail);
+      } catch {}
+    });
+    this.notify();
+    return true;
   }
 
   /**

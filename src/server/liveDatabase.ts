@@ -414,6 +414,7 @@ export function updateCustomerRecord(id: string, patch: Partial<CustomerRecord>)
       subtotalNGN: patch.subtotalNGN || 0,
       discountNGN: patch.discountNGN || 0,
       finalTotalNGN: patch.finalTotalNGN || 0,
+      isPasswordSet: patch.isPasswordSet ?? Boolean(patch.password || patch.defaultPassword || false),
       createdAt: patch.createdAt || new Date().toISOString(),
       ...patch,
     };
@@ -452,19 +453,57 @@ export function updateCustomerRecord(id: string, patch: Partial<CustomerRecord>)
 }
 
 /**
- * Deletes a customer record completely from the database (strictly single ID)
+ * Deletes a customer record completely from the database and purges credentials & duplicates
  */
-export function deleteCustomerRecord(id: string): boolean {
+export function deleteCustomerRecord(id: string, emailHint?: string): boolean {
   const targetId = String(id).trim();
-  if (!targetId) return false;
-  const initialLength = dbState.customers.length;
-  dbState.customers = dbState.customers.filter((c) => c.id !== targetId);
-  if (dbState.customers.length < initialLength) {
-    saveLiveDatabase();
-    broadcastLiveUpdate('CUSTOMER_DELETED', { id: targetId });
+  const targetEmail = (emailHint || '').trim().toLowerCase();
+  if (!targetId && !targetEmail) return false;
+
+  // Locate existing customer to resolve email if not provided
+  const found = dbState.customers.find(
+    (c) =>
+      (targetId && (c.id === targetId || c.id.toLowerCase() === targetId.toLowerCase())) ||
+      (targetEmail && normalizeEmail(c.email) === targetEmail)
+  );
+  const resolvedEmail = found?.email ? normalizeEmail(found.email) : targetEmail;
+  const resolvedId = found?.id || targetId;
+
+  // 1. Remove from customers collection by ID or email
+  dbState.customers = dbState.customers.filter((c) => {
+    if (targetId && (c.id === targetId || c.id.toLowerCase() === targetId.toLowerCase())) return false;
+    if (resolvedEmail && normalizeEmail(c.email) === resolvedEmail) return false;
     return true;
+  });
+
+  // 2. Remove from waitlist leads if this email had waitlist entries, freeing the email for new registrations
+  if (resolvedEmail) {
+    dbState.waitlistLeads = dbState.waitlistLeads.filter(
+      (l) => normalizeEmail(l.email) !== resolvedEmail
+    );
   }
-  return false;
+
+  // 3. Purge active sessions in live database so any active user session is terminated immediately
+  if (dbState.activeSessions) {
+    for (const [sKey, sRecord] of Object.entries(dbState.activeSessions)) {
+      const matchId = (targetId && sKey === targetId) || (resolvedId && sKey === resolvedId) || (sRecord.userId && (sRecord.userId === targetId || sRecord.userId === resolvedId));
+      const matchEmail = resolvedEmail && (sKey === resolvedEmail || normalizeEmail(sRecord.userEmail) === resolvedEmail || normalizeEmail(sRecord.userId) === resolvedEmail);
+      if (matchId || matchEmail) {
+        delete dbState.activeSessions[sKey];
+        broadcastLiveUpdate('SESSION_RELEASED', { userId: sRecord.userId, activeSessionId: '*' });
+      }
+    }
+  }
+
+  saveLiveDatabase();
+
+  // 4. Broadcast deletion across all connected devices and browsers so active sessions are terminated
+  broadcastLiveUpdate('CUSTOMER_DELETED', {
+    id: targetId || found?.id,
+    email: resolvedEmail,
+  });
+
+  return true;
 }
 
 /**
@@ -739,7 +778,11 @@ export function getSessionInDb(userId: string): ActiveSessionRecord | null {
 }
 
 export function releaseSessionInDb(userId: string, activeSessionId: string): boolean {
-  if (dbState.activeSessions?.[userId]?.activeSessionId === activeSessionId) {
+  if (
+    activeSessionId === '*' ||
+    !activeSessionId ||
+    dbState.activeSessions?.[userId]?.activeSessionId === activeSessionId
+  ) {
     delete dbState.activeSessions[userId];
     saveLiveDatabase();
     broadcastLiveUpdate('SESSION_RELEASED', { userId, activeSessionId });

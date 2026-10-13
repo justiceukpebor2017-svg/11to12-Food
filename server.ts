@@ -322,11 +322,9 @@ app.patch('/api/customers/:id', handleUpdateCustomerRoute);
 app.put('/api/customers/:id', handleUpdateCustomerRoute);
 
 app.delete('/api/customers/:id', (req, res) => {
-  const deleted = deleteCustomerRecord(req.params.id);
-  if (!deleted) {
-    return res.status(404).json({ error: 'Customer not found' });
-  }
-  return res.json({ success: true, id: req.params.id });
+  const emailQuery = (req.query.email as string) || (req.body?.email as string) || '';
+  const deleted = deleteCustomerRecord(req.params.id, emailQuery);
+  return res.json({ success: true, id: req.params.id, deleted });
 });
 
 // Orders Endpoints

@@ -20,7 +20,7 @@ const SESSION_TOKEN_KEY = '11to12_active_session_token';
 const LAST_CLAIMED_KEY = '11to12_last_active_session_payload';
 
 // BroadcastChannel for instant cross-tab / cross-window synchronization within the same browser
-const sessionBroadcastChannel: BroadcastChannel | null =
+export const sessionBroadcastChannel: BroadcastChannel | null =
   typeof window !== 'undefined' && 'BroadcastChannel' in window
     ? new BroadcastChannel('11to12_active_sessions_channel')
     : null;
@@ -211,6 +211,113 @@ export async function releaseActiveSession(userId: string, token: string): Promi
   try {
     sessionStorage.removeItem(SESSION_TOKEN_KEY);
   } catch {}
+}
+
+import { recordCustomerAsDeleted } from '../utils/customerDeletions';
+
+/**
+ * Permanently terminates all active sessions for a customer across all devices when deleted by admin
+ */
+export async function terminateCustomerSession(userId: string, userEmail?: string): Promise<void> {
+  const cleanEmail = (userEmail || '').trim().toLowerCase();
+  const cleanId = (userId || '').trim();
+
+  // Mark in local persistent deletion registry
+  recordCustomerAsDeleted(cleanId, cleanEmail);
+
+  try {
+    localStorage.removeItem(LAST_CLAIMED_KEY);
+  } catch {}
+
+  if (sessionBroadcastChannel) {
+    try {
+      sessionBroadcastChannel.postMessage({
+        type: 'ACCOUNT_DELETED',
+        userId: cleanId,
+        userEmail: cleanEmail,
+      });
+    } catch {}
+  }
+
+  // 1. Release in Firestore for both ID and email
+  releaseSessionInFirestore(cleanId, '*').catch(() => {});
+  if (cleanEmail) {
+    releaseSessionInFirestore(cleanEmail, '*').catch(() => {});
+  }
+
+  // 2. Release in Backend Server
+  try {
+    fetch(apiUrl('/api/sessions/release'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: cleanId, activeSessionId: '*' }),
+    }).catch(() => {});
+    if (cleanEmail) {
+      fetch(apiUrl('/api/sessions/release'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: cleanEmail, activeSessionId: '*' }),
+      }).catch(() => {});
+    }
+  } catch {}
+}
+
+/**
+ * Real-time multi-channel listener for account deletion:
+ * Immediately triggers callback if active subscriber's account was removed by admin
+ */
+export function listenToAccountDeletion(
+  currentUserId: string,
+  currentUserEmail: string | undefined,
+  onDeleted: () => void
+): () => void {
+  let isDisposed = false;
+  const cleanEmail = (currentUserEmail || '').trim().toLowerCase();
+  const cleanId = (currentUserId || '').trim();
+
+  const checkIfMatches = (delId?: string, delEmail?: string) => {
+    if (isDisposed) return;
+    const matchId = Boolean(delId && cleanId && (delId === cleanId || delId.toLowerCase() === cleanId.toLowerCase()));
+    const matchEmail = Boolean(delEmail && cleanEmail && delEmail.toLowerCase().trim() === cleanEmail);
+    if (matchId || matchEmail) {
+      onDeleted();
+    }
+  };
+
+  // 1. BroadcastChannel listener (instant 0ms cross-tab in same browser)
+  const handleBroadcast = (evt: MessageEvent) => {
+    if (evt.data?.type === 'ACCOUNT_DELETED') {
+      checkIfMatches(evt.data.userId, evt.data.userEmail);
+    }
+  };
+  if (sessionBroadcastChannel) {
+    sessionBroadcastChannel.addEventListener('message', handleBroadcast);
+  }
+
+  // 2. Storage event listener (cross-tab storage event)
+  const handleStorage = (evt: StorageEvent) => {
+    if (evt.key === '11to12_account_deleted_event' && evt.newValue) {
+      try {
+        const parsed = JSON.parse(evt.newValue);
+        checkIfMatches(parsed.id, parsed.email);
+      } catch {}
+    }
+  };
+  window.addEventListener('storage', handleStorage);
+
+  // 3. LiveSync SSE listener (cross-device & server-sent events)
+  const unsubLiveSync = liveSync.onCustomerDeleted((delId, delEmail) => {
+    checkIfMatches(delId, delEmail);
+  });
+
+  return () => {
+    isDisposed = true;
+    if (sessionBroadcastChannel) {
+      sessionBroadcastChannel.removeEventListener('message', handleBroadcast);
+    }
+    window.removeEventListener('storage', handleStorage);
+    if (unsubLiveSync) unsubLiveSync();
+  };
 }
 
 /**

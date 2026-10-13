@@ -31,7 +31,7 @@ import {
 interface AdminCustomersTabProps {
   customers: CustomerRecord[];
   onUpdateCustomer?: (customer: CustomerRecord) => void;
-  onDeleteCustomer?: (customerId: string) => void;
+  onDeleteCustomer?: (customerId: string, customerEmail?: string) => void;
   selectedCustomer?: CustomerRecord | null;
   onCloseCustomerProfile?: () => void;
   onOpenCustomerProfile?: (customer: CustomerRecord) => void;
@@ -175,7 +175,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
 
   const handleConfirmDelete = () => {
     if (customerToDelete && onDeleteCustomer) {
-      onDeleteCustomer(customerToDelete.id);
+      onDeleteCustomer(customerToDelete.id, customerToDelete.email);
       if (activeCustomer?.id === customerToDelete.id) {
         handleCloseProfile();
       }

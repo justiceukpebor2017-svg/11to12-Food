@@ -44,7 +44,7 @@ interface AdminDashboardPageProps {
   onDeleteWaitlistLead?: (leadId: string) => void;
   onAddCustomer?: (customer: CustomerRecord) => void;
   onUpdateCustomer?: (customer: CustomerRecord) => void;
-  onDeleteCustomer?: (customerId: string) => void;
+  onDeleteCustomer?: (customerId: string, customerEmail?: string) => void;
   onDeleteOrder?: (orderId: string) => void;
   onSimulateUserActivation?: (customer: CustomerRecord) => void;
   onNavigateToSubscriber?: () => void;

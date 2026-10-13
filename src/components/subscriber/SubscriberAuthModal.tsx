@@ -22,6 +22,7 @@ import {
   sendSubscriberPasswordReset,
   updateCustomerPasswordInFirestore,
 } from '../../services/firebase';
+import { isCustomerRecordedAsDeleted } from '../../utils/customerDeletions';
 
 interface SubscriberAuthModalProps {
   isOpen: boolean;
@@ -112,6 +113,13 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       return false;
     };
 
+    // Check if account has been marked as deleted
+    if (isCustomerRecordedAsDeleted(undefined, cleanEmail)) {
+      setError('This subscriber account has been removed by the administrator. Credentials are no longer active.');
+      setIsLoading(false);
+      return;
+    }
+
     // Pre-check registered customer in active customers list
     const registeredCustomer = customers.find(
       (c) => c.email && c.email.trim().toLowerCase() === cleanEmail
@@ -158,40 +166,9 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
         return;
       }
 
-      // If authenticated in Firebase but doc is pending, create canonical subscriber record
-      const fallbackCustomer: CustomerRecord = {
-        id: user.uid,
-        fullName: user.displayName || 'Office Subscriber',
-        email: cleanEmail,
-        phone: user.phoneNumber || '0802 618 0680',
-        company: 'Corporate Office',
-        officeAddress: 'Victoria Island / Ikoyi, Lagos',
-        floorSuite: 'Desk Drop Station',
-        status: 'Active',
-        paymentStatus: 'Paid',
-        planName: 'Standard Workday Lunch Plan',
-        totalDays: 20,
-        creditsBalance: 0,
-        createdAt: new Date().toISOString(),
-        isPasswordSet: true,
-        selectedDays: [],
-        subtotalNGN: 0,
-        discountNGN: 0,
-        finalTotalNGN: 0,
-      };
-
-      if (isDefaultPasswordValue(cleanPass, fallbackCustomer)) {
-        setMatchedCustomer(fallbackCustomer);
-        setNewPassword('');
-        setConfirmNewPassword('');
-        setMode('first_login_change_password');
-        setIsLoading(false);
-        return;
-      }
-
-      onLoginSuccess(fallbackCustomer);
+      setError('No active subscriber account found for this email. This credential is no longer active.');
       setIsLoading(false);
-      onClose();
+      return;
     } catch (err: any) {
       console.warn('[Firebase Auth] Sign in error:', err);
 
