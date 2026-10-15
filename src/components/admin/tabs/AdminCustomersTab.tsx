@@ -49,6 +49,8 @@ interface AdminCustomersTabProps {
   selectedCustomer?: CustomerRecord | null;
   onCloseCustomerProfile?: () => void;
   onOpenCustomerProfile?: (customer: CustomerRecord) => void;
+  isAddModalOpen?: boolean;
+  onToggleAddModal?: (open: boolean) => void;
 }
 
 export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
@@ -60,6 +62,8 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
   selectedCustomer: controlledSelectedCustomer,
   onCloseCustomerProfile,
   onOpenCustomerProfile,
+  isAddModalOpen,
+  onToggleAddModal,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>('all');
@@ -78,7 +82,13 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
   const [editStatus, setEditStatus] = useState<'Active' | 'Paused' | 'Pending Activation'>('Active');
 
   // Add Customer Modal State
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [internalShowAddModal, setInternalShowAddModal] = useState(false);
+  const showAddModal = isAddModalOpen !== undefined ? isAddModalOpen : internalShowAddModal;
+  const setShowAddModal = (open: boolean) => {
+    setInternalShowAddModal(open);
+    if (onToggleAddModal) onToggleAddModal(open);
+  };
+
   const [modalTab, setModalTab] = useState<'details' | 'meals' | 'credentials'>('details');
   const [newFullName, setNewFullName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -88,6 +98,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
   const [newOfficeAddress, setNewOfficeAddress] = useState('');
   const [newSecondAddress, setNewSecondAddress] = useState('');
   const [newPaymentStatus, setNewPaymentStatus] = useState<'Paid' | 'Pending Verification'>('Paid');
+  const [newDefaultSwallow, setNewDefaultSwallow] = useState<SwallowType>('Semo');
   const [newOrderRef, setNewOrderRef] = useState('');
   const [newDefaultPassword, setNewDefaultPassword] = useState(() => generateDefaultPassword());
   const [newSelectedDays, setNewSelectedDays] = useState<SelectedLunchDay[]>([]);
@@ -100,7 +111,16 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
   // Dialog showing generated credentials after creating a customer
   const [createdCredentialsNotice, setCreatedCredentialsNotice] = useState<CustomerRecord | null>(null);
 
-  const activeCustomer = controlledSelectedCustomer || internalSelectedCustomer;
+  const selectedRef = controlledSelectedCustomer || internalSelectedCustomer;
+  const activeCustomer = useMemo(() => {
+    if (!selectedRef) return null;
+    const live = customers.find(
+      (c) =>
+        c.id === selectedRef.id ||
+        (c.email && selectedRef.email && c.email.trim().toLowerCase() === selectedRef.email.trim().toLowerCase())
+    );
+    return live || selectedRef;
+  }, [customers, selectedRef]);
 
   // Filter customers by search and payment status
   const filteredCustomers = useMemo(() => {
@@ -187,7 +207,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
       'Total Days',
       'Primary Delivery Address',
       'Second Delivery Address',
-      'Default Password',
+      'Password / Login',
       'Order Amount (NGN)',
     ];
 
@@ -218,6 +238,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
     setNewOfficeAddress('');
     setNewSecondAddress('');
     setNewPaymentStatus('Paid');
+    setNewDefaultSwallow('Semo');
     setNewOrderRef(`ORD-${Math.floor(100000 + Math.random() * 900000)}`);
     setNewDefaultPassword(generateDefaultPassword());
     setNewSelectedDays([]);
@@ -226,6 +247,21 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
     setCalYear(LAUNCH_CONFIG.year);
     setCalMonth(LAUNCH_CONFIG.monthIndex);
     setShowAddModal(true);
+  };
+
+  const handleChangeDefaultSwallow = (swallow: SwallowType) => {
+    setNewDefaultSwallow(swallow);
+    setNewSelectedDays((prev) =>
+      prev.map((d) =>
+        d.meal.mealCategory === 'Swallow' ? { ...d, selectedSwallow: swallow } : d
+      )
+    );
+  };
+
+  const handleUpdateDaySwallow = (dateStr: string, swallow: SwallowType) => {
+    setNewSelectedDays((prev) =>
+      prev.map((d) => (d.dateStr === dateStr ? { ...d, selectedSwallow: swallow } : d))
+    );
   };
 
   // Calendar day calculation for selecting meals
@@ -263,7 +299,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
         const item: SelectedLunchDay = {
           dateStr,
           meal,
-          selectedSwallow: meal.mealCategory === 'Swallow' ? 'Semo' : undefined,
+          selectedSwallow: meal.mealCategory === 'Swallow' ? newDefaultSwallow : undefined,
         };
         return [...prev, item].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
       }
@@ -288,7 +324,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
             selected.push({
               dateStr,
               meal,
-              selectedSwallow: meal.mealCategory === 'Swallow' ? 'Semo' : undefined,
+              selectedSwallow: meal.mealCategory === 'Swallow' ? newDefaultSwallow : undefined,
             });
           }
         }
@@ -340,7 +376,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
               autoDays.push({
                 dateStr,
                 meal,
-                selectedSwallow: meal.mealCategory === 'Swallow' ? 'Semo' : undefined,
+                selectedSwallow: meal.mealCategory === 'Swallow' ? newDefaultSwallow : undefined,
               });
             }
           }
@@ -352,6 +388,14 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
         }
       }
       finalMeals = autoDays;
+    } else {
+      // Ensure all swallow meals reflect the admin's chosen default swallow (Semo, Eba, or Fufu)
+      finalMeals = finalMeals.map((d) => {
+        if (d.meal.mealCategory === 'Swallow' && !d.selectedSwallow) {
+          return { ...d, selectedSwallow: newDefaultSwallow };
+        }
+        return d;
+      });
     }
 
     const summary = calculateOrderSummary(finalMeals);
@@ -384,6 +428,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
       isDefaultPassword: true,
       mustChangePassword: true,
       isPasswordSet: true,
+      preferredSwallow: newDefaultSwallow,
     };
 
     if (onAddCustomer) {
@@ -572,7 +617,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                   <th className="py-3 px-5">Selected Lunches</th>
                   <th className="py-3 px-5">Primary Address</th>
                   <th className="py-3 px-5">Second Optional Address</th>
-                  <th className="py-3 px-5">Default Login</th>
+                  <th className="py-3 px-5">Current Password</th>
                   <th className="py-3 px-5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -658,17 +703,20 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
 
                       <td className="py-3.5 px-5">
                         <div className="space-y-0.5">
-                          <div className="font-mono text-zinc-800 font-bold text-[11px]">
-                            {currentPassword}
+                          <div className="font-mono text-zinc-800 font-bold text-[11px] flex items-center space-x-1.5">
+                            <span>{currentPassword}</span>
+                            {isPasswordChanged && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" title="Live updated password" />
+                            )}
                           </div>
                           <span
                             className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block ${
                               isPasswordChanged
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold'
                                 : 'bg-amber-50 text-amber-700 border border-amber-200'
                             }`}
                           >
-                            {isPasswordChanged ? 'Password Changed' : 'Default / Temp'}
+                            {isPasswordChanged ? '✓ Password Changed' : 'Default / Temp'}
                           </span>
                         </div>
                       </td>
@@ -929,6 +977,38 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                     </div>
                   </div>
 
+                  {/* Preferred Swallow Selection for Soups */}
+                  <div className="p-4 rounded-2xl bg-orange-50/70 border border-orange-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-800">
+                        Swallow Preference (Semo / Eba / Fufu)
+                      </span>
+                      <span className="text-[10px] font-bold text-[#FF4C00] bg-orange-100 px-2 py-0.5 rounded-full">
+                        {newDefaultSwallow} Selected
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-600">
+                      Select which swallow will be prepared for this customer on Swallow Fridays and soup meals:
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
+                        <button
+                          key={swallow}
+                          type="button"
+                          onClick={() => handleChangeDefaultSwallow(swallow)}
+                          className={`py-2 px-3 rounded-xl font-bold text-xs transition cursor-pointer border flex items-center justify-center space-x-1.5 ${
+                            newDefaultSwallow === swallow
+                              ? 'bg-[#FF4C00] text-white border-[#FF4C00] shadow-sm'
+                              : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-300'
+                          }`}
+                        >
+                          <span>{swallow}</span>
+                          {newDefaultSwallow === swallow && <Check className="w-3.5 h-3.5 ml-1" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Payment & Invoice Settings */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -1013,6 +1093,32 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                     </div>
                   </div>
 
+                  {/* Swallow Choice Selector Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-2xl bg-orange-50/80 border border-orange-200">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-bold text-zinc-900">Swallow for Soups:</span>
+                      <div className="inline-flex rounded-xl bg-white p-0.5 border border-zinc-200 shadow-2xs">
+                        {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((swallow) => (
+                          <button
+                            key={swallow}
+                            type="button"
+                            onClick={() => handleChangeDefaultSwallow(swallow)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                              newDefaultSwallow === swallow
+                                ? 'bg-[#FF4C00] text-white shadow-xs'
+                                : 'text-zinc-600 hover:text-zinc-900'
+                            }`}
+                          >
+                            {swallow}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-zinc-500">
+                      Current: <strong className="text-[#FF4C00]">{newDefaultSwallow}</strong> (Customizable per meal below)
+                    </span>
+                  </div>
+
                   {/* Calendar Month Selector */}
                   <div className="border border-zinc-200 rounded-2xl p-4 bg-white space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
@@ -1054,8 +1160,11 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                       {workdaysInCalMonth.map(({ date, dateStr, dayName }) => {
                         const meal = getStructuredMealForDate(date);
                         if (!meal) return null;
-                        const isSelected = newSelectedDays.some((d) => d.dateStr === dateStr);
+                        const currentDayItem = newSelectedDays.find((d) => d.dateStr === dateStr);
+                        const isSelected = Boolean(currentDayItem);
                         const isFriday = date.getDay() === 5;
+                        const isSwallowMeal = meal.mealCategory === 'Swallow' || isFriday;
+                        const daySwallow = currentDayItem?.selectedSwallow || newDefaultSwallow;
 
                         return (
                           <div
@@ -1086,11 +1195,34 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                               {meal.mealName}
                             </p>
 
-                            {isFriday && isSelected && (
-                              <span className="mt-1 text-[9px] font-bold text-[#FF4C00] bg-orange-100/70 px-1.5 py-0.2 rounded w-fit">
-                                Swallow Friday (Semo)
+                            {isSwallowMeal && isSelected ? (
+                              <div
+                                className="mt-2 pt-1.5 border-t border-orange-200/80 flex items-center justify-between gap-1"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <span className="text-[9px] font-bold text-zinc-600">Swallow:</span>
+                                <div className="flex items-center gap-1">
+                                  {(['Semo', 'Eba', 'Fufu'] as SwallowType[]).map((sw) => (
+                                    <button
+                                      key={sw}
+                                      type="button"
+                                      onClick={() => handleUpdateDaySwallow(dateStr, sw)}
+                                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition cursor-pointer ${
+                                        daySwallow === sw
+                                          ? 'bg-[#FF4C00] text-white shadow-xs'
+                                          : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-100'
+                                      }`}
+                                    >
+                                      {sw}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : isFriday ? (
+                              <span className="mt-1 text-[9px] font-bold text-zinc-500">
+                                Friday Swallow Lunch
                               </span>
-                            )}
+                            ) : null}
                           </div>
                         );
                       })}

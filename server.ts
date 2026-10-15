@@ -24,6 +24,8 @@ import {
   deleteOrderSubmissionInDb,
   getLaunchSettingsInDb,
   updateLaunchSettingsInDb,
+  getPricingSettingsInDb,
+  updatePricingSettingsInDb,
   getTestimonialsList,
   addTestimonialRecord,
   updateTestimonialRecord,
@@ -34,6 +36,7 @@ import {
   claimSessionInDb,
   getSessionInDb,
   releaseSessionInDb,
+  requestSessionYieldInDb,
 } from './src/server/liveDatabase';
 import {
   notifyAdminWaitlistJoined,
@@ -417,6 +420,16 @@ app.post('/api/launch-settings', (req, res) => {
   return res.json({ launchSettings: updated });
 });
 
+// Pricing Settings Endpoints (Admin configurable tiered pricing)
+app.get('/api/pricing-settings', (_req, res) => {
+  return res.json({ pricingSettings: getPricingSettingsInDb() });
+});
+
+app.post('/api/pricing-settings', (req, res) => {
+  const updated = updatePricingSettingsInDb(req.body);
+  return res.json({ pricingSettings: updated });
+});
+
 // Credit Redemptions
 app.post('/api/credit-redemptions', (req, res) => {
   const redemption = addCreditRedemptionInDb(req.body);
@@ -479,6 +492,15 @@ app.post('/api/sessions/release', (req, res) => {
   }
   const released = releaseSessionInDb(userId, activeSessionId);
   return res.json({ success: released });
+});
+
+app.post('/api/sessions/request-yield', (req, res) => {
+  const { userId, requestingToken, requestingDevice } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
+  const result = requestSessionYieldInDb(userId, requestingToken || '', requestingDevice || 'Remote device');
+  return res.json({ success: result });
 });
 
 // Guard: strictly ensure no /api/ request ever falls through to Vite HTML response

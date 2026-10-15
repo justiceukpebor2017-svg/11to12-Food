@@ -1,3 +1,5 @@
+import { calculateTieredOrderTotal } from './config/pricingConfig';
+
 export type DayOfWeek = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat';
 
 export type ViewMode = 'marketing' | 'subscriber' | 'admin';
@@ -90,36 +92,24 @@ export interface OrderSummary {
   hasTwentyDayBonus: boolean;
 }
 
-// Order calculation logic:
-// Food Total = Sum of selected meal prices
-// Per-Day Addition = selectedDays.length * PER_DAY_FEE
-// Final Total = Food Total + Per-Day Addition (- 20th day bonus if applicable)
+// Order calculation logic using tiered corporate rates:
+// 5 days: Flat ₦20,000 (includes daily desk drop delivery)
+// 6-10 days: ₦3,600 / day added (+ ₦500 delivery)
+// 11-15 days: ₦3,400 / day added (+ ₦500 delivery)
+// 16-20 days: ₦3,200 / day added (+ ₦500 delivery)
+// 21+ days: ₦3,000 / day added (+ ₦500 delivery)
 export function calculateOrderSummary(selectedDays: SelectedLunchDay[]): OrderSummary {
-  // Only selectable delivery days count (exclude holidays/no-delivery)
   const validDays = selectedDays.filter((d) => !d.meal.isHoliday && !d.meal.isNoDelivery);
   const totalDays = validDays.length;
-  const foodTotalNGN = validDays.reduce((acc, item) => acc + calculateMealPrice(item.meal), 0);
-  const perDayAdditionNGN = totalDays * PER_DAY_FEE;
-  const subtotalNGN = foodTotalNGN + perDayAdditionNGN;
-
-  let discountNGN = 0;
-  if (totalDays >= 20) {
-    // 20th day (index 19) food cost is free
-    const twentiethDayMeal = validDays[19]?.meal || validDays[validDays.length - 1]?.meal;
-    if (twentiethDayMeal) {
-      discountNGN = calculateMealPrice(twentiethDayMeal);
-    }
-  }
-
-  const finalTotalNGN = Math.max(0, subtotalNGN - discountNGN);
+  const tiered = calculateTieredOrderTotal(totalDays);
 
   return {
     totalDays,
-    foodTotalNGN,
-    perDayAdditionNGN,
-    subtotalNGN,
-    discountNGN,
-    finalTotalNGN,
+    foodTotalNGN: tiered.foodTotalNGN,
+    perDayAdditionNGN: tiered.deliveryTotalNGN,
+    subtotalNGN: tiered.totalNGN,
+    discountNGN: 0,
+    finalTotalNGN: tiered.totalNGN,
     hasTwentyDayBonus: totalDays >= 20,
   };
 }
@@ -211,6 +201,7 @@ export interface CustomerRecord {
   status: 'Active' | 'Paused' | 'Pending Activation' | 'Expired';
   paymentStatus: 'Paid' | 'Pending Verification';
   paymentProofUrl?: string;
+  preferredSwallow?: SwallowType;
   planName: string;
   totalDays: number;
   remainingMeals?: number;
@@ -389,4 +380,7 @@ export interface ActiveSessionRecord {
   deviceInfo: string; // e.g. "Chrome on Windows"
   claimedAt: string;
   updatedAt: string;
+  yieldRequested?: boolean;
+  yieldRequestedBy?: string;
+  yieldRequestedByToken?: string;
 }

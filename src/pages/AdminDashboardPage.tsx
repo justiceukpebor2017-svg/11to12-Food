@@ -20,7 +20,7 @@ import { AdminPendingPaymentsTab } from '../components/admin/tabs/AdminPendingPa
 import { AdminCustomersTab } from '../components/admin/tabs/AdminCustomersTab';
 import { AdminMealScheduleTab } from '../components/admin/tabs/AdminMealScheduleTab';
 import { AdminSettingsTab } from '../components/admin/tabs/AdminSettingsTab';
-import { Menu, X, Bell, Trash2, Rocket } from 'lucide-react';
+import { Menu, X, Bell, Trash2, Rocket, Plus } from 'lucide-react';
 import { LAUNCH_CONFIG } from '../config/launchConfig';
 import { isOrderPendingVerification } from '../utils/finance';
 
@@ -91,6 +91,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedCustomerProfile, setSelectedCustomerProfile] = useState<CustomerRecord | null>(null);
+  const [isGlobalAddCustomerOpen, setIsGlobalAddCustomerOpen] = useState(false);
 
   // Persistent dismissed notification IDs
   const [dismissedNotifIds, setDismissedNotifIds] = useState<Set<string>>(() => {
@@ -178,6 +179,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
+          {/* Quick Add Customer Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('customers');
+              setIsGlobalAddCustomerOpen(true);
+            }}
+            className="px-2.5 py-1.5 rounded-xl bg-[#FF4C00] hover:bg-[#e04300] text-white font-bold text-xs flex items-center space-x-1 cursor-pointer shadow-xs active:scale-95"
+            title="Add New Customer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Add Customer</span>
+            <span className="sm:hidden">Add</span>
+          </button>
+
           {/* Notifications Button */}
           <button
             type="button"
@@ -211,6 +227,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           }}
           onNavigateToHome={onNavigateToHome}
           onLogout={onLogout}
+          onOpenAddCustomer={() => {
+            setActiveTab('customers');
+            setIsGlobalAddCustomerOpen(true);
+          }}
           pendingOrdersCount={pendingOrdersCount}
           waitlistCount={waitlistLeads.length}
           customersCount={customers.length}
@@ -230,6 +250,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               }}
               onNavigateToHome={onNavigateToHome}
               onLogout={onLogout}
+              onOpenAddCustomer={() => {
+                setActiveTab('customers');
+                setIsGlobalAddCustomerOpen(true);
+                setIsMobileSidebarOpen(false);
+              }}
               pendingOrdersCount={pendingOrdersCount}
               waitlistCount={waitlistLeads.length}
               customersCount={customers.length}
@@ -318,10 +343,23 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               )}
             </div>
 
+            {/* Prominent Desktop Add Customer Action */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('customers');
+                setIsGlobalAddCustomerOpen(true);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-[#FF4C00] hover:bg-[#e04300] text-white font-bold text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-sm active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Customer</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setActiveTab('settings')}
-              className="px-3.5 py-2 rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold text-xs transition cursor-pointer shadow-2xs flex items-center space-x-1.5"
+              className="px-3.5 py-2.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold text-xs transition cursor-pointer shadow-2xs flex items-center space-x-1.5"
             >
               <Rocket className="w-3.5 h-3.5" />
               <span>{LAUNCH_CONFIG.isEnabled ? 'Launch Settings' : 'Settings'}</span>
@@ -380,6 +418,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             selectedCustomer={selectedCustomerProfile}
             onCloseCustomerProfile={() => setSelectedCustomerProfile(null)}
             onOpenCustomerProfile={(c) => setSelectedCustomerProfile(c)}
+            isAddModalOpen={isGlobalAddCustomerOpen}
+            onToggleAddModal={(open) => setIsGlobalAddCustomerOpen(open)}
           />
         )}
 

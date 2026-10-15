@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Response } from 'express';
 import { CustomerRecord, WaitlistLead, OrderSubmission, CreditRedemptionOrder, AdminAnnouncement, TestimonialItem, LaunchSettings, ActiveSessionRecord } from '../types';
+import { PricingSettings, DEFAULT_PRICING_SETTINGS } from '../config/pricingConfig';
 import { getStandardPhoneKey, normalizeEmail } from '../utils/phoneUtils';
 import { generateDefaultPassword } from '../utils/credentialUtils';
 
@@ -13,6 +14,8 @@ export interface LiveDatabaseSchema {
   announcements: AdminAnnouncement[];
   testimonials: TestimonialItem[];
   launchSettings: LaunchSettings;
+  pricingSettings?: PricingSettings;
+  deletedCustomerRecords?: Array<{ id: string; email: string; deletedAt: string }>;
   customMeals?: Record<string, any>;
   activeSessions?: Record<string, ActiveSessionRecord>;
 }
@@ -124,6 +127,8 @@ let dbState: LiveDatabaseSchema = {
     launchDate: '2026-12-07',
     isEnabled: true,
   },
+  pricingSettings: DEFAULT_PRICING_SETTINGS,
+  deletedCustomerRecords: [],
 };
 
 // Connected SSE clients for instantaneous real-time push to all devices
@@ -154,6 +159,10 @@ export function initLiveDatabase(): void {
         launchSettings: parsed.launchSettings && typeof parsed.launchSettings.launchDate === 'string'
           ? parsed.launchSettings
           : { launchDate: '2026-12-07', isEnabled: true },
+        pricingSettings: parsed.pricingSettings && typeof parsed.pricingSettings.fiveDaysFlatTotal === 'number'
+          ? parsed.pricingSettings
+          : DEFAULT_PRICING_SETTINGS,
+        deletedCustomerRecords: Array.isArray(parsed.deletedCustomerRecords) ? parsed.deletedCustomerRecords : [],
       };
       console.log(`[LiveDB] Loaded ${dbState.waitlistLeads.length} waitlist leads, ${dbState.customers.length} customers from disk.`);
     } else {
@@ -509,6 +518,18 @@ export function deleteCustomerRecord(id: string, emailHint?: string): boolean {
     }
   }
 
+  if (!dbState.deletedCustomerRecords) {
+    dbState.deletedCustomerRecords = [];
+  }
+  dbState.deletedCustomerRecords = dbState.deletedCustomerRecords.filter(
+    (d) => d.id !== resolvedId && (!resolvedEmail || d.email !== resolvedEmail)
+  );
+  dbState.deletedCustomerRecords.push({
+    id: resolvedId,
+    email: resolvedEmail || '',
+    deletedAt: new Date().toISOString(),
+  });
+
   saveLiveDatabase();
 
   // 4. Broadcast deletion across all connected devices and browsers so active sessions are terminated
@@ -743,6 +764,26 @@ export function updateLaunchSettingsInDb(patch: Partial<LaunchSettings>): Launch
 }
 
 /**
+ * Gets pricing settings
+ */
+export function getPricingSettingsInDb(): PricingSettings {
+  return dbState.pricingSettings || DEFAULT_PRICING_SETTINGS;
+}
+
+/**
+ * Updates pricing settings and broadcasts to all clients
+ */
+export function updatePricingSettingsInDb(patch: Partial<PricingSettings>): PricingSettings {
+  dbState.pricingSettings = {
+    ...getPricingSettingsInDb(),
+    ...patch,
+  };
+  saveLiveDatabase();
+  broadcastLiveUpdate('PRICING_UPDATED', dbState.pricingSettings);
+  return dbState.pricingSettings;
+}
+
+/**
  * Adds a credit redemption order
  */
 export function addCreditRedemptionInDb(redemption: CreditRedemptionOrder): CreditRedemptionOrder {
@@ -862,6 +903,24 @@ export function releaseSessionInDb(userId: string, activeSessionId: string): boo
     delete dbState.activeSessions[userId];
     saveLiveDatabase();
     broadcastLiveUpdate('SESSION_RELEASED', { userId, activeSessionId });
+    return true;
+  }
+  return false;
+}
+
+export function requestSessionYieldInDb(userId: string, requestingToken: string, requestingDevice: string): boolean {
+  if (dbState.activeSessions?.[userId]) {
+    const existing = dbState.activeSessions[userId];
+    existing.yieldRequested = true;
+    existing.yieldRequestedBy = requestingDevice;
+    existing.yieldRequestedByToken = requestingToken;
+    existing.updatedAt = new Date().toISOString();
+    saveLiveDatabase();
+    broadcastLiveUpdate('SESSION_YIELD_REQUESTED', {
+      userId,
+      requestingToken,
+      requestingDevice,
+    });
     return true;
   }
   return false;

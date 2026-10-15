@@ -7,6 +7,12 @@ import {
   OrderSummary,
   PER_DAY_FEE,
 } from '../../types';
+import {
+  getPricingSettings,
+  subscribePricingSettings,
+  calculateTieredOrderTotal,
+  PricingSettings,
+} from '../../config/pricingConfig';
 import { getStructuredMealForDate, subscribeMenuChanges } from '../../data/menuRotation';
 import { LAUNCH_CONFIG, isDateBeforeLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 import {
@@ -22,6 +28,7 @@ import {
   Loader2,
   Utensils,
   Soup,
+  Lock,
 } from 'lucide-react';
 
 interface MealPopupState {
@@ -488,12 +495,43 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
   const selectedCount = selectedDaysList.length;
 
+  const [pricingSettings, setPricingSettings] = useState<PricingSettings>(() => getPricingSettings());
+
+  useEffect(() => {
+    return subscribePricingSettings((cfg) => {
+      setPricingSettings(cfg);
+    });
+  }, []);
+
+  const tieredPricing = useMemo(() => {
+    return calculateTieredOrderTotal(selectedCount, pricingSettings);
+  }, [selectedCount, pricingSettings]);
+
+  const verticalProgressPercent = useMemo(() => {
+    if (selectedCount <= 0) return 0;
+    if (selectedCount === 1) return 5;
+    if (selectedCount === 2) return 10;
+    if (selectedCount === 3) return 15;
+    if (selectedCount === 4) return 20;
+    if (selectedCount === 5) return 25; // 5 days reached: milestone unlocked!
+    if (selectedCount <= 10) return Math.min(50, 25 + ((selectedCount - 5) / 5) * 25);
+    if (selectedCount <= 15) return Math.min(75, 50 + ((selectedCount - 10) / 5) * 25);
+    if (selectedCount <= 20) return Math.min(90, 75 + ((selectedCount - 15) / 5) * 15);
+    return 100;
+  }, [selectedCount]);
+
+  const handleQuickPayNow = () => {
+    if (selectedCount < 5) return;
+    const summary = calculateOrderSummary(selectedDaysList);
+    onProceedToCheckout(selectedDaysList, summary);
+  };
+
   // Rule 5, 6, 7, 8, 9, 10, 11:
   // Calculate Order Button with dynamic downward animation from ~1.35x to actual Final Total
   const handleCalculateOrder = () => {
-    // Minimum Requirement: More than 8 days (9+ days)
-    if (selectedCount < 9) {
-      setValidationError('Minimum Requirement: More than 8 days (9+ days). You must select at least 9 lunch days to calculate your order.');
+    // Minimum Requirement: 5 days or more
+    if (selectedCount < 5) {
+      setValidationError('Minimum Requirement: 5 days or more. You must select at least 5 lunch days (₦20,000 package) to calculate your order and pay.');
       setShowOrderBill(false);
       return;
     }
@@ -660,14 +698,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             Choose the days you want lunch. Click any workday to select your meals.
           </p>
           
-          {/* Rules and 20th Day Bonus Badge */}
+          {/* Rules and Tiered Pricing Badge */}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <span className="inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold bg-zinc-200/80 text-zinc-800">
-              Minimum Requirement: More than 8 days (9+ days)
+              Minimum Requirement: 5+ days (₦20,000 to activate)
             </span>
             <span className="inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold bg-[#FF4C00]/10 text-[#FF4C00] border border-[#FF4C00]/30">
               <Sparkles className="w-3.5 h-3.5 mr-1" />
-              Special: Select 20 days & the 20th day is completely FREE!
+              Tiered Value: Price per meal reduces the more days you add!
             </span>
           </div>
         </div>
@@ -697,14 +735,17 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
         {/* Calendar View Container */}
         <div className="bg-white border border-zinc-200 rounded-3xl p-3 sm:p-8 shadow-sm">
-          
-          {/* Month Navigation & Action Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-zinc-100">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#FF4C00]/10 flex items-center justify-center text-[#FF4C00]">
-                <CalendarIcon className="w-5 h-5" />
-              </div>
-              <div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            {/* Left Column: Workdays Calendar Grid */}
+            <div className="lg:col-span-8">
+              {/* Month Navigation & Action Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-zinc-100">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#FF4C00]/10 flex items-center justify-center text-[#FF4C00]">
+                    <CalendarIcon className="w-5 h-5" />
+                  </div>
+                  <div>
                 <h3 className="text-xl font-bold text-black">
                   {monthNames[currentMonth]} {currentYear}
                 </h3>
@@ -938,8 +979,150 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
               );
             })}
           </div>
+        </div>
+
+        {/* Right Column: Interactive Price Vertical Line UI & Live Gauge */}
+        <div className="lg:col-span-4 w-full">
+            <div className="bg-[#FAF7F2] border-2 border-zinc-200/90 rounded-3xl p-5 sm:p-6 flex flex-col justify-between shadow-xs sticky top-24">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-zinc-200">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#FF4C00] animate-pulse" />
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-700">
+                      Live Price Meter
+                    </span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      selectedCount >= 5
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-zinc-200 text-zinc-600'
+                    }`}
+                  >
+                    {selectedCount >= 5 ? 'Pay Now Active' : `Need ${5 - selectedCount} More`}
+                  </span>
+                </div>
+
+                {/* Big Price Figure */}
+                <div className="my-4 text-center">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#FF4C00] block">
+                    {selectedCount >= 5 ? 'Total Subscription Price' : '5-Day Starter Package'}
+                  </span>
+                  <div className="text-3xl sm:text-4xl font-black text-black tracking-tight mt-1">
+                    ₦{tieredPricing.totalNGN.toLocaleString()}
+                  </div>
+                  <p className="text-[11px] text-zinc-500 font-medium mt-1">
+                    {selectedCount} lunch {selectedCount === 1 ? 'day' : 'days'} selected • {tieredPricing.tierLabel}
+                  </p>
+                </div>
+
+                {/* The Interactive Price Vertical Line UI */}
+                <div className="my-4 p-4 rounded-2xl bg-white border border-zinc-200/80 shadow-2xs">
+                  <div className="flex items-stretch justify-between gap-3 h-72 relative">
+                    {/* Vertical Rail with dynamic fill height */}
+                    <div className="w-4 bg-zinc-100 rounded-full relative overflow-hidden flex flex-col justify-end shrink-0 border border-zinc-200">
+                      <div
+                        className="w-full bg-gradient-to-t from-amber-500 via-[#FF4C00] to-orange-600 rounded-full transition-all duration-500 ease-out shadow-xs"
+                        style={{ height: `${verticalProgressPercent}%` }}
+                      />
+                    </div>
+
+                    {/* Milestone Checkpoints & Tier Labels */}
+                    <div className="flex-1 flex flex-col justify-between text-left py-0.5 select-none text-[11px]">
+                      {/* 21+ Days Tier (₦3,000/day) */}
+                      <div className={`transition-colors ${selectedCount >= 21 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold">21+ Days</span>
+                          <span className="text-[10px] font-mono font-bold bg-zinc-100 px-1.5 py-0.2 rounded">₦3,000/day</span>
+                        </div>
+                        <span className="text-[9px] text-zinc-400 block">Best Value • Max Savings</span>
+                      </div>
+
+                      {/* 16-20 Days Tier (₦3,200/day) */}
+                      <div className={`transition-colors ${selectedCount >= 16 && selectedCount <= 20 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold">16 – 20 Days</span>
+                          <span className="text-[10px] font-mono font-bold bg-zinc-100 px-1.5 py-0.2 rounded">₦3,200/day</span>
+                        </div>
+                        <span className="text-[9px] text-zinc-400 block">20th Day Free Perk Applied</span>
+                      </div>
+
+                      {/* 11-15 Days Tier (₦3,400/day) */}
+                      <div className={`transition-colors ${selectedCount >= 11 && selectedCount <= 15 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold">11 – 15 Days</span>
+                          <span className="text-[10px] font-mono font-bold bg-zinc-100 px-1.5 py-0.2 rounded">₦3,400/day</span>
+                        </div>
+                        <span className="text-[9px] text-zinc-400 block">Corporate Smart Tier</span>
+                      </div>
+
+                      {/* 6-10 Days Tier (₦3,600/day) */}
+                      <div className={`transition-colors ${selectedCount >= 6 && selectedCount <= 10 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold">6 – 10 Days</span>
+                          <span className="text-[10px] font-mono font-bold bg-zinc-100 px-1.5 py-0.2 rounded">₦3,600/day</span>
+                        </div>
+                        <span className="text-[9px] text-zinc-400 block">Bi-Weekly Tier</span>
+                      </div>
+
+                      {/* Milestone: 5 Days (₦20,000) Unlocks Pay Now */}
+                      <div
+                        className={`p-1.5 rounded-xl border transition-all ${
+                          selectedCount >= 5
+                            ? 'bg-orange-50 border-[#FF4C00] text-[#FF4C00] font-bold shadow-2xs'
+                            : selectedCount > 0
+                            ? 'bg-zinc-50 border-zinc-200 text-zinc-700 font-semibold'
+                            : 'border-transparent text-zinc-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold flex items-center space-x-1">
+                            <span>5 Days</span>
+                            {selectedCount >= 5 && <Check className="w-3 h-3 text-[#FF4C00]" />}
+                          </span>
+                          <span className="text-[10px] font-mono font-bold bg-white px-1.5 py-0.2 rounded border border-orange-200">
+                            ₦20,000 Flat
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-zinc-500 block">
+                          {selectedCount >= 5 ? '✓ Pay Now Activated!' : 'Select 5 days to unlock'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pay Now Button (Directly Activated when >= 5 Days) */}
+              <div className="mt-4 pt-4 border-t border-zinc-200 space-y-2">
+                {selectedCount < 5 ? (
+                  <button
+                    disabled
+                    className="w-full py-3.5 px-4 rounded-2xl bg-zinc-200 text-zinc-500 font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 cursor-not-allowed select-none"
+                  >
+                    <Lock className="w-4 h-4 text-zinc-400" />
+                    <span>Select 5+ Days ({selectedCount}/5)</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleQuickPayNow}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-[#FF4C00] hover:bg-[#E04300] text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/25 active:scale-95 transition cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Pay Now • ₦{tieredPricing.totalNGN.toLocaleString()}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+                <p className="text-[10px] text-zinc-500 text-center">
+                  Desk drop delivery included • Taxes included
+                </p>
+              </div>
+            </div>
+          </div>
 
         </div>
+      </div>
 
         {/* Action Bar & Order Calculation Trigger (No Prices While Picking Days!) */}
         <div className="mt-8 bg-white border border-zinc-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 max-w-full overflow-hidden">
@@ -965,14 +1148,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   {validationError}
                 </span>
               ) : selectedCount === 0 ? (
-                <span>Click any workday above to select lunch days (Minimum requirement: 9+ days).</span>
-              ) : selectedCount < 9 ? (
+                <span>Click any workday above to select lunch days (Minimum requirement: 5+ days).</span>
+              ) : selectedCount < 5 ? (
                 <span className="text-amber-700 font-semibold">
-                  ⚠️ Minimum Requirement: More than 8 days ({selectedCount}/9 days selected. Please select {9 - selectedCount} more to calculate).
+                  ⚠️ Minimum Requirement: 5 days or more ({selectedCount}/5 days selected. Please select {5 - selectedCount} more to unlock Pay Now).
                 </span>
               ) : selectedCount < 20 ? (
                 <span>
-                  ✓ {selectedCount} days selected (Meets 9+ days requirement). Ready to calculate!
+                  ✓ {selectedCount} days selected (₦{tieredPricing.totalNGN.toLocaleString()}). Pay Now is activated!
                 </span>
               ) : (
                 <span className="text-emerald-600 font-semibold">
@@ -982,14 +1165,28 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             </div>
           </div>
 
-          {/* Calculate Order Button (Rule 5 & 8) */}
-          <div>
+          {/* Action Buttons: Pay Now & Calculate Detailed Order */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            {selectedCount >= 5 && (
+              <button
+                type="button"
+                onClick={handleQuickPayNow}
+                className="w-full sm:w-auto px-7 py-4 rounded-full font-extrabold text-sm uppercase tracking-wider bg-[#FF4C00] hover:bg-[#E04300] text-white transition shadow-md active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Pay Now (₦{tieredPricing.totalNGN.toLocaleString()})</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+
             <button
               onClick={handleCalculateOrder}
-              disabled={isCalculating || isAnimationRunning || selectedCount < 9}
-              className={`w-full md:w-auto px-8 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition shadow-md active:scale-95 flex items-center justify-center space-x-2 ${
-                selectedCount < 9
+              disabled={isCalculating || isAnimationRunning || selectedCount < 5}
+              className={`w-full sm:w-auto px-7 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition shadow-sm active:scale-95 flex items-center justify-center space-x-2 ${
+                selectedCount < 5
                   ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed'
+                  : selectedCount >= 5
+                  ? 'bg-black hover:bg-zinc-800 text-white cursor-pointer'
                   : 'bg-[#FF4C00] hover:bg-[#E04300] text-white cursor-pointer'
               }`}
             >
@@ -1000,7 +1197,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 </>
               ) : (
                 <>
-                  <span>{selectedCount < 9 ? `Select 9+ Days (${selectedCount}/9)` : 'Calculate Order'}</span>
+                  <span>{selectedCount < 5 ? `Select 5+ Days (${selectedCount}/5)` : 'Calculate Order'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

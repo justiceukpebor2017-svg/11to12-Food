@@ -3,7 +3,9 @@ import { getStandardPhoneKey, normalizeEmail } from '../utils/phoneUtils';
 import { db, handleFirestoreError, OperationType, testFirestoreConnection } from './firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { getLaunchSettings, updateLaunchConfig } from '../config/launchConfig';
+import { PricingSettings, updatePricingSettings as updatePricingSettingsLocal } from '../config/pricingConfig';
 import { customMealOverrides, broadcastMenuUpdate } from '../data/menuRotation';
+import { recordCustomerAsDeleted, isCustomerRecordedAsDeleted } from '../utils/customerDeletions';
 
 export interface PulseStats {
   waitlistCount: number;
@@ -60,6 +62,7 @@ class LiveSyncService {
   private listeners: Set<SyncListener> = new Set();
   private sessionListeners: Set<(event: { type: 'CLAIMED' | 'RELEASED'; session: any }) => void> = new Set();
   private customerDeletedListeners: Set<(id: string, email?: string) => void> = new Set();
+  private customerUpdatedListeners: Set<(customer: CustomerRecord) => void> = new Set();
   private eventSource: EventSource | null = null;
   private pollInterval: any = null;
   private isConnected = false;
@@ -98,6 +101,16 @@ class LiveSyncService {
           this.state.launchSettings = json.launchSettings;
           updateLaunchConfig(json.launchSettings);
           this.notify();
+        }
+      })
+      .catch(() => {});
+
+    // Fetch tiered pricing settings immediately
+    fetch(apiUrl('/api/pricing-settings'))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json?.pricingSettings) {
+          updatePricingSettingsLocal(json.pricingSettings);
         }
       })
       .catch(() => {});
@@ -159,23 +172,25 @@ class LiveSyncService {
       if (Array.isArray(data.db.waitlistLeads) && data.db.waitlistLeads.length > 0) {
         this.state.waitlistLeads = data.db.waitlistLeads;
       }
-      if (Array.isArray(data.db.customers) && data.db.customers.length > 0) {
-        const map = new Map<string, CustomerRecord>();
-        this.state.customers.forEach((c) => map.set(c.id, c));
-        data.db.customers.forEach((c: CustomerRecord) => map.set(c.id, c));
-        this.state.customers = Array.from(map.values());
+      if (Array.isArray(data.db.deletedCustomerRecords)) {
+        data.db.deletedCustomerRecords.forEach((d: any) => {
+          recordCustomerAsDeleted(d.id, d.email);
+        });
       }
-      if (Array.isArray(data.db.submittedOrders) && data.db.submittedOrders.length > 0) {
-        const map = new Map<string, OrderSubmission>();
-        this.state.submittedOrders.forEach((o) => map.set(o.id, o));
-        data.db.submittedOrders.forEach((o: OrderSubmission) => map.set(o.id, o));
-        this.state.submittedOrders = Array.from(map.values());
+      if (Array.isArray(data.db.customers)) {
+        const serverMap = new Map<string, CustomerRecord>();
+        data.db.customers.forEach((c: CustomerRecord) => {
+          if (!isCustomerRecordedAsDeleted(c.id, c.email)) {
+            serverMap.set(c.id, c);
+          }
+        });
+        this.state.customers = Array.from(serverMap.values());
       }
-      if (Array.isArray(data.db.creditRedemptions) && data.db.creditRedemptions.length > 0) {
-        const map = new Map<string, CreditRedemptionOrder>();
-        this.state.creditRedemptions.forEach((r) => map.set(r.id, r));
-        data.db.creditRedemptions.forEach((r: CreditRedemptionOrder) => map.set(r.id, r));
-        this.state.creditRedemptions = Array.from(map.values());
+      if (Array.isArray(data.db.submittedOrders)) {
+        this.state.submittedOrders = data.db.submittedOrders;
+      }
+      if (Array.isArray(data.db.creditRedemptions)) {
+        this.state.creditRedemptions = data.db.creditRedemptions;
       }
       if (data.db.announcements && Array.isArray(data.db.announcements)) {
         this.state.announcements = data.db.announcements;
@@ -205,7 +220,7 @@ class LiveSyncService {
       this.state.waitlistLeads = this.state.waitlistLeads.filter((l) => l.id !== data.payload.id);
     } else if (data.type === 'CUSTOMER_CREATED' && data.payload) {
       const exists = this.state.customers.some((c) => c.id === data.payload.id);
-      if (!exists) {
+      if (!exists && !isCustomerRecordedAsDeleted(data.payload.id, data.payload.email)) {
         this.state.customers = [data.payload, ...this.state.customers];
       }
       // Also remove matching waitlist lead if converted
@@ -215,12 +230,35 @@ class LiveSyncService {
         (l) => normalizeEmail(l.email) !== custEmail && getStandardPhoneKey(l.phone) !== custPhone
       );
     } else if (data.type === 'CUSTOMER_UPDATED' && data.payload) {
-      this.state.customers = this.state.customers.map((c) =>
-        c.id === data.payload.id ? data.payload : c
-      );
+      const targetId = data.payload.id;
+      const targetEmail = (data.payload.email || '').trim().toLowerCase();
+      let matched = false;
+      this.state.customers = this.state.customers.map((c) => {
+        const matchId = targetId && c.id === targetId;
+        const matchEmail = targetEmail && c.email && c.email.trim().toLowerCase() === targetEmail;
+        if (matchId || matchEmail) {
+          matched = true;
+          return {
+            ...c,
+            ...data.payload,
+            password: data.payload.password || c.password,
+            passwordLastChangedAt: data.payload.passwordLastChangedAt || c.passwordLastChangedAt,
+          };
+        }
+        return c;
+      });
+      if (!matched && targetId && !isCustomerRecordedAsDeleted(targetId, targetEmail)) {
+        this.state.customers = [data.payload, ...this.state.customers];
+      }
+      this.customerUpdatedListeners.forEach((fn) => {
+        try {
+          fn(data.payload);
+        } catch {}
+      });
     } else if (data.type === 'CUSTOMER_DELETED' && data.payload) {
       const delId = data.payload.id;
       const delEmail = (data.payload.email || '').toLowerCase().trim();
+      recordCustomerAsDeleted(delId, delEmail);
       this.state.customers = this.state.customers.filter((c) => {
         if (delId && c.id === delId) return false;
         if (delEmail && c.email && c.email.toLowerCase().trim() === delEmail) return false;
@@ -264,6 +302,8 @@ class LiveSyncService {
     } else if (data.type === 'LAUNCH_SETTINGS_UPDATED' && data.payload) {
       this.state.launchSettings = data.payload;
       updateLaunchConfig(data.payload);
+    } else if (data.type === 'PRICING_UPDATED' && data.payload) {
+      updatePricingSettingsLocal(data.payload);
     } else if (data.type === 'MEAL_UPDATED' && data.payload) {
       if (data.payload.dateStr && data.payload.meal) {
         customMealOverrides[data.payload.dateStr] = data.payload.meal;
@@ -301,20 +341,25 @@ class LiveSyncService {
       if (res.ok) {
         const json = await safeParseJson(res);
         if (json?.db) {
-          if (Array.isArray(json.db.waitlistLeads) && json.db.waitlistLeads.length > 0) {
+          if (Array.isArray(json.db.deletedCustomerRecords)) {
+            json.db.deletedCustomerRecords.forEach((d: any) => {
+              recordCustomerAsDeleted(d.id, d.email);
+            });
+          }
+          if (Array.isArray(json.db.waitlistLeads)) {
             this.state.waitlistLeads = json.db.waitlistLeads;
           }
-          if (Array.isArray(json.db.customers) && json.db.customers.length > 0) {
-            const map = new Map<string, CustomerRecord>();
-            this.state.customers.forEach((c) => map.set(c.id, c));
-            json.db.customers.forEach((c: CustomerRecord) => map.set(c.id, c));
-            this.state.customers = Array.from(map.values());
+          if (Array.isArray(json.db.customers)) {
+            const serverMap = new Map<string, CustomerRecord>();
+            json.db.customers.forEach((c: CustomerRecord) => {
+              if (!isCustomerRecordedAsDeleted(c.id, c.email)) {
+                serverMap.set(c.id, c);
+              }
+            });
+            this.state.customers = Array.from(serverMap.values());
           }
-          if (Array.isArray(json.db.submittedOrders) && json.db.submittedOrders.length > 0) {
-            const map = new Map<string, OrderSubmission>();
-            this.state.submittedOrders.forEach((o) => map.set(o.id, o));
-            json.db.submittedOrders.forEach((o: OrderSubmission) => map.set(o.id, o));
-            this.state.submittedOrders = Array.from(map.values());
+          if (Array.isArray(json.db.submittedOrders)) {
+            this.state.submittedOrders = json.db.submittedOrders;
           }
           if (Array.isArray(json.db.creditRedemptions) && json.db.creditRedemptions.length > 0) {
             const map = new Map<string, CreditRedemptionOrder>();
@@ -661,6 +706,16 @@ class LiveSyncService {
   }
 
   /**
+   * Registers a callback for real-time customer updates across all devices (e.g. password changes)
+   */
+  public onCustomerUpdated(listener: (customer: CustomerRecord) => void): () => void {
+    this.customerUpdatedListeners.add(listener);
+    return () => {
+      this.customerUpdatedListeners.delete(listener);
+    };
+  }
+
+  /**
    * Completely removes a customer from central database and broadcasts across all devices
    */
   public async deleteCustomer(id: string, email?: string): Promise<boolean> {
@@ -737,6 +792,27 @@ class LiveSyncService {
     this.state.waitlistLeads = this.state.waitlistLeads.filter((l) => l.id !== id);
     this.notify();
     return true;
+  }
+
+  /**
+   * Updates tiered pricing settings on backend and notifies all devices
+   */
+  public async updatePricingSettings(settings: Partial<PricingSettings>): Promise<PricingSettings | null> {
+    try {
+      const res = await fetch(apiUrl('/api/pricing-settings'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      const data = await safeParseJson(res);
+      if (res.ok && data?.pricingSettings) {
+        updatePricingSettingsLocal(data.pricingSettings);
+        return data.pricingSettings;
+      }
+    } catch (e) {
+      console.warn('[LiveSync] updatePricingSettings error:', e);
+    }
+    return updatePricingSettingsLocal(settings);
   }
 
   /**

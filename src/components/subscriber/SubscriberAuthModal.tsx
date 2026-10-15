@@ -22,6 +22,7 @@ import {
   sendSubscriberPasswordReset,
   updateCustomerPasswordInFirestore,
 } from '../../services/firebase';
+import { isCustomerRecordedAsDeleted } from '../../utils/customerDeletions';
 
 interface SubscriberAuthModalProps {
   isOpen: boolean;
@@ -112,11 +113,22 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       return false;
     };
 
-    // Pre-check registered customer in active customers list
+    // 0. Worldwide deletion check: immediately reject if account was removed
+    if (isCustomerRecordedAsDeleted(undefined, cleanEmail)) {
+      setError('This account was removed by administration. Credentials are no longer active in our database.');
+      setIsLoading(false);
+      try {
+        localStorage.removeItem('11to12_subscriber_profile');
+        localStorage.removeItem('11to12_active_view_mode');
+      } catch {}
+      return;
+    }
+
+    // Pre-check registered customer in active customers list (ignoring deleted accounts)
     const registeredCustomer = customers.find(
-      (c) => c.email && c.email.trim().toLowerCase() === cleanEmail
+      (c) => c.email && c.email.trim().toLowerCase() === cleanEmail && !isCustomerRecordedAsDeleted(c.id, c.email)
     );
-    if (registeredCustomer) {
+    if (registeredCustomer && !isCustomerRecordedAsDeleted(registeredCustomer.id, registeredCustomer.email)) {
       const passMatches = Boolean(
         (registeredCustomer.password && cleanPass === registeredCustomer.password.trim()) ||
         (registeredCustomer.defaultPassword && cleanPass === registeredCustomer.defaultPassword.trim())
@@ -142,7 +154,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       // 1. Authenticate with real Firebase Authentication backend
       const { user, customer } = await loginSubscriberAccount(cleanEmail, cleanPass);
 
-      if (customer) {
+      if (customer && !isCustomerRecordedAsDeleted(customer.id, customer.email)) {
         if (isDefaultPasswordValue(cleanPass, customer)) {
           setMatchedCustomer(customer);
           setNewPassword('');
@@ -164,18 +176,19 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
     } catch (err: any) {
       console.warn('[Firebase Auth] Sign in error:', err);
 
-      // Check if user is a pre-seeded / legacy customer
-      const legacyCustomer = customers.find(
-        (c) => c.email && c.email.toLowerCase() === cleanEmail
+      // Check if user is an active customer in customers list (and strictly not deleted)
+      const activeCustomer = customers.find(
+        (c) => c.email && c.email.toLowerCase() === cleanEmail && !isCustomerRecordedAsDeleted(c.id, c.email)
       );
       if (
-        legacyCustomer &&
-        ((legacyCustomer.password && cleanPass === legacyCustomer.password.trim()) ||
-         (legacyCustomer.defaultPassword && cleanPass === legacyCustomer.defaultPassword.trim()) ||
-         isDefaultPasswordValue(cleanPass, legacyCustomer))
+        activeCustomer &&
+        !isCustomerRecordedAsDeleted(activeCustomer.id, activeCustomer.email) &&
+        ((activeCustomer.password && cleanPass === activeCustomer.password.trim()) ||
+         (activeCustomer.defaultPassword && cleanPass === activeCustomer.defaultPassword.trim()) ||
+         isDefaultPasswordValue(cleanPass, activeCustomer))
       ) {
-        if (isDefaultPasswordValue(cleanPass, legacyCustomer)) {
-          setMatchedCustomer(legacyCustomer);
+        if (isDefaultPasswordValue(cleanPass, activeCustomer)) {
+          setMatchedCustomer(activeCustomer);
           setNewPassword('');
           setConfirmNewPassword('');
           setMode('first_login_change_password');
@@ -183,7 +196,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
           return;
         }
 
-        onLoginSuccess(legacyCustomer);
+        onLoginSuccess(activeCustomer);
         setIsLoading(false);
         onClose();
         return;

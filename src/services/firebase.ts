@@ -317,7 +317,7 @@ export async function updateCustomerPasswordInFirestore(customerId: string, newP
 
   try {
     const custRef = doc(db, 'customers', customerId);
-    await updateDoc(custRef, payload);
+    await setDoc(custRef, sanitizeForFirestore(payload), { merge: true });
   } catch (e) {
     console.warn('[Firebase] updateCustomerPasswordInFirestore warning:', e);
   }
@@ -464,6 +464,7 @@ export async function saveCustomerToFirestore(customer: CustomerRecord): Promise
     const cleanCustomer = sanitizeForFirestore(customer);
     const custRef = doc(db, 'customers', customer.id);
     await setDoc(custRef, cleanCustomer, { merge: true });
+    await deleteDoc(doc(db, 'deletedCustomerRecords', customer.id)).catch(() => {});
   } catch (e) {
     handleFirestoreError(e, OperationType.CREATE, `customers/${customer.id}`);
   }
@@ -519,6 +520,20 @@ export async function deleteCustomerFromFirestore(customerId: string, customerEm
       await deleteDoc(doc(db, 'sessions', customerEmail.trim().toLowerCase())).catch(() => {});
     }
   } catch {}
+
+  // Worldwide instant deletion tombstone marker in Firestore
+  try {
+    await setDoc(
+      doc(db, 'deletedCustomerRecords', customerId),
+      sanitizeForFirestore({
+        id: customerId,
+        email: customerEmail ? customerEmail.trim().toLowerCase() : '',
+        deletedAt: new Date().toISOString(),
+      })
+    );
+  } catch (err) {
+    console.warn('[Firebase] Save deletion tombstone notice:', err);
+  }
 }
 
 /**
@@ -547,6 +562,18 @@ export async function saveLaunchSettingsToFirestore(settings: { launchDate: stri
 }
 
 /**
+ * Save Tiered Pricing Settings to Firestore
+ */
+export async function savePricingSettingsToFirestore(settings: any): Promise<void> {
+  try {
+    const settingsRef = doc(db, 'settings', 'pricing');
+    await setDoc(settingsRef, sanitizeForFirestore(settings), { merge: true });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.UPDATE, 'settings/pricing');
+  }
+}
+
+/**
  * Subscribe to Launch Settings from Firestore
  */
 export function subscribeToLaunchSettings(
@@ -567,6 +594,28 @@ export function subscribeToLaunchSettings(
     },
     (err) => {
       console.warn('[Firebase onSnapshot launch settings error]:', err);
+    }
+  );
+}
+
+/**
+ * Subscribe to Pricing Settings from Firestore
+ */
+export function subscribeToPricingSettingsFirestore(
+  callback: (settings: any) => void
+): () => void {
+  return onSnapshot(
+    doc(db, 'settings', 'pricing'),
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && typeof data.fiveDaysFlatTotal === 'number') {
+          callback(data);
+        }
+      }
+    },
+    (err) => {
+      console.warn('[Firebase onSnapshot pricing settings error]:', err);
     }
   );
 }

@@ -41,6 +41,16 @@ service cloud.firestore {
     match /sessions/{sessionId} {
       allow read, write: if true;
     }
+
+    // 9. Deleted Customer Records Tombstones (Worldwide instant purge across all devices)
+    match /deletedCustomerRecords/{recordId} {
+      allow read, write: if true;
+    }
+
+    // 10. Credit Redemptions
+    match /creditRedemptions/{redemptionId} {
+      allow read, write: if true;
+    }
   }
 }
 

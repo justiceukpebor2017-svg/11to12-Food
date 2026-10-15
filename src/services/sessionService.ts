@@ -12,6 +12,7 @@ import {
   db,
   doc,
   getDoc,
+  setDoc,
 } from './firebase';
 import { apiUrl } from '../utils/apiConfig';
 import { liveSync } from './liveSyncService';
@@ -213,6 +214,55 @@ export async function releaseActiveSession(userId: string, token: string): Promi
   } catch {}
 }
 
+/**
+ * Sends a yield & save request to an existing remote session so that it auto-saves and logs out,
+ * allowing this new device to open and see the exact same synchronized data.
+ */
+export async function requestRemoteSessionYield(userId: string): Promise<boolean> {
+  const token = getCurrentSessionToken() || `req_${Date.now()}`;
+  const device = getDeviceDescriptor();
+
+  // 1. Instant local BroadcastChannel (same browser tabs)
+  if (sessionBroadcastChannel) {
+    try {
+      sessionBroadcastChannel.postMessage({
+        type: 'YIELD_REQUESTED',
+        session: { userId, yieldRequestedByToken: token, yieldRequestedBy: device },
+      });
+    } catch {}
+  }
+
+  // 2. Server API notification (broadcasts SESSION_YIELD_REQUESTED via SSE to all connected clients)
+  try {
+    await fetch(apiUrl('/api/sessions/request-yield'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        requestingToken: token,
+        requestingDevice: device,
+      }),
+    });
+  } catch {}
+
+  // 3. Firestore Real-time session document update
+  try {
+    const sessionRef = doc(db, 'sessions', userId);
+    await setDoc(
+      sessionRef,
+      {
+        yieldRequested: true,
+        yieldRequestedBy: device,
+        yieldRequestedByToken: token,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch {}
+
+  return true;
+}
+
 import { recordCustomerAsDeleted } from '../utils/customerDeletions';
 
 /**
@@ -333,15 +383,25 @@ export function listenToAccountDeletion(
 export function listenToSessionConflict(
   userId: string,
   mySessionToken: string,
-  onConflict: (remoteSession: ActiveSessionRecord) => void
+  onConflict: (remoteSession: ActiveSessionRecord) => void,
+  onYieldRequested?: (requestingDevice: string) => void
 ): () => void {
   let isDisposed = false;
 
   const handleCandidate = (remote: ActiveSessionRecord | null | undefined) => {
     if (isDisposed || !remote) return;
-    if (remote.userId === userId && remote.activeSessionId && remote.activeSessionId !== mySessionToken) {
-      console.warn('[SessionService] Single concurrent session conflict detected:', remote);
-      onConflict(remote);
+    if (remote.userId === userId) {
+      if (remote.yieldRequested && remote.yieldRequestedByToken !== mySessionToken) {
+        console.warn('[SessionService] Remote yield requested by another device:', remote.yieldRequestedBy);
+        if (onYieldRequested) {
+          onYieldRequested(remote.yieldRequestedBy || 'Another device');
+          return;
+        }
+      }
+      if (remote.activeSessionId && remote.activeSessionId !== mySessionToken) {
+        console.warn('[SessionService] Single concurrent session conflict detected:', remote);
+        onConflict(remote);
+      }
     }
   };
 
@@ -349,6 +409,10 @@ export function listenToSessionConflict(
   const handleBroadcast = (evt: MessageEvent) => {
     if (evt.data?.type === 'CLAIMED' && evt.data?.session) {
       handleCandidate(evt.data.session);
+    } else if (evt.data?.type === 'YIELD_REQUESTED' && evt.data?.session) {
+      if (evt.data.session.userId === userId && evt.data.session.yieldRequestedByToken !== mySessionToken) {
+        if (onYieldRequested) onYieldRequested(evt.data.session.yieldRequestedBy || 'Another browser tab');
+      }
     }
   };
   if (sessionBroadcastChannel) {
@@ -370,6 +434,10 @@ export function listenToSessionConflict(
   const unsubLiveSync = liveSync.onSessionEvent?.((evt: any) => {
     if (evt.type === 'CLAIMED' && evt.session) {
       handleCandidate(evt.session);
+    } else if (evt.type === 'SESSION_YIELD_REQUESTED' && evt.payload) {
+      if (evt.payload.userId === userId && evt.payload.requestingToken !== mySessionToken) {
+        if (onYieldRequested) onYieldRequested(evt.payload.requestingDevice || 'Another device');
+      }
     }
   });
 

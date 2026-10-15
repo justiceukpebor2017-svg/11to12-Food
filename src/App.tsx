@@ -52,6 +52,8 @@ import {
   listenToAccountDeletion,
   terminateCustomerSession,
   getCurrentSessionToken,
+  checkExistingActiveSession,
+  requestRemoteSessionYield,
 } from './services/sessionService';
 import {
   recordCustomerAsDeleted,
@@ -59,6 +61,7 @@ import {
   unrecordCustomerAsDeleted,
 } from './utils/customerDeletions';
 import { SessionConflictModal } from './components/common/SessionConflictModal';
+import { DashboardTakeoverModal } from './components/common/DashboardTakeoverModal';
 import { ShieldAlert } from 'lucide-react';
 import {
   initGoogleAnalytics,
@@ -145,6 +148,33 @@ export default function App() {
     };
     trackPageView(titles[viewMode] || '11 to 12 Food', `/${viewMode}`);
   }, [viewMode]);
+
+  // Check active session on initial mount for admin mode to prevent unprompted takeover
+  useEffect(() => {
+    try {
+      const initialMode = localStorage.getItem('11to12_active_view_mode');
+      if (initialMode === 'admin') {
+        checkExistingActiveSession('admin_11to12').then((existing) => {
+          const myToken = getCurrentSessionToken();
+          if (existing && existing.activeSessionId && existing.activeSessionId !== myToken) {
+            setViewMode('marketing');
+            setTakeoverPrompt({
+              targetRole: 'admin',
+              targetUserId: 'admin_11to12',
+              targetEmail: 'admin@11to12.food',
+              remoteSession: existing,
+              onSuccessNavigate: () => {
+                setViewMode('admin');
+                try {
+                  localStorage.setItem('11to12_active_view_mode', 'admin');
+                } catch {}
+              },
+            });
+          }
+        });
+      }
+    } catch {}
+  }, []);
 
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     if (typeof window === 'undefined') return INITIAL_USER_PROFILE;
@@ -364,58 +394,14 @@ export default function App() {
           return Array.from(map.values());
         });
       }
-      if (liveState.customers && Array.isArray(liveState.customers) && liveState.customers.length > 0) {
-        setCustomers((prev) => {
-          const map = new Map<string, CustomerRecord>();
-          prev.forEach((c) => {
-            if (!isCustomerRecordedAsDeleted(c.id, c.email)) {
-              map.set(c.id, c);
-            }
-          });
-          liveState.customers.forEach((incoming) => {
-            if (isCustomerRecordedAsDeleted(incoming.id, incoming.email)) {
-              return;
-            }
-            const existing =
-              map.get(incoming.id) ||
-              Array.from(map.values()).find(
-                (c) =>
-                  Boolean(incoming.email && c.email && c.email.trim().toLowerCase() === incoming.email.trim().toLowerCase())
-              );
-            if (existing) {
-              const existingDays = existing.selectedDays || [];
-              const incomingDays = incoming.selectedDays || [];
-              let mergedDays = incomingDays;
-              if (existingDays.length > incomingDays.length) {
-                const dateMap = new Map<string, SelectedLunchDay>();
-                incomingDays.forEach((d) => dateMap.set(d.dateStr, d));
-                existingDays.forEach((d) => dateMap.set(d.dateStr, d));
-                mergedDays = Array.from(dateMap.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-              }
-              const mergedCust: CustomerRecord = {
-                ...incoming,
-                ...existing,
-                selectedDays: mergedDays,
-                totalDays: Math.max(existing.totalDays || 0, incoming.totalDays || 0, mergedDays.length),
-                status: (existing.status === 'Active' || incoming.status === 'Active') ? 'Active' : incoming.status,
-                paymentStatus: (existing.paymentStatus === 'Paid' || incoming.paymentStatus === 'Paid') ? 'Paid' : incoming.paymentStatus,
-              };
-              map.set(existing.id, mergedCust);
-              if (incoming.id !== existing.id) {
-                map.set(incoming.id, mergedCust);
-              }
-            } else {
-              map.set(incoming.id, incoming);
-            }
-          });
-          const merged = Array.from(map.values()).filter(
-            (c) => !isCustomerRecordedAsDeleted(c.id, c.email)
-          );
-          try {
-            localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(merged));
-          } catch {}
-          return merged;
-        });
+      if (liveState.customers && Array.isArray(liveState.customers)) {
+        const validCustomers = liveState.customers.filter(
+          (c) => !isCustomerRecordedAsDeleted(c.id, c.email)
+        );
+        setCustomers(validCustomers);
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(validCustomers));
+        } catch {}
       }
       if (liveState.submittedOrders && Array.isArray(liveState.submittedOrders)) {
         if (liveState.submittedOrders.length > 0) {
@@ -504,6 +490,44 @@ export default function App() {
 
   // Real-time onSnapshot camera stream: Listen to customers collection across all devices
   useEffect(() => {
+    const unsubscribeLiveSyncDel = liveSync.onCustomerDeleted((delId, delEmail) => {
+      recordCustomerAsDeleted(delId, delEmail);
+      setCustomers((prev) =>
+        prev.filter(
+          (c) =>
+            (!delId || c.id !== delId) &&
+            (!delEmail || !c.email || c.email.trim().toLowerCase() !== delEmail.trim().toLowerCase())
+        )
+      );
+      setWaitlistLeads((prev) =>
+        prev.filter(
+          (l) => !delEmail || !l.email || l.email.trim().toLowerCase() !== delEmail.trim().toLowerCase()
+        )
+      );
+      setSubmittedOrders((prev) =>
+        prev.filter(
+          (o) =>
+            (!delId || o.id !== delId) &&
+            (!delEmail || !o.email || o.email.trim().toLowerCase() !== delEmail.trim().toLowerCase())
+        )
+      );
+      setCreditRedemptions((prev) =>
+        prev.filter(
+          (r) =>
+            (!delId || r.userId !== delId) &&
+            (!delEmail || !r.email || r.email.trim().toLowerCase() !== delEmail.trim().toLowerCase())
+        )
+      );
+      const currentId = userProfileRef.current.id;
+      const currentEmail = (userProfileRef.current.email || '').trim().toLowerCase();
+      if (
+        (delId && currentId && (currentId === delId || currentId.toLowerCase() === delId.toLowerCase())) ||
+        (delEmail && currentEmail && currentEmail === delEmail.trim().toLowerCase())
+      ) {
+        handleForceLogoutDueToAccountDeletion();
+      }
+    });
+
     const unsubscribe = onSnapshot(collection(db, 'customers'), (snapshot) => {
       // 1. Process deletions directly from Firestore snapshot changes
       snapshot.docChanges().forEach((change) => {
@@ -512,6 +536,32 @@ export default function App() {
           const delId = change.doc.id;
           const delEmail = removedData?.email;
           recordCustomerAsDeleted(delId, delEmail);
+          setCustomers((prev) =>
+            prev.filter(
+              (c) =>
+                (!delId || c.id !== delId) &&
+                (!delEmail || !c.email || c.email.trim().toLowerCase() !== delEmail.trim().toLowerCase())
+            )
+          );
+          setWaitlistLeads((prev) =>
+            prev.filter(
+              (l) => !delEmail || !l.email || l.email.trim().toLowerCase() !== delEmail.trim().toLowerCase()
+            )
+          );
+          setSubmittedOrders((prev) =>
+            prev.filter(
+              (o) =>
+                (!delId || o.id !== delId) &&
+                (!delEmail || !o.email || o.email.trim().toLowerCase() !== delEmail.trim().toLowerCase())
+            )
+          );
+          setCreditRedemptions((prev) =>
+            prev.filter(
+              (r) =>
+                (!delId || r.userId !== delId) &&
+                (!delEmail || !r.email || r.email.trim().toLowerCase() !== delEmail.trim().toLowerCase())
+            )
+          );
           const currentId = userProfileRef.current.id;
           const currentEmail = (userProfileRef.current.email || '').trim().toLowerCase();
           if (
@@ -523,7 +573,13 @@ export default function App() {
         }
       });
 
-      if (snapshot.empty) return;
+      if (snapshot.empty) {
+        setCustomers([]);
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify([]));
+        } catch {}
+        return;
+      }
       const firestoreCustomers: CustomerRecord[] = snapshot.docs
         .map((d) => ({
           ...(d.data() as CustomerRecord),
@@ -531,66 +587,17 @@ export default function App() {
         }))
         .filter((c) => !isCustomerRecordedAsDeleted(c.id, c.email));
 
-      // Merge into state safely without wiping locally saved customers
-      if (firestoreCustomers.length > 0) {
-        setCustomers((prev) => {
-          const map = new Map<string, CustomerRecord>();
-          prev.forEach((c) => {
-            if (!isCustomerRecordedAsDeleted(c.id, c.email)) {
-              map.set(c.id, c);
-            }
-          });
-          firestoreCustomers.forEach((incoming) => {
-            if (isCustomerRecordedAsDeleted(incoming.id, incoming.email)) {
-              return;
-            }
-            const existing =
-              map.get(incoming.id) ||
-              Array.from(map.values()).find(
-                (c) =>
-                  Boolean(incoming.email && c.email && c.email.trim().toLowerCase() === incoming.email.trim().toLowerCase())
-              );
-            if (existing) {
-              const existingDays = existing.selectedDays || [];
-              const incomingDays = incoming.selectedDays || [];
-              let mergedDays = incomingDays;
-              if (existingDays.length > incomingDays.length) {
-                const dateMap = new Map<string, SelectedLunchDay>();
-                incomingDays.forEach(d => dateMap.set(d.dateStr, d));
-                existingDays.forEach(d => dateMap.set(d.dateStr, d));
-                mergedDays = Array.from(dateMap.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-              }
-              const mergedCust: CustomerRecord = {
-                ...incoming,
-                ...existing,
-                selectedDays: mergedDays,
-                totalDays: Math.max(existing.totalDays || 0, incoming.totalDays || 0, mergedDays.length),
-                status: (existing.status === 'Active' || incoming.status === 'Active') ? 'Active' : incoming.status,
-                paymentStatus: (existing.paymentStatus === 'Paid' || incoming.paymentStatus === 'Paid') ? 'Paid' : incoming.paymentStatus,
-              };
-              map.set(existing.id, mergedCust);
-              if (incoming.id !== existing.id) {
-                map.set(incoming.id, mergedCust);
-              }
-            } else {
-              map.set(incoming.id, incoming);
-            }
-          });
-          const merged = Array.from(map.values()).filter(
-            (c) => !isCustomerRecordedAsDeleted(c.id, c.email)
-          );
-          try {
-            localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(merged));
-          } catch {}
-          return merged;
-        });
-      }
+      setCustomers(firestoreCustomers);
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(firestoreCustomers));
+      } catch {}
     }, (error) => {
       console.warn('[Firestore onSnapshot customers error]:', error);
     });
 
     return () => {
       unsubscribe();
+      unsubscribeLiveSyncDel();
     };
   }, []);
 
@@ -912,6 +919,15 @@ export default function App() {
   } | null>(null);
   const [sessionToast, setSessionToast] = useState<string | null>(null);
 
+  // Takeover Prompt State for Gatekeeper Modal ("Save the other dashboard then open here")
+  const [takeoverPrompt, setTakeoverPrompt] = useState<{
+    targetRole: 'admin' | 'subscriber';
+    targetUserId: string;
+    targetEmail?: string;
+    remoteSession: ActiveSessionRecord;
+    onSuccessNavigate: () => void;
+  } | null>(null);
+
   // Auto-dismiss session toast after 7 seconds
   useEffect(() => {
     if (!sessionToast) return;
@@ -920,6 +936,19 @@ export default function App() {
     }, 7000);
     return () => clearTimeout(timer);
   }, [sessionToast]);
+
+  // Real-time password update notification for Admin dashboard
+  useEffect(() => {
+    const unsub = liveSync.onCustomerUpdated((updatedCust) => {
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === updatedCust.id ? { ...c, ...updatedCust } : c))
+      );
+      if (updatedCust.passwordLastChangedAt) {
+        setSessionToast(`✓ Customer ${updatedCust.fullName} updated their login password in real-time.`);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Single Device Enforcement Lifecycle for Admin and Subscriber
   useEffect(() => {
@@ -937,14 +966,34 @@ export default function App() {
     // Claim active session across all channels (Firestore, Live Backend SSE, BroadcastChannel, localStorage)
     claimActiveSession(currentUserId, currentRole, currentEmail).then((token) => {
       if (isDisposed) return;
-      unsubConflict = listenToSessionConflict(currentUserId, token, (remoteSession) => {
-        if (!isDisposed) {
-          setSessionConflict({
-            conflict: remoteSession,
-            role: currentRole,
-          });
+      unsubConflict = listenToSessionConflict(
+        currentUserId,
+        token,
+        (remoteSession) => {
+          if (!isDisposed) {
+            setSessionConflict({
+              conflict: remoteSession,
+              role: currentRole,
+            });
+          }
+        },
+        async (requestingDevice) => {
+          // Another device clicked "Save the other dashboard then open here"
+          console.warn('[App] Remote dashboard takeover requested by:', requestingDevice);
+          try {
+            if (currentRole === 'admin') {
+              localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+              localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(submittedOrders));
+            }
+          } catch {}
+          await releaseActiveSession(currentUserId, token);
+          setViewMode('marketing');
+          setSessionConflict(null);
+          setSessionToast(
+            `This dashboard was saved and opened on your other device (${requestingDevice}). You were logged out to maintain perfect synchronization.`
+          );
         }
-      });
+      );
     });
 
     return () => {
@@ -954,6 +1003,113 @@ export default function App() {
       }
     };
   }, [viewMode, userProfile.id, userProfile.email]);
+
+  const handleAttemptOpenAdmin = async () => {
+    const adminUserId = 'admin_11to12';
+    const existing = await checkExistingActiveSession(adminUserId);
+    const myToken = getCurrentSessionToken();
+    if (existing && existing.activeSessionId && existing.activeSessionId !== myToken) {
+      setTakeoverPrompt({
+        targetRole: 'admin',
+        targetUserId: adminUserId,
+        targetEmail: 'admin@11to12.food',
+        remoteSession: existing,
+        onSuccessNavigate: () => {
+          setViewMode('admin');
+          try {
+            localStorage.setItem('11to12_active_view_mode', 'admin');
+          } catch {}
+        },
+      });
+      return;
+    }
+    await claimActiveSession(adminUserId, 'admin', 'admin@11to12.food');
+    setViewMode('admin');
+    try {
+      localStorage.setItem('11to12_active_view_mode', 'admin');
+    } catch {}
+  };
+
+  const handleAttemptOpenSubscriber = async (customer: CustomerRecord) => {
+    if (isCustomerRecordedAsDeleted(customer.id, customer.email)) {
+      setSessionToast('This account was removed by administration. Credentials are no longer active.');
+      return;
+    }
+    const custUserId = customer.id || customer.email || 'customer';
+    const existing = await checkExistingActiveSession(custUserId);
+    const myToken = getCurrentSessionToken();
+    if (existing && existing.activeSessionId && existing.activeSessionId !== myToken) {
+      setTakeoverPrompt({
+        targetRole: 'subscriber',
+        targetUserId: custUserId,
+        targetEmail: customer.email,
+        remoteSession: existing,
+        onSuccessNavigate: () => {
+          handleCustomerLogin(customer);
+        },
+      });
+      return;
+    }
+    await claimActiveSession(custUserId, 'subscriber', customer.email);
+    handleCustomerLogin(customer);
+  };
+
+  const handleAttemptTabSwitch = (tab: ViewMode) => {
+    if (tab === 'admin') {
+      handleAttemptOpenAdmin();
+    } else if (tab === 'subscriber') {
+      if (userProfile.id || userProfile.email) {
+        const cust = customers.find(
+          (c) =>
+            (userProfile.id && c.id === userProfile.id) ||
+            (userProfile.email && c.email && c.email.trim().toLowerCase() === userProfile.email.trim().toLowerCase())
+        );
+        if (cust) {
+          handleAttemptOpenSubscriber(cust);
+          return;
+        }
+      }
+      setShowSubscriberAuthModal(true);
+    } else {
+      setViewMode('marketing');
+      try {
+        localStorage.setItem('11to12_active_view_mode', 'marketing');
+      } catch {}
+    }
+  };
+
+  const handleExecuteTakeover = async () => {
+    if (!takeoverPrompt) return;
+    const { targetUserId, targetRole, targetEmail, onSuccessNavigate } = takeoverPrompt;
+
+    // 1. Send yield request to the remote device
+    await requestRemoteSessionYield(targetUserId);
+
+    // 2. Wait for remote dashboard to flush and save
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    // 3. Fetch latest authoritative state from backend so this device sees identical records
+    try {
+      const freshState = await liveSync.fetchBootstrap();
+      if (freshState.customers) {
+        const clean = freshState.customers.filter((c) => !isCustomerRecordedAsDeleted(c.id, c.email));
+        setCustomers(clean);
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(clean));
+        } catch {}
+      }
+    } catch {}
+
+    // 4. Claim the single active session for this device
+    await claimActiveSession(targetUserId, targetRole, targetEmail);
+
+    // 5. Navigate to the dashboard
+    onSuccessNavigate();
+    setTakeoverPrompt(null);
+    setSessionToast(
+      `✓ Other dashboard safely saved & closed. This device is now your active live ${targetRole === 'admin' ? 'admin' : 'subscriber'} dashboard.`
+    );
+  };
 
   const handleForceLogoutDueToAccountDeletion = async () => {
     console.warn('[App] Customer account deleted by administrator. Forcing logout.');
@@ -1611,7 +1767,7 @@ export default function App() {
       {viewMode === 'marketing' && (
         <Header
           currentTab={viewMode}
-          setCurrentTab={setViewMode}
+          setCurrentTab={handleAttemptTabSwitch}
           onOpenSubscriberLogin={() => setShowSubscriberAuthModal(true)}
           timeWindow={timeWindow}
           setTimeWindow={setTimeWindow}
@@ -1786,6 +1942,16 @@ export default function App() {
         />
       )}
 
+      {/* Single Concurrent Session Takeover Modal (Requires 'Save the other dashboard then open here') */}
+      {takeoverPrompt && (
+        <DashboardTakeoverModal
+          role={takeoverPrompt.targetRole}
+          remoteSession={takeoverPrompt.remoteSession}
+          onTakeoverAndOpen={handleExecuteTakeover}
+          onCancel={() => setTakeoverPrompt(null)}
+        />
+      )}
+
       {/* Subscriber Portal Authentication & Forgot Password Modal */}
       {showSubscriberAuthModal && (
         <SubscriberAuthModal
@@ -1794,7 +1960,7 @@ export default function App() {
           customers={customers}
           testimonials={liveTestimonials}
           onLoginSuccess={(customer) => {
-            handleCustomerLogin(customer);
+            handleAttemptOpenSubscriber(customer);
             setShowSubscriberAuthModal(false);
           }}
           onUpdateCustomerPassword={(customerId, newPass) => {
@@ -1805,7 +1971,7 @@ export default function App() {
           }}
           onOpenAdminLogin={() => {
             setShowSubscriberAuthModal(false);
-            setViewMode('admin');
+            handleAttemptOpenAdmin();
           }}
         />
       )}
@@ -1814,7 +1980,7 @@ export default function App() {
       <Footer
         onNavigateToLanding={() => setViewMode('marketing')}
         onNavigateToSubscriber={() => setShowSubscriberAuthModal(true)}
-        onNavigateToAdmin={() => setViewMode('admin')}
+        onNavigateToAdmin={() => handleAttemptOpenAdmin()}
       />
 
     </div>

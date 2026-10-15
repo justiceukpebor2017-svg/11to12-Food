@@ -38,6 +38,13 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { getMeasurementId, setMeasurementId, trackEvent } from '../../../utils/analytics';
+import {
+  getPricingSettings,
+  updatePricingSettings,
+  PricingSettings,
+  DEFAULT_PRICING_SETTINGS,
+} from '../../../config/pricingConfig';
+import { liveSync } from '../../../services/liveSyncService';
 
 interface AdminSettingsTabProps {
   launchSettings?: LaunchSettings;
@@ -95,6 +102,8 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   };
 
   // --- 2. PRICING STATE ---
+  const [pricingCfg, setPricingCfg] = useState<PricingSettings>(() => getPricingSettings());
+  const [isSavingPricing, setIsSavingPricing] = useState(false);
   const [prices, setPrices] = useState({
     Swallow: DEFAULT_CATEGORY_PRICES['Swallow'] || 3200,
     Rice: DEFAULT_CATEGORY_PRICES['Rice & Grains'] || 2900,
@@ -209,8 +218,17 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     showSaved(`Saved & Distributed! Meal "${updatedMeal.mealName}" (₦${parsedPrice.toLocaleString()}) updated real-time across Website, Dashboard & Admin.`);
   };
 
-  const handleSavePricing = () => {
-    showSaved('Pricing settings saved successfully.');
+  const handleSavePricing = async () => {
+    setIsSavingPricing(true);
+    try {
+      updatePricingSettings(pricingCfg);
+      await liveSync.updatePricingSettings(pricingCfg);
+      showSaved('Pricing settings saved & broadcasted real-time to all devices!');
+    } catch (err: any) {
+      showSaved('Saved locally. Notice: ' + (err?.message || 'Sync queued'));
+    } finally {
+      setIsSavingPricing(false);
+    }
   };
 
   const handleSavePaymentSettings = () => {
@@ -565,94 +583,172 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
       {activeSubTab === 'pricing' && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-6">
           
-          <div className="pb-4 border-b border-zinc-100">
-            <h2 className="text-base font-bold text-zinc-900">Manage Pricing</h2>
-            <p className="text-xs text-zinc-500">Set meal category base rates and per-day delivery charges</p>
+          <div className="pb-4 border-b border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="text-base font-bold text-zinc-900">Manage Meal Pricing & Day Ranges</h2>
+              <p className="text-xs text-zinc-500">Configure tiered day ranges, per-day rates, and 5-day package pricing</p>
+            </div>
+            <div className="inline-flex items-center px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-xs font-bold text-[#FF4C00]">
+              <Sparkles className="w-3.5 h-3.5 mr-1" />
+              <span>Real-Time Live Sync Enabled</span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-3">
-              <span className="text-xs font-bold text-zinc-800 block">Category Prices</span>
+          {/* Tiered Day Ranges & Package Pricing (Admin Configurable) */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-orange-50/40 border border-orange-200/80 space-y-4">
+            <div>
+              <span className="text-xs font-bold text-zinc-900 uppercase tracking-wider block">
+                Subscription Day Ranges & Decreasing Rate Tiers
+              </span>
+              <p className="text-[11px] text-zinc-600 mt-0.5">
+                The price per meal automatically reduces the more days a customer adds to their cart.
+              </p>
+            </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-zinc-600 font-medium">Swallow & Soup</span>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-zinc-400">₦</span>
-                    <input
-                      type="number"
-                      value={prices.Swallow}
-                      onChange={(e) => setPrices({ ...prices, Swallow: Number(e.target.value) })}
-                      className="w-24 bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs font-mono font-bold text-right"
-                    />
-                  </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+              {/* 5-Day Flat Package */}
+              <div className="p-3.5 rounded-xl bg-white border border-orange-200 shadow-2xs space-y-1.5">
+                <span className="font-bold text-zinc-900 block text-xs">
+                  5 Days Total Package Price (Flat)
+                </span>
+                <p className="text-[10px] text-zinc-500">
+                  Activates Pay Now button when user reaches 5 workdays
+                </p>
+                <div className="flex items-center space-x-1 pt-1">
+                  <span className="text-zinc-500 font-bold">₦</span>
+                  <input
+                    type="number"
+                    value={pricingCfg.fiveDaysFlatTotal}
+                    onChange={(e) =>
+                      setPricingCfg({ ...pricingCfg, fiveDaysFlatTotal: Number(e.target.value) })
+                    }
+                    className="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-right text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                  />
                 </div>
+              </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-zinc-600 font-medium">Rice & Grains</span>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-zinc-400">₦</span>
-                    <input
-                      type="number"
-                      value={prices.Rice}
-                      onChange={(e) => setPrices({ ...prices, Rice: Number(e.target.value) })}
-                      className="w-24 bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs font-mono font-bold text-right"
-                    />
-                  </div>
+              {/* 6 to 10 Days Tier */}
+              <div className="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-1.5">
+                <span className="font-bold text-zinc-900 block text-xs">
+                  6 – 10 Days Tier (Rate Added / Day)
+                </span>
+                <p className="text-[10px] text-zinc-500">
+                  Cost per day added above 5 days (e.g. ₦3,600)
+                </p>
+                <div className="flex items-center space-x-1 pt-1">
+                  <span className="text-zinc-500 font-bold">₦</span>
+                  <input
+                    type="number"
+                    value={pricingCfg.tier6to10Price}
+                    onChange={(e) =>
+                      setPricingCfg({ ...pricingCfg, tier6to10Price: Number(e.target.value) })
+                    }
+                    className="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-right text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                  />
                 </div>
+              </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-zinc-600 font-medium">Pasta & Noodles</span>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-zinc-400">₦</span>
-                    <input
-                      type="number"
-                      value={prices.Pasta}
-                      onChange={(e) => setPrices({ ...prices, Pasta: Number(e.target.value) })}
-                      className="w-24 bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs font-mono font-bold text-right"
-                    />
-                  </div>
+              {/* 11 to 15 Days Tier */}
+              <div className="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-1.5">
+                <span className="font-bold text-zinc-900 block text-xs">
+                  11 – 15 Days Tier (Rate Added / Day)
+                </span>
+                <p className="text-[10px] text-zinc-500">
+                  Cost per day added above 10 days (e.g. ₦3,400)
+                </p>
+                <div className="flex items-center space-x-1 pt-1">
+                  <span className="text-zinc-500 font-bold">₦</span>
+                  <input
+                    type="number"
+                    value={pricingCfg.tier11to15Price}
+                    onChange={(e) =>
+                      setPricingCfg({ ...pricingCfg, tier11to15Price: Number(e.target.value) })
+                    }
+                    className="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-right text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                  />
                 </div>
+              </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-zinc-600 font-medium">Beans & Delicacies</span>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-zinc-400">₦</span>
-                    <input
-                      type="number"
-                      value={prices.Beans}
-                      onChange={(e) => setPrices({ ...prices, Beans: Number(e.target.value) })}
-                      className="w-24 bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs font-mono font-bold text-right"
-                    />
-                  </div>
+              {/* 16 to 20 Days Tier */}
+              <div className="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-1.5">
+                <span className="font-bold text-zinc-900 block text-xs">
+                  16 – 20 Days Tier (Rate Added / Day)
+                </span>
+                <p className="text-[10px] text-zinc-500">
+                  Cost per day added above 15 days (e.g. ₦3,200)
+                </p>
+                <div className="flex items-center space-x-1 pt-1">
+                  <span className="text-zinc-500 font-bold">₦</span>
+                  <input
+                    type="number"
+                    value={pricingCfg.tier16to20Price}
+                    onChange={(e) =>
+                      setPricingCfg({ ...pricingCfg, tier16to20Price: Number(e.target.value) })
+                    }
+                    className="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-right text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                  />
+                </div>
+              </div>
+
+              {/* 21+ Days Tier */}
+              <div className="p-3.5 rounded-xl bg-white border border-emerald-200 shadow-2xs space-y-1.5">
+                <span className="font-bold text-zinc-900 block text-xs">
+                  21+ Days Best Value (Rate Added / Day)
+                </span>
+                <p className="text-[10px] text-zinc-500">
+                  Cost per day added above 20 days (e.g. ₦3,000)
+                </p>
+                <div className="flex items-center space-x-1 pt-1">
+                  <span className="text-zinc-500 font-bold">₦</span>
+                  <input
+                    type="number"
+                    value={pricingCfg.tier21PlusPrice}
+                    onChange={(e) =>
+                      setPricingCfg({ ...pricingCfg, tier21PlusPrice: Number(e.target.value) })
+                    }
+                    className="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-right text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                  />
+                </div>
+              </div>
+
+              {/* Per-Day Delivery Fee Addition */}
+              <div className="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-1.5">
+                <span className="font-bold text-zinc-900 block text-xs">
+                  Per-Day Delivery Fee Addition
+                </span>
+                <p className="text-[10px] text-zinc-500">
+                  ₦500/day desk drop (seamlessly factored into total)
+                </p>
+                <div className="flex items-center space-x-1 pt-1">
+                  <span className="text-zinc-500 font-bold">₦</span>
+                  <input
+                    type="number"
+                    value={pricingCfg.deliveryFeePerDay}
+                    onChange={(e) =>
+                      setPricingCfg({ ...pricingCfg, deliveryFeePerDay: Number(e.target.value) })
+                    }
+                    className="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-right text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                  />
                 </div>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-3">
-              <span className="text-xs font-bold text-zinc-800 block">Per-Day Charges & Discounts</span>
-
+            {/* Minimum Order Days Setting */}
+            <div className="p-3.5 rounded-xl bg-white border border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div>
-                <label className="block text-[11px] font-semibold text-zinc-600 mb-1">
-                  Per-Day Desk Drop Delivery Addition
-                </label>
-                <div className="flex items-center space-x-1">
-                  <span className="text-zinc-400">₦</span>
-                  <input
-                    type="number"
-                    value={perDayFee}
-                    onChange={(e) => setPerDayFee(Number(e.target.value))}
-                    className="w-28 bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs font-mono font-bold"
-                  />
-                  <span className="text-[11px] text-zinc-400">per day scheduled</span>
-                </div>
+                <span className="font-bold text-zinc-900 block">Minimum Order Days Requirement</span>
+                <p className="text-[11px] text-zinc-500">Customers must select at least this many days to calculate & pay</p>
               </div>
-
-              <div className="pt-2 border-t border-zinc-200">
-                <span className="text-zinc-700 font-medium block">20th Day Free Perk</span>
-                <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Subscribers ordering 20+ workdays receive their 20th lunch food cost free.
-                </p>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={pricingCfg.minOrderDays}
+                  onChange={(e) => setPricingCfg({ ...pricingCfg, minOrderDays: Number(e.target.value) })}
+                  className="w-20 bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-center text-zinc-900"
+                />
+                <span className="text-zinc-600 font-semibold">Days Minimum</span>
               </div>
             </div>
           </div>
@@ -660,10 +756,18 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
           <div className="flex justify-end pt-2">
             <button
               type="button"
+              disabled={isSavingPricing}
               onClick={handleSavePricing}
-              className="px-5 py-2.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-xs transition cursor-pointer shadow-xs"
+              className="px-6 py-2.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center space-x-1.5 disabled:opacity-50"
             >
-              Save Pricing Settings
+              {isSavingPricing ? (
+                <span>Saving & Broadcasting...</span>
+              ) : (
+                <>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Pricing Settings</span>
+                </>
+              )}
             </button>
           </div>
 

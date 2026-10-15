@@ -9,6 +9,7 @@ import {
   ExternalLink,
   LogOut,
   ShieldCheck,
+  Plus,
 } from 'lucide-react';
 
 export type AdminTab =
@@ -24,6 +25,7 @@ interface AdminSidebarProps {
   setActiveTab: (tab: AdminTab) => void;
   onNavigateToHome: () => void;
   onLogout?: () => void;
+  onOpenAddCustomer?: () => void;
   pendingOrdersCount: number;
   waitlistCount?: number;
   customersCount?: number;
@@ -34,6 +36,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   setActiveTab,
   onNavigateToHome,
   onLogout,
+  onOpenAddCustomer,
   pendingOrdersCount,
   waitlistCount = 0,
   customersCount = 0,
@@ -97,8 +100,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
       </div>
 
+      {/* Prominent Quick Action: + Add Customer (Accessible on desktop & all screen sizes) */}
+      {onOpenAddCustomer && (
+        <div className="px-4 pt-4 pb-1">
+          <button
+            type="button"
+            onClick={onOpenAddCustomer}
+            className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl bg-[#FF4C00] hover:bg-[#e04300] text-white font-extrabold text-xs shadow-lg shadow-orange-950/40 transition active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Add Customer</span>
+          </button>
+        </div>
+      )}
+
       {/* Navigation Links */}
-      <nav className="flex-1 overflow-y-auto py-5 px-3 space-y-1.5">
+      <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-1.5">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;

@@ -9,29 +9,34 @@
  */
 
 const DELETED_CUSTOMER_IDS_KEY = '11to12_deleted_customer_ids_v2';
+const DELETED_CUSTOMER_EMAILS_KEY = '11to12_deleted_customer_emails_v2';
 const DELETED_ACCOUNT_EVENT_KEY = '11to12_account_deleted_event';
 
-export function getDeletedCustomerMarkers(): { ids: Set<string> } {
-  if (typeof window === 'undefined') return { ids: new Set() };
+export function getDeletedCustomerMarkers(): { ids: Set<string>; emails: Set<string> } {
+  if (typeof window === 'undefined') return { ids: new Set(), emails: new Set() };
+  let ids = new Set<string>();
+  let emails = new Set<string>();
   try {
-    const raw = localStorage.getItem(DELETED_CUSTOMER_IDS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return { ids: new Set(parsed) };
-      }
-      if (parsed && Array.isArray(parsed.ids)) {
-        return { ids: new Set(parsed.ids) };
-      }
+    const rawIds = localStorage.getItem(DELETED_CUSTOMER_IDS_KEY);
+    if (rawIds) {
+      const parsed = JSON.parse(rawIds);
+      if (Array.isArray(parsed)) ids = new Set(parsed);
+      else if (parsed?.ids && Array.isArray(parsed.ids)) ids = new Set(parsed.ids);
     }
   } catch {}
-  return { ids: new Set() };
+  try {
+    const rawEmails = localStorage.getItem(DELETED_CUSTOMER_EMAILS_KEY);
+    if (rawEmails) {
+      const parsed = JSON.parse(rawEmails);
+      if (Array.isArray(parsed)) emails = new Set(parsed);
+    }
+  } catch {}
+  return { ids, emails };
 }
 
 /**
- * Marks a specific deleted customer record ID so the deleted document is not re-inserted by stale caches.
- * Also emits an instant cross-tab notification so any active session on that account logs out.
- * Does NOT blacklist the email — the email can be used immediately to register again!
+ * Marks a specific deleted customer record ID and email so the deleted account is purged worldwide,
+ * cannot log in on any device with saved credentials, and is purged from admin dashboards.
  */
 export function recordCustomerAsDeleted(id?: string, email?: string): void {
   if (typeof window === 'undefined') return;
@@ -40,13 +45,15 @@ export function recordCustomerAsDeleted(id?: string, email?: string): void {
   if (!cleanId && !cleanEmail) return;
 
   try {
+    const markers = getDeletedCustomerMarkers();
+    if (cleanId) markers.ids.add(cleanId);
+    if (cleanEmail) markers.emails.add(cleanEmail);
+
     if (cleanId) {
-      const markers = getDeletedCustomerMarkers();
-      markers.ids.add(cleanId);
-      localStorage.setItem(
-        DELETED_CUSTOMER_IDS_KEY,
-        JSON.stringify(Array.from(markers.ids))
-      );
+      localStorage.setItem(DELETED_CUSTOMER_IDS_KEY, JSON.stringify(Array.from(markers.ids)));
+    }
+    if (cleanEmail) {
+      localStorage.setItem(DELETED_CUSTOMER_EMAILS_KEY, JSON.stringify(Array.from(markers.emails)));
     }
 
     // Notify other tabs immediately via StorageEvent to terminate active session if currently open
@@ -62,33 +69,36 @@ export function recordCustomerAsDeleted(id?: string, email?: string): void {
 }
 
 /**
- * Checks whether a specific customer record document ID was deleted.
- * Note: Only checks record ID to prevent resurrecting stale deleted records.
- * Emails are NEVER blacklisted — any email address can be used to register again!
+ * Checks whether a specific customer record document ID or email was deleted.
  */
-export function isCustomerRecordedAsDeleted(id?: string, _email?: string): boolean {
-  if (typeof window === 'undefined' || !id) return false;
-  const cleanId = String(id).trim();
-  if (!cleanId) return false;
+export function isCustomerRecordedAsDeleted(id?: string, email?: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const cleanId = id ? String(id).trim() : '';
+  const cleanEmail = email ? String(email).toLowerCase().trim() : '';
+  if (!cleanId && !cleanEmail) return false;
 
   const markers = getDeletedCustomerMarkers();
-  return markers.ids.has(cleanId);
+  if (cleanId && markers.ids.has(cleanId)) return true;
+  if (cleanEmail && markers.emails.has(cleanEmail)) return true;
+  return false;
 }
 
 /**
- * Unrecords a customer ID if needed.
+ * Unrecords a customer ID/email when a fresh user registers with that email.
+ * This ensures that a new registration is treated as a clean fresh user without copying old data.
  */
-export function unrecordCustomerAsDeleted(id?: string, _email?: string): void {
-  if (typeof window === 'undefined' || !id) return;
-  const cleanId = String(id).trim();
-  if (!cleanId) return;
+export function unrecordCustomerAsDeleted(id?: string, email?: string): void {
+  if (typeof window === 'undefined') return;
+  const cleanId = id ? String(id).trim() : '';
+  const cleanEmail = email ? String(email).toLowerCase().trim() : '';
+  if (!cleanId && !cleanEmail) return;
 
   try {
     const markers = getDeletedCustomerMarkers();
-    markers.ids.delete(cleanId);
-    localStorage.setItem(
-      DELETED_CUSTOMER_IDS_KEY,
-      JSON.stringify(Array.from(markers.ids))
-    );
+    if (cleanId) markers.ids.delete(cleanId);
+    if (cleanEmail) markers.emails.delete(cleanEmail);
+
+    localStorage.setItem(DELETED_CUSTOMER_IDS_KEY, JSON.stringify(Array.from(markers.ids)));
+    localStorage.setItem(DELETED_CUSTOMER_EMAILS_KEY, JSON.stringify(Array.from(markers.emails)));
   } catch {}
 }
