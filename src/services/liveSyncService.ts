@@ -330,6 +330,17 @@ class LiveSyncService {
           fn({ type: 'RELEASED', session: data.payload });
         } catch {}
       });
+    } else if (data.type === 'FORCE_GLOBAL_LOGOUT') {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('11to12_active_view_mode');
+          localStorage.removeItem('11to12_subscriber_profile');
+          localStorage.removeItem('11to12_user_profile');
+          localStorage.removeItem('11to12_current_session_token');
+          sessionStorage.clear();
+          window.dispatchEvent(new CustomEvent('11to12_force_global_logout'));
+        } catch {}
+      }
     }
 
     this.notify();
@@ -341,6 +352,18 @@ class LiveSyncService {
       if (res.ok) {
         const json = await safeParseJson(res);
         if (json?.db) {
+          if (json.db.sessionResetEpoch) {
+            const lastEpoch = parseInt(localStorage.getItem('11to12_last_reset_epoch') || '0', 10);
+            if (json.db.sessionResetEpoch > lastEpoch) {
+              localStorage.setItem('11to12_last_reset_epoch', String(json.db.sessionResetEpoch));
+              localStorage.removeItem('11to12_active_view_mode');
+              localStorage.removeItem('11to12_subscriber_profile');
+              localStorage.removeItem('11to12_user_profile');
+              localStorage.removeItem('11to12_current_session_token');
+              sessionStorage.clear();
+              window.dispatchEvent(new CustomEvent('11to12_force_global_logout'));
+            }
+          }
           if (Array.isArray(json.db.deletedCustomerRecords)) {
             json.db.deletedCustomerRecords.forEach((d: any) => {
               recordCustomerAsDeleted(d.id, d.email);

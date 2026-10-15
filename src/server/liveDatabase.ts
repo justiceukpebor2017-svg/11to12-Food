@@ -18,6 +18,7 @@ export interface LiveDatabaseSchema {
   deletedCustomerRecords?: Array<{ id: string; email: string; deletedAt: string }>;
   customMeals?: Record<string, any>;
   activeSessions?: Record<string, ActiveSessionRecord>;
+  sessionResetEpoch?: number;
 }
 
 const DEFAULT_TESTIMONIALS: TestimonialItem[] = [
@@ -924,6 +925,14 @@ export function requestSessionYieldInDb(userId: string, requestingToken: string,
     return true;
   }
   return false;
+}
+
+export function resetAllSessionsInDb(): { success: boolean; resetEpoch: number } {
+  dbState.activeSessions = {};
+  dbState.sessionResetEpoch = Date.now();
+  saveLiveDatabase();
+  broadcastLiveUpdate('FORCE_GLOBAL_LOGOUT', { resetEpoch: dbState.sessionResetEpoch });
+  return { success: true, resetEpoch: dbState.sessionResetEpoch };
 }
 
 

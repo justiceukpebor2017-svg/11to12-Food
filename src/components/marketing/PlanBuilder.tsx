@@ -58,21 +58,17 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Anchored to official Launch Date
+  // Anchored to official Launch Date (December 2026 by default)
   const [currentYear, setCurrentYear] = useState(LAUNCH_CONFIG.year);
   const [currentMonth, setCurrentMonth] = useState(LAUNCH_CONFIG.monthIndex);
   const [, setMenuUpdateVersion] = useState(0);
 
   useEffect(() => {
-    const unsub = subscribeLaunchConfig((cfg) => {
-      setCurrentYear(cfg.year);
-      setCurrentMonth(cfg.monthIndex);
-    });
+    // Only listen to menu updates; do NOT reset the user's active browsing month
     const unsubMenu = subscribeMenuChanges(() => {
       setMenuUpdateVersion((v) => v + 1);
     });
     return () => {
-      unsub();
       unsubMenu();
     };
   }, []);
@@ -80,8 +76,8 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   // Map of dateStr -> SelectedLunchDay
   const [selectedDaysMap, setSelectedDaysMap] = useState<Record<string, SelectedLunchDay>>({});
 
-  // Mobile Friday Swallow Popup modal state
-  const [mobileSwallowModal, setMobileSwallowModal] = useState<{
+  // Universal Friday Swallow Popup modal state (Works on both Desktop & Mobile)
+  const [swallowModal, setSwallowModal] = useState<{
     meal: StructuredMeal;
     dateFormatted: string;
     isAlreadySelected: boolean;
@@ -110,47 +106,27 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
 
-  // Earliest allowable month is launch date month (December 2026)
-  const isAtEarliestMonth = useMemo(() => {
-    return (
-      currentYear < LAUNCH_CONFIG.year ||
-      (currentYear === LAUNCH_CONFIG.year && currentMonth <= LAUNCH_CONFIG.monthIndex)
-    );
-  }, [currentYear, currentMonth]);
+  // Specific rule: Currently, only December 2026 (month 11) and January 2027 (month 0) have menus
+  const hasMenu = (currentYear === 2026 && currentMonth === 11) || (currentYear === 2027 && currentMonth === 0);
 
-  // 6-month quick navigation tabs starting from launch date
-  const sixMonthsCycle = useMemo(() => {
-    const startYear = LAUNCH_CONFIG.isEnabled ? LAUNCH_CONFIG.year : new Date().getFullYear();
-    const startMonth = LAUNCH_CONFIG.isEnabled ? LAUNCH_CONFIG.monthIndex : new Date().getMonth();
-    const tabs = [];
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(startYear, startMonth + i, 1);
-      tabs.push({
-        year: d.getFullYear(),
-        month: d.getMonth(),
-        label: `${monthNames[d.getMonth()].substring(0, 3)} ${d.getFullYear()}`,
-      });
-    }
-    return tabs;
+  // Quick navigation tabs for seamless month jumping
+  const navigationMonths = useMemo(() => {
+    return [
+      { year: 2026, month: 10, label: 'Nov 2026' },
+      { year: 2026, month: 11, label: 'Dec 2026 (Menu Set)' },
+      { year: 2027, month: 0, label: 'Jan 2027 (Menu Set)' },
+      { year: 2027, month: 1, label: 'Feb 2027' },
+      { year: 2027, month: 2, label: 'Mar 2027' },
+      { year: 2027, month: 3, label: 'Apr 2027' },
+    ];
   }, []);
 
+  // Free month navigation - allows user to go to any month forward or backward
   const prevMonth = () => {
-    // Cannot move backwards past our launch date
-    if (isAtEarliestMonth) return;
-
     if (currentMonth === 0) {
-      const nextY = currentYear - 1;
-      const nextM = 11;
-      if (nextY < LAUNCH_CONFIG.year || (nextY === LAUNCH_CONFIG.year && nextM < LAUNCH_CONFIG.monthIndex)) {
-        return;
-      }
       setCurrentMonth(11);
       setCurrentYear((y) => y - 1);
     } else {
-      const nextM = currentMonth - 1;
-      if (currentYear === LAUNCH_CONFIG.year && nextM < LAUNCH_CONFIG.monthIndex) {
-        return;
-      }
       setCurrentMonth((m) => m - 1);
     }
   };
@@ -206,6 +182,9 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       const dd = String(d).padStart(2, '0');
       const dateStr = `${date.getFullYear()}-${mm}-${dd}`;
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const cellHasMenu =
+        (date.getFullYear() === 2026 && date.getMonth() === 11) ||
+        (date.getFullYear() === 2027 && date.getMonth() === 0);
       cells.push({
         dayNumber: d,
         isCurrentMonth: true,
@@ -213,7 +192,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         dateStr,
         isWeekend,
         isBeforeLaunch: isDateBeforeLaunch(date),
-        meal: isWeekend ? null : getStructuredMealForDate(date),
+        meal: isWeekend || !cellHasMenu ? null : getStructuredMealForDate(date),
       });
     }
 
@@ -225,6 +204,9 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       const dd = String(d).padStart(2, '0');
       const dateStr = `${date.getFullYear()}-${mm}-${dd}`;
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const cellHasMenu =
+        (date.getFullYear() === 2026 && date.getMonth() === 11) ||
+        (date.getFullYear() === 2027 && date.getMonth() === 0);
       cells.push({
         dayNumber: d,
         isCurrentMonth: false,
@@ -232,7 +214,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         dateStr,
         isWeekend,
         isBeforeLaunch: isDateBeforeLaunch(date),
-        meal: isWeekend ? null : getStructuredMealForDate(date),
+        meal: isWeekend || !cellHasMenu ? null : getStructuredMealForDate(date),
       });
     }
 
@@ -262,7 +244,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     );
   };
 
-  const handleOpenMobileSwallowModal = (meal: StructuredMeal, e?: React.MouseEvent) => {
+  const handleOpenSwallowModal = (meal: StructuredMeal, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const dateObj = new Date(meal.dateStr + 'T12:00:00');
     const formattedDate = dateObj.toLocaleDateString('en-US', {
@@ -272,16 +254,16 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     });
     const currentSelected = selectedDaysMap[meal.dateStr];
     setChosenSwallow(currentSelected?.selectedSwallow || 'Semo');
-    setMobileSwallowModal({
+    setSwallowModal({
       meal,
       dateFormatted: formattedDate,
       isAlreadySelected: Boolean(currentSelected),
     });
   };
 
-  const handleConfirmMobileSwallow = () => {
-    if (!mobileSwallowModal) return;
-    const { meal, dateFormatted } = mobileSwallowModal;
+  const handleConfirmSwallow = () => {
+    if (!swallowModal) return;
+    const { meal, dateFormatted } = swallowModal;
 
     setSelectedDaysMap((prev) => ({
       ...prev,
@@ -322,33 +304,32 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       setIsCalculating(false);
     }
 
-    setMobileSwallowModal(null);
+    setSwallowModal(null);
   };
 
-  const handleRemoveMobileSwallowDay = () => {
-    if (!mobileSwallowModal) return;
-    const { meal } = mobileSwallowModal;
+  const handleRemoveSwallowDay = () => {
+    if (!swallowModal) return;
+    const { meal } = swallowModal;
     setSelectedDaysMap((prev) => {
       const copy = { ...prev };
       delete copy[meal.dateStr];
       return copy;
     });
-    setMobileSwallowModal(null);
+    setSwallowModal(null);
   };
 
   // Toggle selection for a workday meal
   const toggleSelectMeal = (meal: StructuredMeal) => {
     if (meal.isHoliday || meal.isNoDelivery) return;
 
-    // Check if on mobile version of the website and user selects Friday / swallow meal
-    const onMobile = isMobile || (typeof window !== 'undefined' && window.innerWidth < 768);
+    // Friday / swallow popup requirement: On BOTH desktop and mobile, show popup to choose swallow
     const isSwallowOrFriday = isFridayOrSwallowMeal(meal);
 
-    if (onMobile && isSwallowOrFriday) {
+    if (isSwallowOrFriday) {
       const isCurrentlySelected = Boolean(selectedDaysMap[meal.dateStr]);
       if (!isCurrentlySelected) {
         // Trigger popup to allow user pick a swallow then confirm
-        handleOpenMobileSwallowModal(meal);
+        handleOpenSwallowModal(meal);
         return;
       }
     }
@@ -450,6 +431,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
   // Select all deliverable workdays in current month
   const selectAllWorkdaysThisMonth = () => {
+    if (!hasMenu) return;
     setSelectedDaysMap((prev) => {
       const copy = { ...prev };
       calendarDays.forEach((cell) => {
@@ -710,9 +692,9 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
           </div>
         </div>
 
-        {/* 6-Month Navigation Tabs */}
+        {/* Navigation Month Tabs */}
         <div className="flex items-center justify-center gap-2 overflow-x-auto pb-4 mb-8">
-          {sixMonthsCycle.map((item) => {
+          {navigationMonths.map((item) => {
             const isCurrent = currentYear === item.year && currentMonth === item.month;
             return (
               <button
@@ -758,7 +740,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             <div className="flex items-center space-x-3">
               <button
                 onClick={selectAllWorkdaysThisMonth}
-                className="text-xs font-semibold text-[#FF4C00] hover:underline cursor-pointer"
+                disabled={!hasMenu}
+                className={`text-xs font-semibold cursor-pointer ${
+                  hasMenu ? 'text-[#FF4C00] hover:underline' : 'text-zinc-300 cursor-not-allowed'
+                }`}
               >
                 Select All Workdays
               </button>
@@ -771,18 +756,15 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
               </button>
               <div className="flex items-center space-x-1 pl-2">
                 <button
+                  type="button"
                   onClick={prevMonth}
-                  disabled={isAtEarliestMonth}
-                  className={`p-2 rounded-full border border-zinc-200 transition ${
-                    isAtEarliestMonth
-                      ? 'text-zinc-300 opacity-40 cursor-not-allowed bg-zinc-50'
-                      : 'text-zinc-600 hover:bg-zinc-50 cursor-pointer'
-                  }`}
-                  title={isAtEarliestMonth ? 'Cannot navigate before launch month (December 2026)' : 'Previous Month'}
+                  className="p-2 rounded-full border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition cursor-pointer"
+                  title="Previous Month"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
+                  type="button"
                   onClick={nextMonth}
                   className="p-2 rounded-full border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition cursor-pointer"
                   title="Next Month"
@@ -793,8 +775,47 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             </div>
           </div>
 
-          {/* Pre-launch alert banner */}
-          {LAUNCH_CONFIG.isEnabled && isCurrentMonthPreLaunch && (
+          {/* No menu set alert banner when user goes beyond Dec 2026 / Jan 2027 */}
+          {!hasMenu && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-start sm:items-center space-x-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+                <div>
+                  <h4 className="text-sm font-bold text-amber-950">
+                    No menu set for {monthNames[currentMonth]} {currentYear}
+                  </h4>
+                  <p className="text-xs text-amber-800">
+                    Currently, official chef menus are published for December 2026 and January 2027 only.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentYear(2026);
+                    setCurrentMonth(11);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-black text-white text-xs font-bold hover:bg-zinc-800 transition cursor-pointer"
+                >
+                  View Dec 2026
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentYear(2027);
+                    setCurrentMonth(0);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#FF4C00] text-white text-xs font-bold hover:bg-[#E04300] transition cursor-pointer"
+                >
+                  View Jan 2027
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Pre-launch alert banner for December before launch date */}
+          {hasMenu && LAUNCH_CONFIG.isEnabled && isCurrentMonthPreLaunch && (
             <div className="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 text-[#FF4C00] shrink-0" />
               <span>
@@ -938,41 +959,17 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   {/* Bottom: Friday swallow selection if selected */}
                   <div>
                     {isSelected && isSwallowMeal ? (
-                      <>
-                        {/* Mobile Swallow Switcher */}
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenMobileSwallowModal(meal, e);
-                          }}
-                          className="sm:hidden mt-0.5 pt-0.5 border-t border-white/30 flex items-center justify-between text-[7px] font-black uppercase text-white cursor-pointer px-0.5"
-                          title="Tap to change swallow"
-                        >
-                          <span className="truncate">{selectedSwallow}</span>
-                          <span className="text-[7px] opacity-80 shrink-0 ml-0.5">↻</span>
-                        </div>
-
-                        {/* Desktop Swallow Buttons */}
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          className="hidden sm:flex mt-1 pt-1 border-t border-white/30 items-center space-x-1"
-                        >
-                          {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((swallow) => (
-                            <button
-                              key={swallow}
-                              type="button"
-                              onClick={(e) => handleSelectSwallow(cell.dateStr, swallow, e)}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-black transition cursor-pointer ${
-                                selectedSwallow === swallow
-                                  ? 'bg-black text-white shadow-xs'
-                                  : 'bg-white/30 text-white hover:bg-white/50'
-                              }`}
-                            >
-                              {swallow}
-                            </button>
-                          ))}
-                        </div>
-                      </>
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenSwallowModal(meal, e);
+                        }}
+                        className="mt-1 pt-1 border-t border-white/30 flex items-center justify-between text-[8px] sm:text-[9px] font-black uppercase text-white cursor-pointer px-1 bg-white/20 hover:bg-white/30 rounded py-0.5 transition"
+                        title="Click to pick or change swallow"
+                      >
+                        <span className="truncate">Swallow: {selectedSwallow}</span>
+                        <span className="opacity-80 shrink-0 ml-1">↻ Change</span>
+                      </div>
                     ) : null}
                   </div>
                 </div>
@@ -999,20 +996,22 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                         : 'bg-zinc-200 text-zinc-600'
                     }`}
                   >
-                    {selectedCount >= 5 ? 'Pay Now Active' : `Need ${5 - selectedCount} More`}
+                    {selectedCount >= 5 ? '5+ Days Selected' : `Need ${5 - selectedCount} More`}
                   </span>
                 </div>
 
-                {/* Big Price Figure */}
+                {/* Days Count Meter - No Prices Shown During Selection */}
                 <div className="my-4 text-center">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#FF4C00] block">
-                    {selectedCount >= 5 ? 'Total Subscription Price' : '5-Day Starter Package'}
+                    Lunch Days Selected
                   </span>
                   <div className="text-3xl sm:text-4xl font-black text-black tracking-tight mt-1">
-                    ₦{tieredPricing.totalNGN.toLocaleString()}
+                    {selectedCount} {selectedCount === 1 ? 'Day' : 'Days'}
                   </div>
                   <p className="text-[11px] text-zinc-500 font-medium mt-1">
-                    {selectedCount} lunch {selectedCount === 1 ? 'day' : 'days'} selected • {tieredPricing.tierLabel}
+                    {selectedCount >= 5
+                      ? 'Ready! Click "Calculate Order" below to view pricing'
+                      : `Select at least 5 days (${selectedCount}/5)`}
                   </p>
                 </div>
 
@@ -1029,43 +1028,43 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
                     {/* Milestone Checkpoints & Tier Labels */}
                     <div className="flex-1 flex flex-col justify-between text-left py-0.5 select-none text-[11px]">
-                      {/* 21+ Days Tier (₦3,000/day) */}
+                      {/* 21+ Days Tier */}
                       <div className={`transition-colors ${selectedCount >= 21 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
                         <div className="flex items-center justify-between">
                           <span className="font-bold">21+ Days</span>
-                          <span className="text-[10px] font-mono font-bold bg-zinc-100 px-1.5 py-0.2 rounded">₦3,000/day</span>
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">Max Discount</span>
                         </div>
                         <span className="text-[9px] text-zinc-400 block">Best Value • Max Savings</span>
                       </div>
 
-                      {/* 16-20 Days Tier (₦3,200/day) */}
+                      {/* 16-20 Days Tier */}
                       <div className={`transition-colors ${selectedCount >= 16 && selectedCount <= 20 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
                         <div className="flex items-center justify-between">
                           <span className="font-bold">16 – 20 Days</span>
-                          <span className="text-[10px] font-mono font-bold bg-zinc-100 px-1.5 py-0.2 rounded">₦3,200/day</span>
+                          <span className="text-[10px] font-bold text-[#FF4C00] bg-orange-50 px-1.5 py-0.2 rounded border border-orange-200">20th Day Free</span>
                         </div>
                         <span className="text-[9px] text-zinc-400 block">20th Day Free Perk Applied</span>
                       </div>
 
-                      {/* 11-15 Days Tier (₦3,400/day) */}
+                      {/* 11-15 Days Tier */}
                       <div className={`transition-colors ${selectedCount >= 11 && selectedCount <= 15 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
                         <div className="flex items-center justify-between">
                           <span className="font-bold">11 – 15 Days</span>
-                          <span className="text-[10px] font-mono font-bold bg-zinc-100 px-1.5 py-0.2 rounded">₦3,400/day</span>
+                          <span className="text-[10px] font-semibold text-zinc-600 bg-zinc-100 px-1.5 py-0.2 rounded">Tier 3</span>
                         </div>
                         <span className="text-[9px] text-zinc-400 block">Corporate Smart Tier</span>
                       </div>
 
-                      {/* 6-10 Days Tier (₦3,600/day) */}
+                      {/* 6-10 Days Tier */}
                       <div className={`transition-colors ${selectedCount >= 6 && selectedCount <= 10 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
                         <div className="flex items-center justify-between">
                           <span className="font-bold">6 – 10 Days</span>
-                          <span className="text-[10px] font-mono font-bold bg-zinc-100 px-1.5 py-0.2 rounded">₦3,600/day</span>
+                          <span className="text-[10px] font-semibold text-zinc-600 bg-zinc-100 px-1.5 py-0.2 rounded">Tier 2</span>
                         </div>
                         <span className="text-[9px] text-zinc-400 block">Bi-Weekly Tier</span>
                       </div>
 
-                      {/* Milestone: 5 Days (₦20,000) Unlocks Pay Now */}
+                      {/* Milestone: 5 Days Unlocks Calculation */}
                       <div
                         className={`p-1.5 rounded-xl border transition-all ${
                           selectedCount >= 5
@@ -1081,42 +1080,16 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                             {selectedCount >= 5 && <Check className="w-3 h-3 text-[#FF4C00]" />}
                           </span>
                           <span className="text-[10px] font-mono font-bold bg-white px-1.5 py-0.2 rounded border border-orange-200">
-                            ₦20,000 Flat
+                            Starter Base
                           </span>
                         </div>
                         <span className="text-[9px] text-zinc-500 block">
-                          {selectedCount >= 5 ? '✓ Pay Now Activated!' : 'Select 5 days to unlock'}
+                          {selectedCount >= 5 ? '✓ Calculation Activated!' : 'Select 5 days to unlock'}
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Pay Now Button (Directly Activated when >= 5 Days) */}
-              <div className="mt-4 pt-4 border-t border-zinc-200 space-y-2">
-                {selectedCount < 5 ? (
-                  <button
-                    disabled
-                    className="w-full py-3.5 px-4 rounded-2xl bg-zinc-200 text-zinc-500 font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 cursor-not-allowed select-none"
-                  >
-                    <Lock className="w-4 h-4 text-zinc-400" />
-                    <span>Select 5+ Days ({selectedCount}/5)</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleQuickPayNow}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-[#FF4C00] hover:bg-[#E04300] text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/25 active:scale-95 transition cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>Pay Now • ₦{tieredPricing.totalNGN.toLocaleString()}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                )}
-                <p className="text-[10px] text-zinc-500 text-center">
-                  Desk drop delivery included • Taxes included
-                </p>
               </div>
             </div>
           </div>
@@ -1124,7 +1097,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         </div>
       </div>
 
-        {/* Action Bar & Order Calculation Trigger (No Prices While Picking Days!) */}
+        {/* Action Bar & Order Calculation Trigger (Only Show Prices When Calculate Order is Clicked) */}
         <div className="mt-8 bg-white border border-zinc-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 max-w-full overflow-hidden">
           
           <div className="min-w-0">
@@ -1140,7 +1113,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
               )}
             </div>
 
-            {/* Helper status text */}
+            {/* Helper status text - No premature prices */}
             <div className="mt-1 text-xs text-zinc-500 font-medium break-words">
               {validationError ? (
                 <span className="text-rose-600 font-semibold flex items-center space-x-1">
@@ -1151,43 +1124,29 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 <span>Click any workday above to select lunch days (Minimum requirement: 5+ days).</span>
               ) : selectedCount < 5 ? (
                 <span className="text-amber-700 font-semibold">
-                  ⚠️ Minimum Requirement: 5 days or more ({selectedCount}/5 days selected. Please select {5 - selectedCount} more to unlock Pay Now).
+                  ⚠️ Minimum Requirement: 5 days or more ({selectedCount}/5 days selected. Please select {5 - selectedCount} more to calculate your order).
                 </span>
               ) : selectedCount < 20 ? (
-                <span>
-                  ✓ {selectedCount} days selected (₦{tieredPricing.totalNGN.toLocaleString()}). Pay Now is activated!
+                <span className="text-emerald-700 font-semibold">
+                  ✓ {selectedCount} days selected. Click "Calculate Order" below to view pricing & proceed.
                 </span>
               ) : (
                 <span className="text-emerald-600 font-semibold">
-                  ✓ 20-day threshold reached! Your 20th day will be automatically discounted to ₦0.
+                  ✓ 20-day threshold reached! (20th day free perk). Click "Calculate Order" to view your total.
                 </span>
               )}
             </div>
           </div>
 
-          {/* Action Buttons: Pay Now & Calculate Detailed Order */}
+          {/* Action Button: Calculate Order (Pay Now Button Removed as Requested) */}
           <div className="flex flex-col sm:flex-row items-center gap-3">
-            {selectedCount >= 5 && (
-              <button
-                type="button"
-                onClick={handleQuickPayNow}
-                className="w-full sm:w-auto px-7 py-4 rounded-full font-extrabold text-sm uppercase tracking-wider bg-[#FF4C00] hover:bg-[#E04300] text-white transition shadow-md active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Pay Now (₦{tieredPricing.totalNGN.toLocaleString()})</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            )}
-
             <button
               onClick={handleCalculateOrder}
               disabled={isCalculating || isAnimationRunning || selectedCount < 5}
-              className={`w-full sm:w-auto px-7 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition shadow-sm active:scale-95 flex items-center justify-center space-x-2 ${
+              className={`w-full sm:w-auto px-8 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition shadow-sm active:scale-95 flex items-center justify-center space-x-2 ${
                 selectedCount < 5
                   ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed'
-                  : selectedCount >= 5
-                  ? 'bg-black hover:bg-zinc-800 text-white cursor-pointer'
-                  : 'bg-[#FF4C00] hover:bg-[#E04300] text-white cursor-pointer'
+                  : 'bg-black hover:bg-zinc-800 text-white cursor-pointer shadow-md'
               }`}
             >
               {isCalculating ? (
@@ -1360,10 +1319,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
           </div>
         )}
 
-      {/* MOBILE-ONLY FRIDAY SWALLOW SELECTION & CONFIRMATION POPUP */}
-      {mobileSwallowModal && (
-        <div className="fixed inset-0 z-80 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs font-['Poppins'] animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md bg-white text-zinc-900 rounded-3xl border border-zinc-200 shadow-2xl p-5 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto animate-in slide-in-from-bottom-6 duration-200">
+      {/* UNIVERSAL FRIDAY SWALLOW SELECTION & CONFIRMATION POPUP (Desktop & Mobile) */}
+      {swallowModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm font-['Poppins'] animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white text-zinc-900 rounded-3xl border border-zinc-200 shadow-2xl p-6 sm:p-7 space-y-4 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             
             {/* Header */}
             <div className="flex items-start justify-between gap-3 border-b border-zinc-100 pb-3">
@@ -1372,17 +1331,17 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   <Soup className="w-3 h-3" />
                   <span>Friday Desk Drop Swallow</span>
                 </span>
-                <h3 className="text-lg font-black text-black leading-tight">
+                <h3 className="text-xl font-black text-black leading-tight">
                   Pick Your Friday Swallow
                 </h3>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  {mobileSwallowModal.dateFormatted} • {mobileSwallowModal.meal.mealName}
+                  {swallowModal.dateFormatted} • {swallowModal.meal.mealName}
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setMobileSwallowModal(null)}
+                onClick={() => setSwallowModal(null)}
                 className="p-2 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-black transition cursor-pointer"
                 aria-label="Close"
               >
@@ -1393,7 +1352,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             {/* Options List */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-zinc-700 block">
-                Select Swallow:
+                Select Swallow Choice:
               </label>
 
               {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((swallow) => {
@@ -1428,18 +1387,18 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             <div className="space-y-2 pt-2">
               <button
                 type="button"
-                onClick={handleConfirmMobileSwallow}
-                className="w-full py-3 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
+                onClick={handleConfirmSwallow}
+                className="w-full py-3.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-bold text-xs uppercase tracking-wider transition shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Confirm {chosenSwallow}</span>
               </button>
 
               <div className="flex items-center justify-between text-xs pt-1 px-1">
-                {mobileSwallowModal.isAlreadySelected ? (
+                {swallowModal.isAlreadySelected ? (
                   <button
                     type="button"
-                    onClick={handleRemoveMobileSwallowDay}
+                    onClick={handleRemoveSwallowDay}
                     className="text-red-600 font-semibold hover:underline cursor-pointer"
                   >
                     Remove Day
@@ -1450,7 +1409,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
                 <button
                   type="button"
-                  onClick={() => setMobileSwallowModal(null)}
+                  onClick={() => setSwallowModal(null)}
                   className="text-zinc-500 font-semibold hover:text-black cursor-pointer ml-auto"
                 >
                   Cancel

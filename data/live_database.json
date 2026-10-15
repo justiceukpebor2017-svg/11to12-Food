@@ -217,5 +217,17 @@
   "launchSettings": {
     "launchDate": "2026-12-07",
     "isEnabled": true
-  }
+  },
+  "pricingSettings": {
+    "minOrderDays": 5,
+    "deliveryFeePerDay": 500,
+    "fiveDaysFlatTotal": 20000,
+    "tier6to10Price": 3600,
+    "tier11to15Price": 3400,
+    "tier16to20Price": 3200,
+    "tier21PlusPrice": 3000
+  },
+  "deletedCustomerRecords": [],
+  "activeSessions": {},
+  "sessionResetEpoch": 1792091524141
 }

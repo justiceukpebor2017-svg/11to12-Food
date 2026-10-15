@@ -1175,6 +1175,20 @@ export default function App() {
     }
   }, [customers, viewMode, userProfile.id, userProfile.email]);
 
+  useEffect(() => {
+    const handleGlobalLogout = () => {
+      console.warn('[App] Force global logout event received. Resetting session.');
+      setViewMode('marketing');
+      setUserProfile(INITIAL_USER_PROFILE);
+      setSessionConflict(null);
+      setTakeoverPrompt(null);
+    };
+    window.addEventListener('11to12_force_global_logout', handleGlobalLogout);
+    return () => {
+      window.removeEventListener('11to12_force_global_logout', handleGlobalLogout);
+    };
+  }, []);
+
   const handleContinueUsingThisDevice = async () => {
     if (!sessionConflict) return;
     const currentUserId = sessionConflict.role === 'admin' ? 'admin_11to12' : (userProfile.id || userProfile.email || 'customer');

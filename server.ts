@@ -37,6 +37,7 @@ import {
   getSessionInDb,
   releaseSessionInDb,
   requestSessionYieldInDb,
+  resetAllSessionsInDb,
 } from './src/server/liveDatabase';
 import {
   notifyAdminWaitlistJoined,
@@ -501,6 +502,11 @@ app.post('/api/sessions/request-yield', (req, res) => {
   }
   const result = requestSessionYieldInDb(userId, requestingToken || '', requestingDevice || 'Remote device');
   return res.json({ success: result });
+});
+
+app.post('/api/sessions/reset-all', (req, res) => {
+  const result = resetAllSessionsInDb();
+  return res.json(result);
 });
 
 // Guard: strictly ensure no /api/ request ever falls through to Vite HTML response
