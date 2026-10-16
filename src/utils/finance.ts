@@ -55,15 +55,15 @@ export function isOrderPendingVerification(
   const orderEmail = (order.email || '').trim().toLowerCase();
   const orderMemberCode = (order.memberCode || '').trim().toUpperCase();
 
-  // If this order is explicitly linked to a customer who has already paid / is active
-  const isLinkedToConfirmedCustomer = customers.some(
+  // If this order is explicitly linked to a customer who has already been confirmed as Paid
+  const isLinkedToConfirmedPaidCustomer = customers.some(
     (c) =>
       c.orderRef === order.id &&
-      (c.paymentStatus === 'Paid' || c.status === 'Active')
+      c.paymentStatus === 'Paid'
   );
-  if (isLinkedToConfirmedCustomer) return false;
+  if (isLinkedToConfirmedPaidCustomer) return false;
 
-  // If this is a top-up order, check whether the dates are already confirmed & merged into the customer's calendar
+  // If this is a top-up order, check whether the dates are already confirmed & merged into the customer's calendar AND customer is marked as Paid
   if (order.isTopUp && (orderEmail || orderMemberCode)) {
     const matchedCustomer = customers.find(
       (c) =>
@@ -71,7 +71,7 @@ export function isOrderPendingVerification(
         Boolean(orderMemberCode && (c.memberCode || '').trim().toUpperCase() === orderMemberCode)
     );
 
-    if (matchedCustomer && (matchedCustomer.paymentStatus === 'Paid' || matchedCustomer.status === 'Active')) {
+    if (matchedCustomer && matchedCustomer.paymentStatus === 'Paid') {
       const orderDays = order.selectedDays || [];
       if (orderDays.length > 0) {
         const custDateSet = new Set((matchedCustomer.selectedDays || []).map((d) => d.dateStr));
@@ -84,15 +84,15 @@ export function isOrderPendingVerification(
     }
   }
 
-  // If this was an initial subscriber registration (not a top-up) and the user is already active in customers
+  // If this was an initial subscriber registration (not a top-up) and the user is already confirmed as Paid
   if (!order.isTopUp && (orderEmail || orderMemberCode)) {
-    const existingActiveCustomer = customers.some(
+    const existingPaidCustomer = customers.some(
       (c) =>
         (Boolean(orderEmail && (c.email || '').trim().toLowerCase() === orderEmail) ||
          Boolean(orderMemberCode && (c.memberCode || '').trim().toUpperCase() === orderMemberCode)) &&
-        (c.paymentStatus === 'Paid' || c.status === 'Active')
+        c.paymentStatus === 'Paid'
     );
-    if (existingActiveCustomer) return false;
+    if (existingPaidCustomer) return false;
   }
 
   return true;

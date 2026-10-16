@@ -382,7 +382,7 @@ export const AdminPendingPaymentsTab: React.FC<AdminPendingPaymentsTabProps> = (
                   <span className="text-[10px] font-bold uppercase text-zinc-500">
                     Payment Verification Check
                   </span>
-                  <span className="text-[11px] font-bold text-[#FF4C00]">Wema Bank (7353969118) / Flutterwave (9596073284)</span>
+                  <span className="text-[11px] font-bold text-[#FF4C00]">Moniepoint (8026180680) / Wema Bank (7353969118)</span>
                 </div>
                 <p className="text-zinc-600">
                   Verify that <strong>₦{(selectedOrder.finalTotalNGN || 0).toLocaleString()}</strong> was credited to the account from <strong>{selectedOrder.fullName}</strong> before confirming.

@@ -26,7 +26,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   waitlistLeads = [],
   customers = [],
 }) => {
-  const [copiedBank, setCopiedBank] = useState<'wema' | 'flw' | null>(null);
+  const [copiedBank, setCopiedBank] = useState<'moniepoint' | 'wema' | 'flw' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -118,7 +118,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     memberCode: appliedMemberCode || undefined,
   };
 
-  const handleCopyAccount = (acct: string, bank: 'wema' | 'flw') => {
+  const handleCopyAccount = (acct: string, bank: 'moniepoint' | 'wema' | 'flw') => {
     navigator.clipboard.writeText(acct);
     setCopiedBank(bank);
     setTimeout(() => setCopiedBank(null), 2500);
@@ -341,28 +341,28 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
 
-              {/* Official Payment Accounts (Wema Bank & Flutterwave MFB) */}
+              {/* Official Payment Accounts (Moniepoint MFB, Wema Bank & Flutterwave MFB) */}
               <div className="space-y-3">
-                {/* Wema Bank Account Card */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-zinc-950 text-white border border-zinc-800 space-y-2">
+                {/* Moniepoint MFB Account Card (First Account) */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-zinc-950 text-white border-2 border-[#FF4C00] shadow-md space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#FF4C00]">
-                      Primary Account • Wema Bank
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#FF4C00] flex items-center space-x-1">
+                      <span>Primary Account • Moniepoint MFB</span>
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleCopyAccount('7353969118', 'wema')}
-                      className="px-3 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold flex items-center space-x-1.5 transition cursor-pointer"
+                      onClick={() => handleCopyAccount('8026180680', 'moniepoint')}
+                      className="px-3 py-1 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white text-[11px] font-bold flex items-center space-x-1.5 transition cursor-pointer"
                     >
-                      {copiedBank === 'wema' ? (
+                      {copiedBank === 'moniepoint' ? (
                         <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400">Copied!</span>
+                          <Check className="w-3.5 h-3.5 text-white" />
+                          <span className="text-white">Copied!</span>
                         </>
                       ) : (
                         <>
                           <Copy className="w-3.5 h-3.5" />
-                          <span>Copy</span>
+                          <span>Copy Account</span>
                         </>
                       )}
                     </button>
@@ -372,13 +372,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <div>
                       <span className="text-[10px] text-zinc-400 font-medium block">Account Number</span>
                       <span className="text-xl sm:text-2xl font-black tracking-wider text-[#FF4C00] select-all">
-                        7353969118
+                        8026180680
                       </span>
                     </div>
                     <div>
                       <span className="text-[10px] text-zinc-400 font-medium block">Bank Name</span>
                       <span className="text-base sm:text-lg font-extrabold text-white">
-                        Wema Bank
+                        Moniepoint
                       </span>
                     </div>
                   </div>
@@ -387,47 +387,50 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </div>
                 </div>
 
-                {/* Flutterwave MFB Account Card */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-zinc-900 text-white border border-zinc-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
-                      Alternative Account • Flutterwave MFB
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyAccount('9596073284', 'flw')}
-                      className="px-3 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold flex items-center space-x-1.5 transition cursor-pointer"
-                    >
-                      {copiedBank === 'flw' ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400">Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copy</span>
-                        </>
-                      )}
-                    </button>
+                {/* Secondary Accounts Accordion/Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Wema Bank Account Card */}
+                  <div className="p-3.5 rounded-xl bg-zinc-900 text-white border border-zinc-800 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300">
+                        Wema Bank
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAccount('7353969118', 'wema')}
+                        className="px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold transition cursor-pointer"
+                      >
+                        {copiedBank === 'wema' ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                    <div className="text-sm font-black text-white tracking-wider">
+                      7353969118
+                    </div>
+                    <div className="text-[9px] text-zinc-400">
+                      11 TO 12 FOODS LTD
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <span className="text-[10px] text-zinc-400 font-medium block">Account Number</span>
-                      <span className="text-xl sm:text-2xl font-black tracking-wider text-white select-all">
-                        9596073284
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-zinc-400 font-medium block">Bank Name</span>
-                      <span className="text-base sm:text-lg font-extrabold text-white">
+                  {/* Flutterwave MFB Account Card */}
+                  <div className="p-3.5 rounded-xl bg-zinc-900 text-white border border-zinc-800 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300">
                         Flutterwave MFB
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAccount('9596073284', 'flw')}
+                        className="px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold transition cursor-pointer"
+                      >
+                        {copiedBank === 'flw' ? 'Copied!' : 'Copy'}
+                      </button>
                     </div>
-                  </div>
-                  <div className="pt-2 border-t border-zinc-800 text-[10px] text-zinc-400">
-                    Account Name: <strong className="text-white">11 TO 12 FOODS LTD</strong>
+                    <div className="text-sm font-black text-white tracking-wider">
+                      9596073284
+                    </div>
+                    <div className="text-[9px] text-zinc-400">
+                      11 TO 12 FOODS LTD
+                    </div>
                   </div>
                 </div>
               </div>
@@ -603,7 +606,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
                 <span className="font-bold block mb-0.5">Payment Verification Instructions:</span>
                 <span>
-                  Transfer <strong>₦{summary.finalTotalNGN.toLocaleString()}</strong> to the Flutterwave MFB account above. You will be able to download your official invoice slip immediately to send alongside your transfer proof.
+                  Transfer <strong>₦{summary.finalTotalNGN.toLocaleString()}</strong> to <strong>Moniepoint (8026180680)</strong> or Wema Bank above. You will be able to download your official invoice slip immediately to send alongside your transfer proof.
                 </span>
               </div>
 

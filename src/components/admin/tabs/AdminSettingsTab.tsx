@@ -115,9 +115,9 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   const [launchDiscountActive, setLaunchDiscountActive] = useState(true);
 
   // --- 3. PAYMENT SETTINGS STATE ---
-  const [bankName, setBankName] = useState('Wema Bank / Flutterwave MFB');
+  const [bankName, setBankName] = useState('Moniepoint MFB / Wema Bank');
   const [accountName, setAccountName] = useState('11 TO 12 FOODS LTD');
-  const [accountNumber, setAccountNumber] = useState('7353969118 / 9596073284');
+  const [accountNumber, setAccountNumber] = useState('8026180680 / 7353969118');
   const [whatsappContact, setWhatsappContact] = useState('+234 802 618 0680');
   const [paymentEmail, setPaymentEmail] = useState('payments@11to12.food');
   const [paymentInstructions, setPaymentInstructions] = useState(
@@ -717,7 +717,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                   Per-Day Delivery Fee Addition
                 </span>
                 <p className="text-[10px] text-zinc-500">
-                  ₦500/day desk drop (seamlessly factored into total)
+                  Desk drop delivery (₦0 = included free in meal price)
                 </p>
                 <div className="flex items-center space-x-1 pt-1">
                   <span className="text-zinc-500 font-bold">₦</span>

@@ -165,15 +165,19 @@ Bank Details: Flutterwave MFB (Formerly OK MFB) | 9838242145 | 11 TO 12 FOODS LT
             {/* Official Bank Account for Payment */}
             <div className="p-4 rounded-2xl bg-zinc-900 text-white border border-zinc-800 text-xs space-y-1.5">
               <span className="text-[10px] font-bold text-[#FF4C00] uppercase tracking-wider block mb-1">
-                Remittance Accounts
+                Official Remittance Accounts
               </span>
               <div className="flex justify-between items-baseline">
+                <span className="text-[11px] text-zinc-300 font-bold">Moniepoint (Primary):</span>
+                <span className="text-sm font-black text-[#FF4C00] select-all">8026180680</span>
+              </div>
+              <div className="flex justify-between items-baseline">
                 <span className="text-[11px] text-zinc-400">Wema Bank:</span>
-                <span className="text-sm font-black text-[#FF4C00] select-all">7353969118</span>
+                <span className="text-xs font-bold text-white select-all">7353969118</span>
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-[11px] text-zinc-400">Flutterwave MFB:</span>
-                <span className="text-sm font-black text-white select-all">9596073284</span>
+                <span className="text-xs font-bold text-white select-all">9596073284</span>
               </div>
               <div className="flex justify-between items-baseline pt-1 border-t border-zinc-800 text-[10px] text-zinc-400">
                 <span>Account Name:</span>

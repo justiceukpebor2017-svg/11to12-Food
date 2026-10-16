@@ -1029,44 +1029,44 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                     {/* Milestone Checkpoints & Tier Labels */}
                     <div className="flex-1 flex flex-col justify-between text-left py-0.5 select-none text-[11px]">
                       {/* 21+ Days Tier */}
-                      <div className={`transition-colors ${selectedCount >= 21 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
+                      <div className={`transition-colors ${selectedCount >= 21 ? 'text-[#FF4C00] font-bold' : 'text-zinc-500'}`}>
                         <div className="flex items-center justify-between">
                           <span className="font-bold">21+ Days</span>
-                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">Max Discount</span>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">₦3,000 / day</span>
                         </div>
-                        <span className="text-[9px] text-zinc-400 block">Best Value • Max Savings</span>
+                        <span className="text-[9px] text-zinc-400 block">Best Value • 20th Day Free!</span>
                       </div>
 
                       {/* 16-20 Days Tier */}
-                      <div className={`transition-colors ${selectedCount >= 16 && selectedCount <= 20 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
+                      <div className={`transition-colors ${selectedCount >= 16 && selectedCount <= 20 ? 'text-[#FF4C00] font-bold' : 'text-zinc-500'}`}>
                         <div className="flex items-center justify-between">
                           <span className="font-bold">16 – 20 Days</span>
-                          <span className="text-[10px] font-bold text-[#FF4C00] bg-orange-50 px-1.5 py-0.2 rounded border border-orange-200">20th Day Free</span>
+                          <span className="text-[10px] font-bold text-[#FF4C00] bg-orange-50 px-2 py-0.5 rounded border border-orange-200">₦3,200 / day</span>
                         </div>
-                        <span className="text-[9px] text-zinc-400 block">20th Day Free Perk Applied</span>
+                        <span className="text-[9px] text-zinc-400 block">20th Day Free Perk Included</span>
                       </div>
 
                       {/* 11-15 Days Tier */}
-                      <div className={`transition-colors ${selectedCount >= 11 && selectedCount <= 15 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
+                      <div className={`transition-colors ${selectedCount >= 11 && selectedCount <= 15 ? 'text-[#FF4C00] font-bold' : 'text-zinc-500'}`}>
                         <div className="flex items-center justify-between">
                           <span className="font-bold">11 – 15 Days</span>
-                          <span className="text-[10px] font-semibold text-zinc-600 bg-zinc-100 px-1.5 py-0.2 rounded">Tier 3</span>
+                          <span className="text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">₦3,400 / day</span>
                         </div>
                         <span className="text-[9px] text-zinc-400 block">Corporate Smart Tier</span>
                       </div>
 
                       {/* 6-10 Days Tier */}
-                      <div className={`transition-colors ${selectedCount >= 6 && selectedCount <= 10 ? 'text-[#FF4C00] font-bold' : 'text-zinc-400'}`}>
+                      <div className={`transition-colors ${selectedCount >= 6 && selectedCount <= 10 ? 'text-[#FF4C00] font-bold' : 'text-zinc-500'}`}>
                         <div className="flex items-center justify-between">
                           <span className="font-bold">6 – 10 Days</span>
-                          <span className="text-[10px] font-semibold text-zinc-600 bg-zinc-100 px-1.5 py-0.2 rounded">Tier 2</span>
+                          <span className="text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">₦3,600 / day</span>
                         </div>
                         <span className="text-[9px] text-zinc-400 block">Bi-Weekly Tier</span>
                       </div>
 
                       {/* Milestone: 5 Days Unlocks Calculation */}
                       <div
-                        className={`p-1.5 rounded-xl border transition-all ${
+                        className={`p-2 rounded-xl border transition-all ${
                           selectedCount >= 5
                             ? 'bg-orange-50 border-[#FF4C00] text-[#FF4C00] font-bold shadow-2xs'
                             : selectedCount > 0
@@ -1079,12 +1079,12 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                             <span>5 Days</span>
                             {selectedCount >= 5 && <Check className="w-3 h-3 text-[#FF4C00]" />}
                           </span>
-                          <span className="text-[10px] font-mono font-bold bg-white px-1.5 py-0.2 rounded border border-orange-200">
-                            Starter Base
+                          <span className="text-[10px] font-mono font-bold bg-white px-2 py-0.5 rounded border border-orange-200 text-[#FF4C00]">
+                            ₦20,000 / ₦25,000 flat
                           </span>
                         </div>
                         <span className="text-[9px] text-zinc-500 block">
-                          {selectedCount >= 5 ? '✓ Calculation Activated!' : 'Select 5 days to unlock'}
+                          {selectedCount >= 5 ? '✓ Calculation Activated!' : 'Select at least 5 days to unlock'}
                         </span>
                       </div>
                     </div>
@@ -1202,7 +1202,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
               </span>
 
               {/* Animated Price Figure */}
-              <div className="my-3 flex items-center justify-center">
+              <div className="my-3 flex flex-col items-center justify-center">
                 <div
                   className={`text-4xl sm:text-6xl font-black text-black tracking-tight transition-transform duration-300 select-none ${
                     isRevealComplete ? 'scale-105 text-[#FF4C00]' : isAnimationRunning ? 'text-zinc-800' : ''
@@ -1210,9 +1210,15 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 >
                   ₦{displayedPrice.toLocaleString()}
                 </div>
+                {calculatedSummary.hasTwentyDayBonus && (
+                  <span className="mt-2.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center space-x-1 border border-emerald-200">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>20th Day Free Perk Applied (₦0 charged for 20th day)</span>
+                  </span>
+                )}
               </div>
 
-              {/* Sub-status (Clean & truthful: no fake discount tags or separate ₦500 line item) */}
+              {/* Sub-status */}
               <p className="text-xs sm:text-sm text-zinc-600 font-medium max-w-md mx-auto">
                 {isAnimationRunning ? (
                   <span className="inline-flex items-center space-x-1.5 text-zinc-700">
@@ -1227,7 +1233,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
               </p>
             </div>
 
-            {/* Order Summary (Rule 5 & 13) */}
+            {/* Order Summary */}
             <div className="my-6">
               <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
                 <span className="text-sm font-bold text-black uppercase tracking-wider">
@@ -1267,28 +1273,6 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                     </div>
                   );
                 })}
-              </div>
-
-              {/* Total Payable Block (Incorporates meal prices + ₦500/day internally without separate ₦500 line item) */}
-              <div className="mt-5 p-5 rounded-2xl bg-[#FAF7F2] border border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
-                    Total
-                  </span>
-                  <p className="text-3xl font-black text-black mt-0.5">
-                    ₦{calculatedSummary.finalTotalNGN.toLocaleString()}
-                  </p>
-                  <span className="text-[11px] text-zinc-500">
-                    {calculatedSummary.totalDays} delivery {calculatedSummary.totalDays === 1 ? 'day' : 'days'} scheduled
-                  </span>
-                </div>
-
-                {calculatedSummary.hasTwentyDayBonus && (
-                  <span className="px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold self-start sm:self-auto flex items-center space-x-1 border border-emerald-200">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>20th Day Free Applied</span>
-                  </span>
-                )}
               </div>
             </div>
 

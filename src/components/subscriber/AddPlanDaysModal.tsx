@@ -79,7 +79,7 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
     paymentStatus: 'Pending Verification',
   };
 
-  const handleCopyAccount = (acct: string = '7353969118') => {
+  const handleCopyAccount = (acct: string = '8026180680') => {
     navigator.clipboard.writeText(acct);
     setCopiedBank(true);
     setTimeout(() => setCopiedBank(false), 2000);
@@ -201,7 +201,23 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-[#FF4C00] font-bold">Wema Bank (Primary)</span>
+                      <span className="text-[10px] text-[#FF4C00] font-bold">Moniepoint (Primary)</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAccount('8026180680')}
+                        className="text-[10px] text-zinc-300 hover:text-white"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <span className="text-base font-black text-white select-all block mt-0.5">
+                      8026180680
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-zinc-400 font-bold">Wema Bank</span>
                       <button
                         type="button"
                         onClick={() => handleCopyAccount('7353969118')}
@@ -212,22 +228,6 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
                     </div>
                     <span className="text-base font-black text-white select-all block mt-0.5">
                       7353969118
-                    </span>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-emerald-400 font-bold">Flutterwave MFB</span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyAccount('9596073284')}
-                        className="text-[10px] text-zinc-300 hover:text-white"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <span className="text-base font-black text-white select-all block mt-0.5">
-                      9596073284
                     </span>
                   </div>
                 </div>

@@ -68,7 +68,7 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
   const [animatedDisplayPrice, setAnimatedDisplayPrice] = useState(0);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedOrder, setSubmittedOrder] = useState<OrderSubmission | null>(null);
-  const [copiedBank, setCopiedBank] = useState<'wema' | 'flw' | null>(null);
+  const [copiedBank, setCopiedBank] = useState<'moniepoint' | 'wema' | 'flw' | null>(null);
 
   // Swallow selection modal (for Friday or Swallow dishes)
   const [swallowModalItem, setSwallowModalItem] = useState<{ dateStr: string; meal: StructuredMeal } | null>(null);
@@ -378,7 +378,7 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
     animFrameRef.current = requestAnimationFrame(animateDown);
   };
 
-  const handleCopyAccount = (acct: string, bank: 'wema' | 'flw') => {
+  const handleCopyAccount = (acct: string, bank: 'moniepoint' | 'wema' | 'flw') => {
     navigator.clipboard.writeText(acct);
     setCopiedBank(bank);
     setTimeout(() => setCopiedBank(null), 2500);
@@ -831,78 +831,93 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
                   </div>
                 </div>
 
-                {/* Official Remittance Bank Accounts (Wema Bank & Flutterwave MFB) */}
+                {/* Official Remittance Bank Accounts (Moniepoint MFB, Wema Bank & Flutterwave MFB) */}
                 <div className="space-y-2.5">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-600 block">
-                    Make Transfer to Either Account Below:
+                    Make Transfer to Account Below:
                   </span>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Moniepoint MFB Primary */}
+                  <div className="p-4 rounded-2xl bg-zinc-950 text-white border-2 border-[#FF4C00] shadow-sm space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase text-[#FF4C00]">
+                        Primary • Moniepoint MFB
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAccount('8026180680', 'moniepoint')}
+                        className="px-2.5 py-1 rounded-lg bg-[#FF4C00] hover:bg-[#E04300] text-white text-[10px] font-bold flex items-center space-x-1 cursor-pointer transition"
+                      >
+                        {copiedBank === 'moniepoint' ? (
+                          <>
+                            <Check className="w-3 h-3 text-white" />
+                            <span className="text-white">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy Account</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-0.5">
+                      <div>
+                        <span className="text-xl font-black tracking-wider text-[#FF4C00] block select-all">
+                          8026180680
+                        </span>
+                        <span className="text-[10px] text-zinc-400">11 TO 12 FOODS LTD</span>
+                      </div>
+                      <span className="text-xs font-bold text-white bg-white/10 px-2 py-1 rounded-md">
+                        Moniepoint
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Secondary Bank Options */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     
                     {/* Wema Bank */}
-                    <div className="p-4 rounded-2xl bg-zinc-950 text-white border border-zinc-800 space-y-2">
+                    <div className="p-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase text-[#FF4C00]">
-                          Primary • Wema Bank
+                        <span className="text-[9px] font-bold uppercase text-zinc-400">
+                          Wema Bank
                         </span>
                         <button
                           type="button"
                           onClick={() => handleCopyAccount('7353969118', 'wema')}
-                          className="px-2 py-0.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold flex items-center space-x-1 cursor-pointer"
+                          className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[9px] font-bold cursor-pointer"
                         >
-                          {copiedBank === 'wema' ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-400" />
-                              <span className="text-emerald-400">Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>Copy</span>
-                            </>
-                          )}
+                          {copiedBank === 'wema' ? 'Copied' : 'Copy'}
                         </button>
                       </div>
 
-                      <div>
-                        <span className="text-xl font-black tracking-wider text-white block select-all">
-                          7353969118
-                        </span>
-                        <span className="text-[10px] text-zinc-400">11 TO 12 FOODS LTD</span>
+                      <div className="text-sm font-black tracking-wider text-white select-all">
+                        7353969118
                       </div>
+                      <span className="text-[9px] text-zinc-500 block">11 TO 12 FOODS LTD</span>
                     </div>
 
                     {/* Flutterwave MFB */}
-                    <div className="p-4 rounded-2xl bg-zinc-900 text-white border border-zinc-800 space-y-2">
+                    <div className="p-3 rounded-xl bg-zinc-900 text-white border border-zinc-800 space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase text-emerald-400">
+                        <span className="text-[9px] font-bold uppercase text-zinc-400">
                           Flutterwave MFB
                         </span>
                         <button
                           type="button"
                           onClick={() => handleCopyAccount('9596073284', 'flw')}
-                          className="px-2 py-0.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold flex items-center space-x-1 cursor-pointer"
+                          className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[9px] font-bold cursor-pointer"
                         >
-                          {copiedBank === 'flw' ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-400" />
-                              <span className="text-emerald-400">Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>Copy</span>
-                            </>
-                          )}
+                          {copiedBank === 'flw' ? 'Copied' : 'Copy'}
                         </button>
                       </div>
 
-                      <div>
-                        <span className="text-xl font-black tracking-wider text-white block select-all">
-                          9596073284
-                        </span>
-                        <span className="text-[10px] text-zinc-400">11 TO 12 FOODS LTD</span>
+                      <div className="text-sm font-black tracking-wider text-white select-all">
+                        9596073284
                       </div>
+                      <span className="text-[9px] text-zinc-500 block">11 TO 12 FOODS LTD</span>
                     </div>
 
                   </div>

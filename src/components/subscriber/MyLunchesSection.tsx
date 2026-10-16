@@ -1111,20 +1111,20 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                         Official Bank Transfer Details
                       </span>
                       <p className="text-xs font-black text-zinc-900">
-                        Wema Bank • <span className="text-[#FF4C00]">7353969118</span> | Flutterwave • <span className="text-zinc-700">9596073284</span>
+                        Moniepoint • <span className="text-[#FF4C00]">8026180680</span> | Wema Bank • <span className="text-zinc-700">7353969118</span>
                       </p>
                       <p className="text-[11px] text-zinc-500">Account Name: 11 TO 12 FOODS LTD</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard.writeText('7353969118');
+                        navigator.clipboard.writeText('8026180680');
                         setCopiedBankAcc(true);
                         setTimeout(() => setCopiedBankAcc(false), 2000);
                       }}
-                      className="px-3.5 py-1.5 rounded-full border border-zinc-200 hover:border-black text-xs font-bold text-black transition cursor-pointer self-start sm:self-auto"
+                      className="px-3.5 py-1.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-xs font-bold text-white transition cursor-pointer self-start sm:self-auto"
                     >
-                      {copiedBankAcc ? '✓ Copied' : 'Copy Wema'}
+                      {copiedBankAcc ? '✓ Copied' : 'Copy Moniepoint'}
                     </button>
                   </div>
 

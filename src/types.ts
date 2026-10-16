@@ -50,11 +50,14 @@ export interface SelectedLunchDay {
 // Official Settlement Bank Details
 export const OFFICIAL_BANK_DETAILS = {
   accountName: '11 TO 12 FOODS LTD',
-  bankName: 'Wema Bank',
-  accountNumber: '7353969118',
-  secondaryBankName: 'Flutterwave MFB',
-  secondaryAccountNumber: '9596073284',
+  bankName: 'Moniepoint MFB',
+  accountNumber: '8026180680',
+  secondaryBankName: 'Wema Bank',
+  secondaryAccountNumber: '7353969118',
   secondaryAccountName: '11 TO 12 FOODS LTD',
+  tertiaryBankName: 'Flutterwave MFB',
+  tertiaryAccountNumber: '9596073284',
+  tertiaryAccountName: '11 TO 12 FOODS LTD',
   status: 'Active',
 };
 
@@ -80,7 +83,7 @@ export function calculateMealPrice(meal: StructuredMeal): number {
 }
 
 // Per-Day Addition Fee (configurable)
-export const PER_DAY_FEE = 500;
+export const PER_DAY_FEE = 0;
 
 export interface OrderSummary {
   totalDays: number;
@@ -93,11 +96,11 @@ export interface OrderSummary {
 }
 
 // Order calculation logic using tiered corporate rates:
-// 5 days: Flat ₦20,000 (includes daily desk drop delivery)
-// 6-10 days: ₦3,600 / day added (+ ₦500 delivery)
-// 11-15 days: ₦3,400 / day added (+ ₦500 delivery)
-// 16-20 days: ₦3,200 / day added (+ ₦500 delivery)
-// 21+ days: ₦3,000 / day added (+ ₦500 delivery)
+// 1 to 5 days: Flat ₦20,000 (minimum order requirement is 5 days)
+// 6 to 10 days: ₦3,600 / day
+// 11 to 15 days: ₦3,400 / day
+// 16 to 20 days: ₦3,200 / day (20th day is free!)
+// 21+ days: ₦3,000 / day (20th day is free!)
 export function calculateOrderSummary(selectedDays: SelectedLunchDay[]): OrderSummary {
   const validDays = selectedDays.filter((d) => !d.meal.isHoliday && !d.meal.isNoDelivery);
   const totalDays = validDays.length;
