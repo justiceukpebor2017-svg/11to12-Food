@@ -34,6 +34,7 @@ import { Header } from './components/Header';
 import { HeroMapSection } from './components/marketing/HeroMapSection';
 import { HeroTypewriter } from './components/marketing/HeroTypewriter';
 import { DeskDropWaitlistAndTeaser } from './components/marketing/DeskDropWaitlistAndTeaser';
+import { WhatsAppCommunityBanner } from './components/marketing/WhatsAppCommunityBanner';
 import { ProcessGrid } from './components/marketing/ProcessGrid';
 import { PlanBuilder } from './components/marketing/PlanBuilder';
 import { Testimonials } from './components/ui/testimonials-columns-1';
@@ -1820,6 +1821,9 @@ export default function App() {
                 return res;
               }}
             />
+
+            {/* WhatsApp Community Full Bleed Banner */}
+            <WhatsAppCommunityBanner />
 
             {/* 5. Escape Your Lunch Rut (Process Grid) */}
             <ProcessGrid />
