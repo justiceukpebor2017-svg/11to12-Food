@@ -40,6 +40,7 @@ import { PlanBuilder } from './components/marketing/PlanBuilder';
 import { Testimonials } from './components/ui/testimonials-columns-1';
 import { FaqSection } from './components/marketing/FaqSection';
 import { Footer } from './components/Footer';
+import { CookieConsentBanner } from './components/common/CookieConsentBanner';
 import { CheckoutModal } from './components/marketing/CheckoutModal';
 import { SubscriberAuthModal } from './components/subscriber/SubscriberAuthModal';
 import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
@@ -1999,6 +2000,13 @@ export default function App() {
         onNavigateToLanding={() => setViewMode('marketing')}
         onNavigateToSubscriber={() => setShowSubscriberAuthModal(true)}
         onNavigateToAdmin={() => handleAttemptOpenAdmin()}
+      />
+
+      {/* Reject or Accept Cookies Banner */}
+      <CookieConsentBanner
+        onOpenPrivacyPolicy={() => {
+          window.dispatchEvent(new CustomEvent('11to12_open_footer_modal', { detail: 'privacy' }));
+        }}
       />
 
     </div>

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FooterInfoModals, FooterModalType } from './marketing/FooterInfoModals';
+import { Cookie } from 'lucide-react';
 
 interface FooterProps {
   onNavigateToLanding?: () => void;
@@ -11,6 +12,17 @@ export const Footer: React.FC<FooterProps> = ({
   onNavigateToLanding,
 }) => {
   const [activeModal, setActiveModal] = useState<FooterModalType>(null);
+
+  useEffect(() => {
+    const handleOpenModal = (e: Event) => {
+      const customEvent = e as CustomEvent<FooterModalType>;
+      if (customEvent.detail) {
+        setActiveModal(customEvent.detail);
+      }
+    };
+    window.addEventListener('11to12_open_footer_modal', handleOpenModal);
+    return () => window.removeEventListener('11to12_open_footer_modal', handleOpenModal);
+  }, []);
 
   return (
     <>
@@ -54,6 +66,23 @@ export const Footer: React.FC<FooterProps> = ({
             >
               Terms of Service
             </button>
+            <span className="hidden sm:inline">•</span>
+            <button
+              onClick={() => setActiveModal('privacy')}
+              className="hover:text-white transition cursor-pointer"
+            >
+              Privacy Policy
+            </button>
+            <span className="hidden sm:inline">•</span>
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('11to12_reopen_cookie_banner'));
+              }}
+              className="hover:text-white transition cursor-pointer flex items-center space-x-1"
+            >
+              <Cookie className="w-3.5 h-3.5 text-[#FF4C00]" />
+              <span>Cookie Preferences</span>
+            </button>
           </div>
 
           {/* Copyright Notice */}
@@ -64,7 +93,7 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
       </footer>
 
-      {/* Dedicated Screens for About Us, Contact, and Terms of Service */}
+      {/* Dedicated Screens for About Us, Contact, Terms of Service, and Privacy Policy */}
       <FooterInfoModals
         activeModal={activeModal}
         onClose={() => setActiveModal(null)}

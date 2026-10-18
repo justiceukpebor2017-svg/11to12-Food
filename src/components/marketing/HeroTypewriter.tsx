@@ -2,7 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { ArrowDown } from 'lucide-react';
 
 export const HeroTypewriter: React.FC = () => {
-  const words = ['Edible', 'Actually good', 'On time', 'Firewood-smoky'];
+  const words = [
+    'Epe',
+    'Eleko',
+    'Ibeju Lekki',
+    'Lakowe',
+    'Sangotedo',
+    'Ajah',
+    'Chevron',
+    'Jakunde',
+    'Lekki',
+    'Obalende',
+  ];
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFading, setIsFading] = useState(false);
 
@@ -13,7 +24,7 @@ export const HeroTypewriter: React.FC = () => {
         setCurrentIndex((prev) => (prev + 1) % words.length);
         setIsFading(false);
       }, 200);
-    }, 2600);
+    }, 2400);
     return () => clearInterval(interval);
   }, [words.length]);
 
@@ -33,7 +44,7 @@ export const HeroTypewriter: React.FC = () => {
           {/* Left Column */}
           <div className="lg:col-span-7 space-y-4 sm:space-y-6 max-w-full">
             <h1 className="text-2xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.2] text-white break-words">
-              Lunch that’s <br className="hidden sm:inline" />
+              Feeding 9–5ers in <br className="hidden sm:inline" />
               <span className="relative inline-block text-black bg-white px-3 sm:px-4 py-0.5 sm:py-1 rounded-2xl font-serif-custom shadow-md transform -rotate-1 mt-1 sm:mt-2 max-w-full">
                 <span
                   className={`inline-block break-words text-xl sm:text-4xl lg:text-6xl transition-all duration-200 transform ${
@@ -45,9 +56,14 @@ export const HeroTypewriter: React.FC = () => {
               </span>
             </h1>
 
-            <p className="text-base sm:text-xl text-white/95 max-w-xl font-normal leading-relaxed break-words">
-              Between back-to-back meetings, Lagos traffic, and late office hours, finding time for a proper meal feels impossible. That’s why 11 to 12 was created for 9 to 5ers.
-            </p>
+            <div className="text-base sm:text-xl text-white/95 max-w-xl font-normal leading-relaxed space-y-2.5 break-words">
+              <p>
+                11 to 12 is Ajo for food. We bring 9–5 workers together to plan and pay for their weekday meals ahead of time. Choose the days you want to eat, and we’ll handle the cooking and delivery between 11 a.m. and 12 p.m.
+              </p>
+              <p>
+                Less daily lunch stress. More time to focus on your work.
+              </p>
+            </div>
 
             <div className="pt-2 flex flex-wrap gap-3 items-center">
               <a

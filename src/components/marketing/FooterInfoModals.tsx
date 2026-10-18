@@ -1,8 +1,8 @@
 import React from 'react';
-import { X, Sparkles, MapPin, Phone, Mail, Clock, MessageCircle, ShieldCheck, CheckCircle2, FileText, Utensils } from 'lucide-react';
+import { X, Sparkles, MapPin, Phone, Mail, Clock, MessageCircle, ShieldCheck, CheckCircle2, FileText, Utensils, Cookie, Lock } from 'lucide-react';
 import { CONTACT_CONFIG } from '../../config/contactConfig';
 
-export type FooterModalType = 'about' | 'contact' | 'terms' | null;
+export type FooterModalType = 'about' | 'contact' | 'terms' | 'privacy' | null;
 
 interface FooterInfoModalsProps {
   activeModal: FooterModalType;
@@ -29,11 +29,13 @@ export const FooterInfoModals: React.FC<FooterInfoModalsProps> = ({ activeModal,
                 {activeModal === 'about' && 'About 11 to 12 Desk Drop'}
                 {activeModal === 'contact' && 'Contact Kitchen Operations'}
                 {activeModal === 'terms' && 'Terms of Service & Delivery Policies'}
+                {activeModal === 'privacy' && 'Privacy Policy & Data Protection'}
               </h3>
               <p className="text-xs text-zinc-500">
                 {activeModal === 'about' && 'Lagos Workday Lunch Reimagined'}
                 {activeModal === 'contact' && 'Direct Support & Workstation Delivery Inquiry'}
                 {activeModal === 'terms' && 'Clear Guarantees & Operational Standards'}
+                {activeModal === 'privacy' && 'NDPR Compliant • Transparent Data Practices'}
               </p>
             </div>
           </div>
@@ -249,6 +251,123 @@ export const FooterInfoModals: React.FC<FooterInfoModalsProps> = ({ activeModal,
                   <p className="text-zinc-600 text-xs">
                     Payments are remitted via corporate bank transfer or verified gateways. Once transfer proof is matched by kitchen operations, the customer account is activated and credentials provided for dashboard login.
                   </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 4. PRIVACY POLICY SCREEN */}
+          {activeModal === 'privacy' && (
+            <div className="space-y-6">
+              <div className="p-4 rounded-2xl bg-[#FFF8F4] border border-[#FF4C00]/25 space-y-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-[#FF4C00] flex items-center space-x-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Nigeria Data Protection Regulation (NDPR) & NDPA Compliance</span>
+                </span>
+                <p className="text-zinc-900 font-bold text-sm">
+                  11 TO 12 FOODS LTD Data Protection & Privacy Policy
+                </p>
+                <p className="text-xs text-zinc-600">
+                  Effective Date: October 2026. This policy governs how we collect, handle, store, and protect your personal and delivery data when using the 11 to 12 Desk Drop platform.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <h4 className="font-bold text-black text-xs uppercase tracking-wider flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#FF4C00]" />
+                    <span>1. Information We Collect</span>
+                  </h4>
+                  <p className="text-zinc-600 text-xs leading-relaxed">
+                    We collect only the essential information needed to prepare, heat-seal, and hand-deliver your hot meals directly to your workplace:
+                  </p>
+                  <ul className="list-disc pl-5 text-xs text-zinc-600 space-y-1 mt-1">
+                    <li><strong>Contact Details:</strong> Full Name, Corporate/Personal Email address, WhatsApp and Phone number.</li>
+                    <li><strong>Workplace Delivery Address:</strong> Company/Building Name, Office Address, Floor/Suite, and Desk Drop delivery corridor (e.g. Victoria Island, Ikoyi, Marina, Lekki, Epe, Ajah, Sangotedo, Chevron, Jakunde, Lakowe, Eleko, Obalende).</li>
+                    <li><strong>Lunch Preferences:</strong> Workdays chosen, Swallow selections (Eba, Semo, Fufu), soup choices, and allergy or dietary notices.</li>
+                    <li><strong>Payment & Verification Records:</strong> Order reference IDs, payment verification timestamps, and invoice slips. We do not store credit card CVV or banking passwords; all payments are processed through verified direct settlement channels (Moniepoint MFB, Wema Bank, Flutterwave MFB).</li>
+                  </ul>
+                </div>
+
+                <div className="space-y-1.5 border-t border-zinc-100 pt-3">
+                  <h4 className="font-bold text-black text-xs uppercase tracking-wider flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#FF4C00]" />
+                    <span>2. Purpose & Legal Basis of Processing</span>
+                  </h4>
+                  <p className="text-zinc-600 text-xs leading-relaxed">
+                    Your data is processed strictly under lawful contractual necessity and explicit consent to:
+                  </p>
+                  <ul className="list-disc pl-5 text-xs text-zinc-600 space-y-1 mt-1">
+                    <li>Fulfill daily lunch preparation and drop-off to your desk between 11:00 AM and 12:00 PM.</li>
+                    <li>Provide instant delivery alerts and WhatsApp concierge customer support.</li>
+                    <li>Manage your meal skip credits and account rollover balance.</li>
+                    <li>Generate authentic tax-compliant invoices and verify payment receipts.</li>
+                  </ul>
+                </div>
+
+                <div className="space-y-1.5 border-t border-zinc-100 pt-3">
+                  <h4 className="font-bold text-black text-xs uppercase tracking-wider flex items-center space-x-1.5">
+                    <Cookie className="w-3.5 h-3.5 text-[#FF4C00]" />
+                    <span>3. Cookies & Local Storage Policy</span>
+                  </h4>
+                  <p className="text-zinc-600 text-xs leading-relaxed">
+                    We use cookies and browser local storage responsibly:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200">
+                      <span className="font-bold text-black block text-xs mb-1">Essential Cookies</span>
+                      <p className="text-[11px] text-zinc-500">
+                        Required for session persistence, authentication, keeping lunch day selections intact, and securing multi-device admin logins.
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200">
+                      <span className="font-bold text-black block text-xs mb-1">Preference & Analytics</span>
+                      <p className="text-[11px] text-zinc-500">
+                        Remembers your swallow choices, meal rotations, and anonymous dispatch corridor traffic metrics.
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 pt-1">
+                    You can click <strong>"Reject Cookies"</strong> on our consent banner to disable non-essential cookies at any time, or modify preferences via the footer link.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5 border-t border-zinc-100 pt-3">
+                  <h4 className="font-bold text-black text-xs uppercase tracking-wider flex items-center space-x-1.5">
+                    <Lock className="w-3.5 h-3.5 text-[#FF4C00]" />
+                    <span>4. Data Security, Retention & Third Parties</span>
+                  </h4>
+                  <p className="text-zinc-600 text-xs leading-relaxed">
+                    We employ modern TLS 1.3 encryption for all data in transit, strict role-based admin session protections, and automated live database replication. We never sell or rent your personal data to advertisers. Information is only shared with our internal dispatch drivers for the sole purpose of finding your desk.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5 border-t border-zinc-100 pt-3">
+                  <h4 className="font-bold text-black text-xs uppercase tracking-wider flex items-center space-x-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#FF4C00]" />
+                    <span>5. Your Data Rights Under Nigerian Law</span>
+                  </h4>
+                  <p className="text-zinc-600 text-xs leading-relaxed">
+                    Under the Nigeria Data Protection Act, you have the right to:
+                  </p>
+                  <ul className="list-disc pl-5 text-xs text-zinc-600 space-y-1 mt-1">
+                    <li>Access and review all personal and order data linked to your account.</li>
+                    <li>Update your corporate delivery location or contact numbers anytime.</li>
+                    <li>Request total deletion and erasure of your profile and historical records.</li>
+                    <li>Withdraw consent or opt out of notification channels.</li>
+                  </ul>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 text-xs space-y-1.5">
+                  <span className="font-bold text-black block">Data Protection Officer & Privacy Inquiries:</span>
+                  <p className="text-zinc-600">
+                    If you have questions regarding this Privacy Policy or wish to exercise your data rights, contact our Data Protection desk:
+                  </p>
+                  <div className="pt-1 space-y-0.5 font-medium text-zinc-800">
+                    <div>✉️ Email: <span className="text-[#FF4C00]">privacy@11to12.food</span> / <span className="text-[#FF4C00]">{CONTACT_CONFIG.supportEmail}</span></div>
+                    <div>📱 Phone / WhatsApp: <span className="text-[#FF4C00]">{CONTACT_CONFIG.whatsappDisplay}</span></div>
+                    <div>📍 Office: 11 to 12 Foods Ltd, Victoria Island / Lekki Corridor, Lagos State, Nigeria.</div>
+                  </div>
                 </div>
               </div>
             </div>
