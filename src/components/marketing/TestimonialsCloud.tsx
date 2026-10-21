@@ -4,27 +4,27 @@ import { ChevronLeft, ChevronRight, Star } from 'lucide-react';
 export const TestimonialsCloud: React.FC = () => {
   const testimonials = [
     {
-      quote: "I used to survive on Gala and spite. Now I survive on Gala, spite, and this Jollof Rice. It's an improvement.",
+      quote: "The idea of pooling meals ahead of time like Ajo is brilliant. No more scramble at noon trying to figure out lunch.",
       author: 'Chinedu Okafor',
-      role: 'Financial Analyst, Marina',
+      role: 'Financial Analyst',
       initials: 'CO',
     },
     {
-      quote: 'My VLOOKUPs are sharper and my soul is less crushed since I started ordering. Coincidence? Probably not.',
+      quote: 'Knowing my weekday lunches are scheduled and paid for beforehand frees up so much mental energy during heavy work sprints.',
       author: 'Amina Bello',
-      role: 'Operations Lead, Victoria Island',
+      role: 'Operations Lead',
       initials: 'AB',
     },
     {
-      quote: "Finally, a lunch that doesn't make me question all my life choices. Just most of them. Which is a win.",
+      quote: "Planning meals upfront and eliminating daily delivery fees completely changes the game for corporate workers in Lagos.",
       author: 'Femi Adeleke',
-      role: 'Product Manager, Ikoyi',
+      role: 'Product Manager',
       initials: 'FA',
     },
     {
-      quote: "My team actually looks forward to 12 PM now. The swallow rotation and desk delivery have stopped our daily lunch debates.",
+      quote: "Our entire department loves the concept. Selecting exactly the workdays you want and avoiding the 12 PM chaos is long overdue.",
       author: 'Blessing Eze',
-      role: 'Human Resources Lead, Lekki',
+      role: 'Human Resources Lead',
       initials: 'BE',
     },
   ];

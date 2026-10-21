@@ -75,6 +75,8 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
   // Map of dateStr -> SelectedLunchDay
   const [selectedDaysMap, setSelectedDaysMap] = useState<Record<string, SelectedLunchDay>>({});
+  // Ordered stack of selected dates so most recent selected date is previewed above Live Price Meter
+  const [selectionHistory, setSelectionHistory] = useState<string[]>([]);
 
   // Universal Friday Swallow Popup modal state (Works on both Desktop & Mobile)
   const [swallowModal, setSwallowModal] = useState<{
@@ -274,6 +276,9 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       },
     }));
 
+    // Add to selection history as most recent selected date
+    setSelectionHistory((prev) => [...prev.filter((d) => d !== meal.dateStr), meal.dateStr]);
+
     setValidationError(null);
 
     // Show floating top popup displaying confirmed swallow
@@ -315,6 +320,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       delete copy[meal.dateStr];
       return copy;
     });
+    setSelectionHistory((prev) => prev.filter((d) => d !== meal.dateStr));
     setSwallowModal(null);
   };
 
@@ -336,6 +342,13 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
     const isCurrentlySelected = Boolean(selectedDaysMap[meal.dateStr]);
     const action: 'added' | 'removed' = isCurrentlySelected ? 'removed' : 'added';
+
+    // Maintain ordered stack of selected dates for live preview above price meter
+    if (isCurrentlySelected) {
+      setSelectionHistory((prev) => prev.filter((d) => d !== meal.dateStr));
+    } else {
+      setSelectionHistory((prev) => [...prev.filter((d) => d !== meal.dateStr), meal.dateStr]);
+    }
 
     setSelectedDaysMap((prev) => {
       const copy = { ...prev };
@@ -432,6 +445,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   // Select all deliverable workdays in current month
   const selectAllWorkdaysThisMonth = () => {
     if (!hasMenu) return;
+    const deliverableWorkdays = calendarDays
+      .filter((cell) => cell.isCurrentMonth && !cell.isWeekend && cell.meal && !cell.meal.isHoliday && !cell.meal.isNoDelivery)
+      .map((cell) => cell.dateStr);
+
     setSelectedDaysMap((prev) => {
       const copy = { ...prev };
       calendarDays.forEach((cell) => {
@@ -445,6 +462,8 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       });
       return copy;
     });
+
+    setSelectionHistory((prev) => [...prev.filter((d) => !deliverableWorkdays.includes(d)), ...deliverableWorkdays]);
     setValidationError(null);
     setShowOrderBill(false);
     setCalculatedSummary(null);
@@ -456,6 +475,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       cancelAnimationFrame(animationFrameRef.current);
     }
     setSelectedDaysMap({});
+    setSelectionHistory([]);
     setShowOrderBill(false);
     setCalculatedSummary(null);
     setIsRevealComplete(false);
@@ -476,6 +496,39 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   }, [selectedDaysMap]);
 
   const selectedCount = selectedDaysList.length;
+
+  // Active Preview Day: The most recent selected date in selectionHistory that is still selected
+  const activePreviewDateStr = useMemo(() => {
+    for (let i = selectionHistory.length - 1; i >= 0; i--) {
+      const d = selectionHistory[i];
+      if (selectedDaysMap[d]) {
+        return d;
+      }
+    }
+    const remaining = Object.keys(selectedDaysMap);
+    return remaining.length > 0 ? remaining[remaining.length - 1] : null;
+  }, [selectionHistory, selectedDaysMap]);
+
+  const activePreviewMeal = useMemo(() => {
+    if (!activePreviewDateStr) return null;
+    const dayItem = selectedDaysMap[activePreviewDateStr];
+    if (dayItem?.meal) return dayItem.meal;
+    const [y, m, d] = activePreviewDateStr.split('-').map(Number);
+    return getStructuredMealForDate(new Date(y, m - 1, d));
+  }, [activePreviewDateStr, selectedDaysMap]);
+
+  const activePreviewSwallow = activePreviewDateStr ? selectedDaysMap[activePreviewDateStr]?.selectedSwallow : undefined;
+
+  const activePreviewFormattedDate = useMemo(() => {
+    if (!activePreviewDateStr) return '';
+    const [y, m, d] = activePreviewDateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
+  }, [activePreviewDateStr]);
 
   const [pricingSettings, setPricingSettings] = useState<PricingSettings>(() => getPricingSettings());
 
@@ -982,6 +1035,61 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         <div className="lg:col-span-4 w-full">
             <div className="bg-[#FAF7F2] border-2 border-zinc-200/90 rounded-3xl p-5 sm:p-6 flex flex-col justify-between shadow-xs sticky top-24">
               <div>
+                {/* Selected Meal Name & Representation Image (Appears above Live Price Meter upon date selection) */}
+                {activePreviewMeal && (
+                  <div className="mb-4 bg-white rounded-2xl border border-zinc-200/90 p-3.5 sm:p-4 shadow-2xs overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-top-2 text-left">
+                    <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-zinc-100">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="w-2 h-2 rounded-full bg-[#FF4C00]" />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4C00]">
+                          Selected Meal
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-bold text-zinc-700">
+                        {activePreviewFormattedDate}
+                      </span>
+                    </div>
+
+                    {/* Meal Representation Image: Only shown if uploaded or linked by admin */}
+                    {activePreviewMeal.imageUrl && activePreviewMeal.imageUrl.trim() !== '' ? (
+                      <div className="relative w-full h-36 sm:h-44 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200/80 mb-2.5 group shadow-2xs">
+                        <img
+                          src={activePreviewMeal.imageUrl}
+                          alt={activePreviewMeal.mealName}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                        {activePreviewMeal.mealCategory ? (
+                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[9px] font-bold text-white uppercase tracking-wider">
+                            {activePreviewMeal.mealCategory}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {/* Meal Name (Always prominent) */}
+                    <h4 className="text-sm sm:text-base font-black text-black leading-snug break-words">
+                      {activePreviewMeal.mealName}
+                    </h4>
+
+                    {/* Active Swallow selection or category tag */}
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {activePreviewSwallow ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-orange-50 text-[#FF4C00] text-[10px] font-bold uppercase tracking-wide border border-orange-200/60">
+                          Swallow: {activePreviewSwallow}
+                        </span>
+                      ) : null}
+                      {activePreviewMeal.mealCategory && (!activePreviewMeal.imageUrl || activePreviewMeal.imageUrl.trim() === '') ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-600 text-[10px] font-semibold">
+                          {activePreviewMeal.mealCategory}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between pb-3 border-b border-zinc-200">
                   <div className="flex items-center space-x-2">
                     <div className="w-2.5 h-2.5 rounded-full bg-[#FF4C00] animate-pulse" />

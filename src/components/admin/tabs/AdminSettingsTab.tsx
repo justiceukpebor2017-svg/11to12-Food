@@ -36,6 +36,9 @@ import {
   Upload,
   FileSpreadsheet,
   Sparkles,
+  Image as ImageIcon,
+  Trash2,
+  Camera,
 } from 'lucide-react';
 import { getMeasurementId, setMeasurementId, trackEvent } from '../../../utils/analytics';
 import {
@@ -45,6 +48,43 @@ import {
   DEFAULT_PRICING_SETTINGS,
 } from '../../../config/pricingConfig';
 import { liveSync } from '../../../services/liveSyncService';
+
+// Client-side image compressor for lightweight storage and fast syncing
+function compressMealImage(file: File, maxDim = 800, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 interface AdminSettingsTabProps {
   launchSettings?: LaunchSettings;
@@ -69,13 +109,33 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
 
   // --- 1. MEAL SETTINGS STATE ---
   const mealFileInputRef = useRef<HTMLInputElement>(null);
+  const mealImageInputRef = useRef<HTMLInputElement>(null);
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const [editingDateStr, setEditingDateStr] = useState<string | null>(null);
   const [editMealName, setEditMealName] = useState('');
   const [editMealPrice, setEditMealPrice] = useState<number>(2900);
+  const [editMealImageUrl, setEditMealImageUrl] = useState<string>('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [editIsUnavailable, setEditIsUnavailable] = useState(false);
   const [quickDateInput, setQuickDateInput] = useState<string>('2026-12-07');
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleMealImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingImage(true);
+    try {
+      const compressedDataUrl = await compressMealImage(file);
+      setEditMealImageUrl(compressedDataUrl);
+      showSaved('Meal representation image loaded! Click Save and Distribute below to apply.');
+    } catch (err) {
+      console.error('Image compression failed', err);
+      showSaved('Failed to load image file. Please try another image or paste URL.');
+    } finally {
+      setIsUploadingImage(false);
+      if (e.target) e.target.value = '';
+    }
+  };
 
   // Subscribe to real-time menu updates
   useEffect(() => {
@@ -175,6 +235,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     setEditingDateStr(item.dateStr);
     setEditMealName(item.meal?.mealName || '');
     setEditMealPrice(item.meal ? calculateMealPrice(item.meal) : 2900);
+    setEditMealImageUrl(item.meal?.imageUrl || '');
     setEditIsUnavailable(item.meal?.isHoliday || item.meal?.isNoDelivery || false);
   };
 
@@ -184,6 +245,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     setEditingDateStr(dateStr);
     setEditMealName(existing?.mealName || 'Jollof Rice + Chicken');
     setEditMealPrice(existing ? calculateMealPrice(existing) : 2900);
+    setEditMealImageUrl(existing?.imageUrl || '');
     setEditIsUnavailable(existing?.isHoliday || existing?.isNoDelivery || false);
   };
 
@@ -195,6 +257,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     const dayName = (dayNames[new Date(y, m - 1, d).getDay()] || 'Monday') as any;
 
     const parsedPrice = Number(editMealPrice) > 0 ? Number(editMealPrice) : 2900;
+    const finalImageUrl = editMealImageUrl.trim() ? editMealImageUrl.trim() : undefined;
 
     const updatedMeal: StructuredMeal = {
       ...(existing || {
@@ -203,10 +266,11 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
         day: dayName,
         mealName: editMealName,
         mealCategory: 'Rice',
-        imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800',
       }),
       mealName: editMealName.trim() || (existing?.mealName ?? 'Daily Chef Special'),
       price: parsedPrice,
+      imageUrl: finalImageUrl,
+      hasCustomImage: Boolean(finalImageUrl),
       isHoliday: editIsUnavailable,
       isNoDelivery: editIsUnavailable,
       holidayName: editIsUnavailable ? 'Holiday / No Delivery' : undefined,
@@ -417,14 +481,36 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                     </div>
 
                     <div className="mt-2 space-y-1">
-                      <span className="text-xs font-bold text-zinc-800 line-clamp-2">
-                        {item.meal?.mealName || 'No Meal'}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        {item.meal?.imageUrl ? (
+                          <img
+                            src={item.meal.imageUrl}
+                            alt={item.meal.mealName}
+                            className="w-7 h-7 rounded-md object-cover border border-zinc-200 shrink-0"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-md bg-zinc-200/60 text-zinc-400 flex items-center justify-center shrink-0">
+                            <ImageIcon className="w-3.5 h-3.5" />
+                          </div>
+                        )}
+                        <span className="text-xs font-bold text-zinc-800 line-clamp-2">
+                          {item.meal?.mealName || 'No Meal'}
+                        </span>
+                      </div>
                       <div className="flex items-center space-x-1.5">
                         <span className="text-[11px] font-black text-[#FF4C00]">
                           ₦{currentPrice.toLocaleString()}
                         </span>
-                        <span className="text-[9px] text-zinc-400 font-medium">+ ₦500 add-on</span>
+                        {item.meal?.imageUrl ? (
+                          <span className="text-[9px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                            Image attached
+                          </span>
+                        ) : (
+                          <span className="text-[9px] text-zinc-400">Name only</span>
+                        )}
                       </div>
                     </div>
 
@@ -549,6 +635,96 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                     Holiday (No Delivery)
                   </button>
                 </div>
+              </div>
+
+              {/* 4. Meal Representation Image (Upload File or Link) */}
+              <div className="p-4 rounded-xl bg-white border border-zinc-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-800">
+                      Meal Representation Image
+                    </label>
+                    <p className="text-[10px] text-zinc-500">
+                      Upload an image file or paste a link. When a customer selects this meal date, this image appears above the Live Price Meter. If left blank, only the meal name will be displayed.
+                    </p>
+                  </div>
+                  {editMealImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditMealImageUrl('')}
+                      className="inline-flex items-center space-x-1 text-[11px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition cursor-pointer self-start sm:self-auto"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove Image</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  {/* File Upload Button */}
+                  <div>
+                    <input
+                      ref={mealImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleMealImageFileChange}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={isUploadingImage}
+                      onClick={() => mealImageInputRef.current?.click()}
+                      className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{isUploadingImage ? 'Optimizing Image...' : 'Upload Image File'}</span>
+                    </button>
+                  </div>
+
+                  <span className="text-[11px] text-zinc-400 font-semibold text-center sm:text-left">or</span>
+
+                  {/* Paste Link input */}
+                  <div className="flex-1 w-full">
+                    <input
+                      type="url"
+                      value={editMealImageUrl}
+                      onChange={(e) => setEditMealImageUrl(e.target.value)}
+                      placeholder="Paste image URL (e.g. https://... or https://ibb.co/...)"
+                      className="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 text-xs font-medium text-zinc-900 focus:outline-none focus:border-[#FF4C00] placeholder-zinc-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Image Preview */}
+                {editMealImageUrl ? (
+                  <div className="mt-2 flex items-center space-x-3 p-2.5 rounded-xl bg-zinc-50 border border-zinc-200">
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-200 shrink-0 border border-zinc-300">
+                      <img
+                        src={editMealImageUrl}
+                        alt="Meal Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src =
+                            'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400';
+                        }}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md mb-1">
+                        ✓ Image Attached
+                      </span>
+                      <p className="text-[11px] text-zinc-600 truncate font-mono">
+                        {editMealImageUrl.startsWith('data:') ? 'Custom uploaded image file' : editMealImageUrl}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-zinc-50 border border-dashed border-zinc-300 text-center">
+                    <p className="text-[11px] text-zinc-500 font-medium">
+                      (No image attached — this meal will show by name only when selected above the Live Price Meter)
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-zinc-200">

@@ -332,7 +332,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
               testimonials && testimonials.length > 0
                 ? testimonials.slice(0, 4).map((t) => ({
                     name: t.name,
-                    handle: `${t.role}${t.company ? ` • ${t.company}` : ''}`,
+                    handle: t.role || '9–5 Subscriber',
                     text: t.text,
                   }))
                 : undefined

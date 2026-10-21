@@ -32,6 +32,7 @@ export interface StructuredMeal {
   isNoDelivery?: boolean;
   swallowOptions?: SwallowType[];
   imageUrl?: string;
+  hasCustomImage?: boolean; // Set to true when an image is uploaded or linked by the admin
   description?: string;
   ingredients?: string[];
   subPackOption?: {

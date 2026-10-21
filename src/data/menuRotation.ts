@@ -376,7 +376,8 @@ export function parseStructuredMeal(
   mealTitle: string,
   day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | DayOfWeek,
   dateStr: string,
-  priceOverride?: number
+  priceOverride?: number,
+  customImageUrl?: string
 ): StructuredMeal {
   const titleLower = mealTitle.toLowerCase().trim();
 
@@ -460,19 +461,8 @@ export function parseStructuredMeal(
     if (titleLower.includes('plantain') && !baseIngredient.includes('Plantain')) ingredients.push('Sweet Plantain');
   }
 
-  // Photography URL
-  let imageUrl = 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&q=80&w=800';
-  if (mealCategory === 'Swallow') {
-    imageUrl = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800';
-  } else if (mealCategory === 'Pasta') {
-    imageUrl = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&q=80&w=800';
-  } else if (mealCategory === 'Yam') {
-    imageUrl = 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&q=80&w=800';
-  } else if (mealCategory === 'Plantain') {
-    imageUrl = 'https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&q=80&w=800';
-  } else if (titleLower.includes('jollof')) {
-    imageUrl = 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&q=80&w=800';
-  }
+  // Photography URL - only set if explicitly uploaded or linked by admin, otherwise undefined
+  const imageUrl = customImageUrl && customImageUrl.trim() !== '' ? customImageUrl.trim() : undefined;
 
   const holidayName = KNOWN_HOLIDAYS[dateStr];
   const isHoliday = Boolean(holidayName);
@@ -492,6 +482,7 @@ export function parseStructuredMeal(
     isNoDelivery: isHoliday,
     swallowOptions: mealCategory === 'Swallow' ? ['Eba', 'Semo', 'Fufu'] : undefined,
     imageUrl,
+    hasCustomImage: Boolean(imageUrl),
     ingredients,
   };
 }
@@ -503,7 +494,18 @@ function loadStoredOverrides(): Record<string, StructuredMeal> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Clean up legacy hardcoded stock photo URLs if they weren't explicitly custom uploaded
+      Object.keys(parsed).forEach((key) => {
+        if (
+          parsed[key]?.imageUrl &&
+          parsed[key].imageUrl.includes('photo-1546069901-ba9599a7e63c') &&
+          !parsed[key]?.hasCustomImage
+        ) {
+          delete parsed[key].imageUrl;
+        }
+      });
+      return parsed;
     }
   } catch {
     // Ignore storage errors

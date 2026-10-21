@@ -274,10 +274,12 @@ export default function App() {
   const [liveTestimonials, setLiveTestimonials] = useState<TestimonialItem[]>(() => {
     if (typeof window === 'undefined') return liveSync.getState().testimonials || [];
     try {
-      const saved = localStorage.getItem('11to12_testimonials_v1');
+      const saved = localStorage.getItem('11to12_testimonials_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((t: TestimonialItem) => ({ ...t, company: '', officeLocation: '' }));
+        }
       }
     } catch (e) {
       console.error('Failed to load testimonials from storage', e);
@@ -309,7 +311,7 @@ export default function App() {
   // Automatic persistent background synchronization
   useEffect(() => {
     try {
-      localStorage.setItem('11to12_testimonials_v1', JSON.stringify(liveTestimonials));
+      localStorage.setItem('11to12_testimonials_v2', JSON.stringify(liveTestimonials));
     } catch (e) {
       console.error('Failed to save testimonials', e);
     }
@@ -1829,11 +1831,11 @@ export default function App() {
             {/* 5. Escape Your Lunch Rut (Process Grid) */}
             <ProcessGrid />
 
-            {/* 6. What Lagos Office Teams Say (Testimonials) */}
+            {/* 6. What 9–5ers Think of the Idea (Testimonials) */}
             <Testimonials
               testimonials={liveTestimonials}
-              title="What Lagos Office Teams Say"
-              subtitle="Piping-hot Nigerian corporate lunches delivered directly to workstations between 11:00 AM and 12:00 PM."
+              title="What 9–5ers Think of the Idea"
+              subtitle="The smartest way to plan weekday meals ahead. No more 11 AM lunch arguments, scramble for dispatch riders, or daily payment stress."
             />
 
             {/* 8. FAQ Section */}

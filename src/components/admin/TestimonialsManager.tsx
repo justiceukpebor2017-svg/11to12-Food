@@ -217,7 +217,7 @@ export const TestimonialsManager: React.FC<TestimonialsManagerProps> = ({
                 <div className="min-w-0 flex-1">
                   <h4 className="text-xs font-bold text-zinc-900 truncate">{item.name}</h4>
                   <p className="text-[11px] text-zinc-500 truncate">
-                    {item.role}{item.company ? ` • ${item.company}` : ''}
+                    {item.role || '9–5 Subscriber'}
                   </p>
                 </div>
               </div>

@@ -93,13 +93,13 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   testimonials = [
     {
       name: "Tolu Adebayo",
-      handle: "Paystack, Victoria Island",
-      text: "The 11:30 AM desk drop saved our product team. Piping hot Jollof without ever interrupting deep work.",
+      handle: "Product Lead",
+      text: "The concept of Ajo for weekday lunch is brilliant. Knowing meals are planned and paid for beforehand eliminates daily lunchtime distraction.",
     },
     {
       name: "Chuka Nwosu",
-      handle: "KPMG, Ikoyi",
-      text: "Flawless Nigerian meals right at my workstation. Skipping and swallow choices make it super flexible.",
+      handle: "Senior Software Engineer",
+      text: "Never having to pause sprint meetings at 11:30 AM to figure out what to eat is the biggest relief for our tech team.",
     },
   ],
   error,
