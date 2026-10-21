@@ -228,6 +228,7 @@
     "tier21PlusPrice": 3000
   },
   "deletedCustomerRecords": [],
+  "customMeals": {},
   "activeSessions": {},
   "sessionResetEpoch": 1792091524141
 }

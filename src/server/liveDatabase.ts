@@ -130,6 +130,9 @@ let dbState: LiveDatabaseSchema = {
   },
   pricingSettings: DEFAULT_PRICING_SETTINGS,
   deletedCustomerRecords: [],
+  customMeals: {},
+  activeSessions: {},
+  sessionResetEpoch: 0,
 };
 
 // Connected SSE clients for instantaneous real-time push to all devices
@@ -164,8 +167,11 @@ export function initLiveDatabase(): void {
           ? parsed.pricingSettings
           : DEFAULT_PRICING_SETTINGS,
         deletedCustomerRecords: Array.isArray(parsed.deletedCustomerRecords) ? parsed.deletedCustomerRecords : [],
+        customMeals: parsed.customMeals && typeof parsed.customMeals === 'object' ? parsed.customMeals : {},
+        activeSessions: parsed.activeSessions && typeof parsed.activeSessions === 'object' ? parsed.activeSessions : {},
+        sessionResetEpoch: typeof parsed.sessionResetEpoch === 'number' ? parsed.sessionResetEpoch : 0,
       };
-      console.log(`[LiveDB] Loaded ${dbState.waitlistLeads.length} waitlist leads, ${dbState.customers.length} customers from disk.`);
+      console.log(`[LiveDB] Loaded ${dbState.waitlistLeads.length} waitlist leads, ${dbState.customers.length} customers, ${Object.keys(dbState.customMeals || {}).length} custom meals from disk.`);
     } else {
       saveLiveDatabase();
       console.log('[LiveDB] Initialized fresh persistent database at', DB_FILE_PATH);

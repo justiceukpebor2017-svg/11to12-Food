@@ -198,6 +198,13 @@ class LiveSyncService {
       if (data.db.testimonials && Array.isArray(data.db.testimonials)) {
         this.state.testimonials = data.db.testimonials;
       }
+      if (data.db.customMeals && typeof data.db.customMeals === 'object' && Object.keys(data.db.customMeals).length > 0) {
+        Object.assign(customMealOverrides, data.db.customMeals);
+        try {
+          localStorage.setItem('11to12_custom_meals_v3', JSON.stringify(customMealOverrides));
+        } catch {}
+        broadcastMenuUpdate();
+      }
       if (data.db.launchSettings) {
         this.state.launchSettings = data.db.launchSettings;
         updateLaunchConfig(data.db.launchSettings);
@@ -399,7 +406,7 @@ class LiveSyncService {
           if (json.db.customMeals && typeof json.db.customMeals === 'object') {
             Object.assign(customMealOverrides, json.db.customMeals);
             try {
-              localStorage.setItem('11to12_custom_meals_v2', JSON.stringify(customMealOverrides));
+              localStorage.setItem('11to12_custom_meals_v3', JSON.stringify(customMealOverrides));
             } catch {}
             broadcastMenuUpdate();
           }

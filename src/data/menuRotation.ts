@@ -489,10 +489,15 @@ export function parseStructuredMeal(
 
 // Global In-Memory and LocalStorage Overrides for Admin Menu edits (Shared in sync with homepage and subscriber dashboard)
 const STORAGE_KEY = '11to12_custom_meals_v3';
+const LEGACY_STORAGE_KEY = '11to12_custom_meals_v2';
 
 function loadStoredOverrides(): Record<string, StructuredMeal> {
+  if (typeof window === 'undefined') return {};
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    }
     if (raw) {
       const parsed = JSON.parse(raw);
       // Clean up legacy hardcoded stock photo URLs if they weren't explicitly custom uploaded
@@ -511,6 +516,30 @@ function loadStoredOverrides(): Record<string, StructuredMeal> {
     // Ignore storage errors
   }
   return {};
+}
+
+export function safeSaveStoredOverrides(overrides: Record<string, StructuredMeal>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
+  } catch (err) {
+    console.warn('[LocalStorage Quota] Compacting custom meal overrides cache for quota safety...');
+    try {
+      const lightweight: Record<string, StructuredMeal> = {};
+      Object.keys(overrides).forEach((k) => {
+        const item = overrides[k];
+        // Strip heavy base64 data URLs from localStorage only (the backend keeps full images)
+        if (item.imageUrl && item.imageUrl.startsWith('data:') && item.imageUrl.length > 5000) {
+          lightweight[k] = { ...item, imageUrl: '' };
+        } else {
+          lightweight[k] = item;
+        }
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(lightweight));
+    } catch {
+      // Storage fully saturated, memory and server persist
+    }
+  }
 }
 
 export const customMealOverrides: Record<string, StructuredMeal> = loadStoredOverrides();
@@ -538,6 +567,26 @@ export function broadcastMenuUpdate(): void {
   }
 }
 
+// Uploads a meal image data URL to the backend server and returns a lightweight static URL (/uploads/meal-xxx.jpg)
+export async function uploadMealImageToServer(imageData: string, fileName?: string): Promise<string | null> {
+  try {
+    const res = await fetch(apiUrl('/api/upload-meal-image'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageData, fileName }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.url) {
+        return data.url;
+      }
+    }
+  } catch (e) {
+    console.warn('[Upload Image API error]:', e);
+  }
+  return null;
+}
+
 // Real-Time Worldwide Cloud Sync via Firestore & Live Server API
 if (typeof window !== 'undefined') {
   // 1. Instantly pull latest overrides from Firestore on startup
@@ -546,9 +595,7 @@ if (typeof window !== 'undefined') {
       .then((remote) => {
         if (remote && typeof remote === 'object' && Object.keys(remote).length > 0) {
           Object.assign(customMealOverrides, remote);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(customMealOverrides));
-          } catch {}
+          safeSaveStoredOverrides(customMealOverrides);
           broadcastMenuUpdate();
         }
       })
@@ -562,9 +609,7 @@ if (typeof window !== 'undefined') {
       .then((json) => {
         if (json?.meals && typeof json.meals === 'object' && Object.keys(json.meals).length > 0) {
           Object.assign(customMealOverrides, json.meals);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(customMealOverrides));
-          } catch {}
+          safeSaveStoredOverrides(customMealOverrides);
           broadcastMenuUpdate();
         }
       })
@@ -576,9 +621,7 @@ if (typeof window !== 'undefined') {
     subscribeToMenuOverrides((remoteOverrides) => {
       if (remoteOverrides && typeof remoteOverrides === 'object') {
         Object.assign(customMealOverrides, remoteOverrides);
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(customMealOverrides));
-        } catch {}
+        safeSaveStoredOverrides(customMealOverrides);
         broadcastMenuUpdate();
       }
     });
@@ -600,11 +643,7 @@ if (typeof window !== 'undefined') {
 
 export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
   customMealOverrides[dateStr] = meal;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(customMealOverrides));
-  } catch {
-    // Ignore storage errors
-  }
+  safeSaveStoredOverrides(customMealOverrides);
   broadcastMenuUpdate();
 
   // Worldwide instant sync 1: Backend Server Database & SSE broadcast
@@ -624,11 +663,7 @@ export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
 
 export function batchUpdateMeals(mealsMap: Record<string, StructuredMeal>) {
   Object.assign(customMealOverrides, mealsMap);
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(customMealOverrides));
-  } catch {
-    // Ignore storage errors
-  }
+  safeSaveStoredOverrides(customMealOverrides);
   broadcastMenuUpdate();
 
   // Worldwide instant sync 1: Backend Server Database & SSE broadcast

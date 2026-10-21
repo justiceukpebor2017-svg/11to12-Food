@@ -12,6 +12,7 @@ import {
   getStructuredMealForDate,
   updateCustomMealForDate,
   subscribeMenuChanges,
+  uploadMealImageToServer,
 } from '../../../data/menuRotation';
 import { downloadMealExcelTemplate, parseAndApplyMealSpreadsheet } from '../../../utils/mealExcelService';
 import {
@@ -50,7 +51,7 @@ import {
 import { liveSync } from '../../../services/liveSyncService';
 
 // Client-side image compressor for lightweight storage and fast syncing
-function compressMealImage(file: File, maxDim = 800, quality = 0.82): Promise<string> {
+function compressMealImage(file: File, maxDim = 600, quality = 0.78): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -125,11 +126,19 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     if (!file) return;
     setIsUploadingImage(true);
     try {
-      const compressedDataUrl = await compressMealImage(file);
-      setEditMealImageUrl(compressedDataUrl);
-      showSaved('Meal representation image loaded! Click Save and Distribute below to apply.');
+      const compressedDataUrl = await compressMealImage(file, 600, 0.78);
+      // Upload to server disk storage to get a permanent, lightweight relative URL (/uploads/...)
+      const uploadedUrl = await uploadMealImageToServer(compressedDataUrl, file.name);
+      if (uploadedUrl) {
+        setEditMealImageUrl(uploadedUrl);
+        showSaved('Meal representation image uploaded! Click "Save and Distribute" below to apply.');
+      } else {
+        // Fallback to compressed data URL if offline/network issue
+        setEditMealImageUrl(compressedDataUrl);
+        showSaved('Meal representation image loaded! Click "Save and Distribute" below to apply.');
+      }
     } catch (err) {
-      console.error('Image compression failed', err);
+      console.error('Image compression or upload failed', err);
       showSaved('Failed to load image file. Please try another image or paste URL.');
     } finally {
       setIsUploadingImage(false);
@@ -257,7 +266,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     const dayName = (dayNames[new Date(y, m - 1, d).getDay()] || 'Monday') as any;
 
     const parsedPrice = Number(editMealPrice) > 0 ? Number(editMealPrice) : 2900;
-    const finalImageUrl = editMealImageUrl.trim() ? editMealImageUrl.trim() : undefined;
+    const finalImageUrl = editMealImageUrl.trim();
 
     const updatedMeal: StructuredMeal = {
       ...(existing || {
@@ -269,7 +278,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
       }),
       mealName: editMealName.trim() || (existing?.mealName ?? 'Daily Chef Special'),
       price: parsedPrice,
-      imageUrl: finalImageUrl,
+      imageUrl: finalImageUrl || '',
       hasCustomImage: Boolean(finalImageUrl),
       isHoliday: editIsUnavailable,
       isNoDelivery: editIsUnavailable,

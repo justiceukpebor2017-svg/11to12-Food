@@ -77,6 +77,34 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   const [selectedDaysMap, setSelectedDaysMap] = useState<Record<string, SelectedLunchDay>>({});
   // Ordered stack of selected dates so most recent selected date is previewed above Live Price Meter
   const [selectionHistory, setSelectionHistory] = useState<string[]>([]);
+  // Menu version to trigger immediate re-renders when admin edits food name or image
+  const [menuVersion, setMenuVersion] = useState(0);
+
+  useEffect(() => {
+    return subscribeMenuChanges(() => {
+      setMenuVersion((v) => v + 1);
+    });
+  }, []);
+
+  // Sync selectedDaysMap whenever custom meal overrides are updated
+  useEffect(() => {
+    setSelectedDaysMap((prev) => {
+      let changed = false;
+      const nextMap = { ...prev };
+      Object.keys(nextMap).forEach((dStr) => {
+        const [y, m, d] = dStr.split('-').map(Number);
+        const freshMeal = getStructuredMealForDate(new Date(y, m - 1, d));
+        if (freshMeal && nextMap[dStr].meal !== freshMeal) {
+          nextMap[dStr] = {
+            ...nextMap[dStr],
+            meal: freshMeal,
+          };
+          changed = true;
+        }
+      });
+      return changed ? nextMap : prev;
+    });
+  }, [menuVersion]);
 
   // Universal Friday Swallow Popup modal state (Works on both Desktop & Mobile)
   const [swallowModal, setSwallowModal] = useState<{
@@ -221,7 +249,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     }
 
     return cells;
-  }, [currentYear, currentMonth, firstDayIndex, prevMonthDays, totalDaysInMonth]);
+  }, [currentYear, currentMonth, firstDayIndex, prevMonthDays, totalDaysInMonth, menuVersion]);
 
   // Clean animation frame & popup timer on unmount
   useEffect(() => {
@@ -511,11 +539,12 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
   const activePreviewMeal = useMemo(() => {
     if (!activePreviewDateStr) return null;
-    const dayItem = selectedDaysMap[activePreviewDateStr];
-    if (dayItem?.meal) return dayItem.meal;
     const [y, m, d] = activePreviewDateStr.split('-').map(Number);
-    return getStructuredMealForDate(new Date(y, m - 1, d));
-  }, [activePreviewDateStr, selectedDaysMap]);
+    const freshMeal = getStructuredMealForDate(new Date(y, m - 1, d));
+    if (freshMeal) return freshMeal;
+    const dayItem = selectedDaysMap[activePreviewDateStr];
+    return dayItem?.meal || null;
+  }, [activePreviewDateStr, selectedDaysMap, menuVersion]);
 
   const activePreviewSwallow = activePreviewDateStr ? selectedDaysMap[activePreviewDateStr]?.selectedSwallow : undefined;
 

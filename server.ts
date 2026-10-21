@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
@@ -68,7 +69,16 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+// Configure 50mb payload limits to reliably handle custom meal images and batch updates without 413 errors
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Serve uploaded meal images statically
+const uploadsDir = path.join(process.cwd(), 'data', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // In-memory rate limiting to protect API from automated abuse / brute-force
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -371,6 +381,39 @@ app.post('/api/meals/batch', (req, res) => {
   }
   batchUpdateMealsInDb(meals);
   return res.json({ success: true, count: Object.keys(meals).length });
+});
+
+// Meal representation image upload endpoint: accepts base64 data URL, saves to disk in /uploads, returns public URL
+app.post('/api/upload-meal-image', (req, res) => {
+  try {
+    const { imageData } = req.body || {};
+    if (!imageData || typeof imageData !== 'string') {
+      return res.status(400).json({ error: 'imageData string is required' });
+    }
+
+    let ext = 'jpg';
+    let base64Clean = imageData;
+
+    if (imageData.startsWith('data:image/')) {
+      const match = imageData.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (match) {
+        ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+        base64Clean = match[2];
+      }
+    }
+
+    const buffer = Buffer.from(base64Clean, 'base64');
+    const safeName = `meal-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+    const filePath = path.join(uploadsDir, safeName);
+
+    fs.writeFileSync(filePath, buffer);
+
+    const publicUrl = `/uploads/${safeName}`;
+    return res.json({ success: true, url: publicUrl });
+  } catch (err: any) {
+    console.error('Error saving uploaded meal image:', err);
+    return res.status(500).json({ error: 'Failed to save image', details: err?.message });
+  }
 });
 
 // Admin Notification Log Endpoint
