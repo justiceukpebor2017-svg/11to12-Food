@@ -17,6 +17,17 @@ export type MealCategory =
 export type SwallowType = 'Eba' | 'Semo' | 'Fufu';
 export const CANONICAL_SWALLOW_OPTIONS: SwallowType[] = ['Eba', 'Semo', 'Fufu'];
 
+export interface MealOption {
+  id: string; // 'opt-1' | 'opt-2'
+  name: string;
+  category: MealCategory;
+  price?: number;
+  imageUrl?: string;
+  hasCustomImage?: boolean;
+  description?: string;
+  protein?: string;
+}
+
 export interface StructuredMeal {
   id: string;
   dateStr: string; // e.g. "2026-10-05"
@@ -40,12 +51,17 @@ export interface StructuredMeal {
     description: string;
     items: string[];
   };
+  // 2 Meal Types feature: Mondays and Thursdays (and configurable by admin)
+  hasDualOptions?: boolean;
+  mealOptions?: MealOption[];
+  selectedOptionId?: string;
 }
 
 export interface SelectedLunchDay {
   dateStr: string;
   meal: StructuredMeal;
   selectedSwallow?: SwallowType;
+  selectedMealOption?: MealOption; // Chosen option for dual-meal days (Monday/Thursday)
 }
 
 // Official Settlement Bank Details

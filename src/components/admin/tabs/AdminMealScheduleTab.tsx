@@ -185,6 +185,7 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
       mealType: 'Main Scheduled' | '⭐ Credit Plate';
       isCredit: boolean;
       portions: number;
+      optionChoiceTag?: 'Option 1' | 'Option 2';
     }> = [];
 
     // 1. Confirmed / Active customers who selected this date and did not skip
@@ -198,6 +199,28 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
 
       if (hasDate && !isSkipped) {
         const selectedDay = cust.selectedDays.find((d) => d.dateStr === selectedDate);
+        let chosenTitle = selectedDay?.meal?.mealName || mealForDate?.mealName || 'Standard Meal';
+        let optionTag: 'Option 1' | 'Option 2' | undefined = undefined;
+
+        if (selectedDay?.selectedMealOption) {
+          chosenTitle = selectedDay.selectedMealOption.name;
+          optionTag = selectedDay.selectedMealOption.id === 'opt-2' ? 'Option 2' : 'Option 1';
+        } else if (selectedDay?.meal?.selectedOptionId) {
+          optionTag = selectedDay.meal.selectedOptionId === 'opt-2' ? 'Option 2' : 'Option 1';
+          if (optionTag === 'Option 2' && selectedDay.meal.mealOptions?.[1]) {
+            chosenTitle = selectedDay.meal.mealOptions[1].name;
+          } else if (selectedDay.meal.mealOptions?.[0]) {
+            chosenTitle = selectedDay.meal.mealOptions[0].name;
+          }
+        } else if (mealForDate?.hasDualOptions) {
+          const opt2Name = mealForDate.mealOptions?.[1]?.name?.toLowerCase();
+          if (opt2Name && chosenTitle.toLowerCase().includes(opt2Name)) {
+            optionTag = 'Option 2';
+          } else {
+            optionTag = 'Option 1';
+          }
+        }
+
         list.push({
           id: `main-${cust.id}-${selectedDate}`,
           customer: cust,
@@ -206,12 +229,13 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
           email: cust.email,
           primaryAddress: cust.officeAddress,
           secondAddress: cust.secondAddress || '—',
-          mealTitle: mealForDate?.mealName || selectedDay?.meal?.mealName || 'Standard Meal',
+          mealTitle: chosenTitle,
           swallowChoice: selectedDay?.selectedSwallow,
           orderRef: cust.orderRef || cust.id,
           mealType: 'Main Scheduled',
           isCredit: false,
           portions: 1,
+          optionChoiceTag: optionTag,
         });
       }
     });
@@ -344,6 +368,18 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
     return deliveryListForDate.filter((it) => it.isCredit).reduce((acc, it) => acc + it.portions, 0);
   }, [deliveryListForDate]);
 
+  const option1Tally = useMemo(() => {
+    return deliveryListForDate
+      .filter((it) => it.optionChoiceTag === 'Option 1')
+      .reduce((acc, it) => acc + it.portions, 0);
+  }, [deliveryListForDate]);
+
+  const option2Tally = useMemo(() => {
+    return deliveryListForDate
+      .filter((it) => it.optionChoiceTag === 'Option 2')
+      .reduce((acc, it) => acc + it.portions, 0);
+  }, [deliveryListForDate]);
+
   // Date shifting (guarded to never go before Dec 7, 2026 launch)
   const handleShiftDate = (days: number) => {
     const cur = new Date(selectedDateObj);
@@ -362,6 +398,7 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
     const headers = [
       'Customer Name',
       'Meal Type',
+      'Option Choice',
       'Phone Number',
       'Email',
       'Primary Delivery Address',
@@ -375,6 +412,7 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
     const rows = deliveryListForDate.map((item) => [
       item.name,
       item.mealType,
+      item.optionChoiceTag || 'Standard',
       item.phone,
       item.email,
       item.primaryAddress,
@@ -677,16 +715,78 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4C00]">
-                    {formattedDateLabel}
-                  </span>
-                  <h2 className="text-lg font-bold text-zinc-900">
-                    {mealForDate ? mealForDate.mealName : 'Kitchen Off / Weekend'}
-                  </h2>
+              <div className="flex flex-col justify-between gap-3 h-full">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4C00]">
+                        {formattedDateLabel}
+                      </span>
+                      {mealForDate?.hasDualOptions && (
+                        <span className="text-[9px] font-black uppercase tracking-wider bg-orange-100 text-[#FF4C00] px-2 py-0.5 rounded-full">
+                          2 Meal Types (Customer Choice)
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleStartEditCurrentDate}
+                      className="px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-xs flex items-center space-x-1.5 transition cursor-pointer shadow-xs"
+                    >
+                      <Edit className="w-3 h-3" />
+                      <span>Edit Meal & Price</span>
+                    </button>
+                  </div>
+
+                  {mealForDate?.hasDualOptions ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      {/* Option 1 Box */}
+                      <div className="p-3 rounded-xl bg-white border border-orange-200 shadow-2xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-[#FF4C00] bg-orange-50 px-2 py-0.5 rounded">
+                            Option 1
+                          </span>
+                          <span className="text-[11px] font-bold text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded-full">
+                            {option1Tally} ordered
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-zinc-900 line-clamp-2 mt-1">
+                          {mealForDate.mealOptions?.[0]?.name || mealForDate.mealName}
+                        </p>
+                        <span className="text-[11px] font-black text-[#FF4C00] block">
+                          ₦{(mealForDate.mealOptions?.[0]?.price || calculateMealPrice(mealForDate)).toLocaleString()}
+                        </span>
+                      </div>
+
+                      {/* Option 2 Box */}
+                      <div className="p-3 rounded-xl bg-white border border-blue-200 shadow-2xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                            Option 2
+                          </span>
+                          <span className="text-[11px] font-bold text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded-full">
+                            {option2Tally} ordered
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-zinc-900 line-clamp-2 mt-1">
+                          {mealForDate.mealOptions?.[1]?.name || 'Option 2 Alternative'}
+                        </p>
+                        <span className="text-[11px] font-black text-blue-600 block">
+                          ₦{(mealForDate.mealOptions?.[1]?.price || calculateMealPrice(mealForDate)).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h2 className="text-lg font-bold text-zinc-900">
+                        {mealForDate ? mealForDate.mealName : 'Kitchen Off / Weekend'}
+                      </h2>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                    {mealForDate && (
+                    {!mealForDate?.hasDualOptions && mealForDate && (
                       <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                         ₦{calculateMealPrice(mealForDate).toLocaleString()} (Each Meal)
                       </span>
@@ -701,17 +801,6 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
                       </span>
                     )}
                   </div>
-                </div>
-
-                <div>
-                  <button
-                    type="button"
-                    onClick={handleStartEditCurrentDate}
-                    className="px-4 py-2 rounded-xl bg-black hover:bg-zinc-800 text-white font-bold text-xs flex items-center space-x-1.5 transition cursor-pointer shadow-xs"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                    <span>Edit Meal & Price</span>
-                  </button>
                 </div>
               </div>
             )}
@@ -738,6 +827,13 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
                 <span className="text-4xl font-black text-white">{totalConfirmedLunches}</span>
                 <span className="text-xs text-zinc-400">total meals to cook & deliver</span>
               </div>
+              {mealForDate?.hasDualOptions && (
+                <div className="flex items-center space-x-2 pt-2 border-t border-zinc-800 mt-2 text-xs">
+                  <span className="text-orange-400 font-bold">Option 1: {option1Tally}</span>
+                  <span className="text-zinc-600">|</span>
+                  <span className="text-blue-400 font-bold">Option 2: {option2Tally}</span>
+                </div>
+              )}
               <p className="text-[11px] text-zinc-500 mt-1">
                 Desk drop delivery window: 11:00 AM – 12:00 PM
               </p>
@@ -829,9 +925,22 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
                           {item.secondAddress}
                         </td>
                         <td className="py-3.5 px-4">
-                          <span className="font-semibold text-zinc-900">{item.mealTitle}</span>
+                          <div className="flex items-center space-x-1.5 flex-wrap">
+                            {item.optionChoiceTag && (
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${
+                                  item.optionChoiceTag === 'Option 1'
+                                    ? 'bg-orange-50 text-[#FF4C00] border-orange-200'
+                                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                                }`}
+                              >
+                                {item.optionChoiceTag}
+                              </span>
+                            )}
+                            <span className="font-semibold text-zinc-900">{item.mealTitle}</span>
+                          </div>
                           {item.swallowChoice && (
-                            <span className="ml-1 text-[10px] font-bold text-[#FF4C00] bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
+                            <span className="inline-block mt-0.5 text-[10px] font-bold text-[#FF4C00] bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
                               Swallow: {item.swallowChoice}
                             </span>
                           )}

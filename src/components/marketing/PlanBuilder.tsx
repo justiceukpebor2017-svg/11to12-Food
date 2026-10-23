@@ -4,6 +4,7 @@ import {
   SelectedLunchDay,
   SwallowType,
   calculateOrderSummary,
+  calculateMealPrice,
   OrderSummary,
   PER_DAY_FEE,
 } from '../../types';
@@ -113,6 +114,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     isAlreadySelected: boolean;
   } | null>(null);
   const [chosenSwallow, setChosenSwallow] = useState<SwallowType>('Eba');
+
+  // Universal Monday and Thursday Dual Meal Choice Modal state
+  const [dualMealModal, setDualMealModal] = useState<{
+    meal: StructuredMeal;
+    dateFormatted: string;
+    isAlreadySelected: boolean;
+  } | null>(null);
+  const [selectedMealChoiceId, setSelectedMealChoiceId] = useState<string>('opt-1');
 
   // 2-Second Top Floating Meal Preview Popup state
   const [activeMealPopup, setActiveMealPopup] = useState<MealPopupState | null>(null);
@@ -352,9 +361,105 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     setSwallowModal(null);
   };
 
+  // Monday & Thursday Dual Meal Choice Modal Handlers
+  const handleOpenDualMealModal = (meal: StructuredMeal, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const dateObj = new Date(meal.dateStr + 'T12:00:00');
+    const formattedDate = dateObj.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
+    const currentSelected = selectedDaysMap[meal.dateStr];
+    const initialChoice = currentSelected?.selectedMealOption?.id || meal.selectedOptionId || 'opt-1';
+    setSelectedMealChoiceId(initialChoice);
+    setDualMealModal({
+      meal,
+      dateFormatted: formattedDate,
+      isAlreadySelected: Boolean(currentSelected),
+    });
+  };
+
+  const handleConfirmMealChoice = () => {
+    if (!dualMealModal) return;
+    const { meal, dateFormatted } = dualMealModal;
+    const chosenOption = meal.mealOptions?.find((o) => o.id === selectedMealChoiceId) || meal.mealOptions?.[0];
+    if (!chosenOption) return;
+
+    // Resolve the meal with the chosen option's details
+    const resolvedMeal: StructuredMeal = {
+      ...meal,
+      mealName: chosenOption.name,
+      mealCategory: chosenOption.category,
+      price: chosenOption.price ?? meal.price,
+      imageUrl: chosenOption.imageUrl || meal.imageUrl,
+      hasCustomImage: Boolean(chosenOption.imageUrl) || meal.hasCustomImage,
+      selectedOptionId: chosenOption.id,
+    };
+
+    setSelectedDaysMap((prev) => ({
+      ...prev,
+      [meal.dateStr]: {
+        dateStr: meal.dateStr,
+        meal: resolvedMeal,
+        selectedMealOption: chosenOption,
+      },
+    }));
+
+    // Add to selection history as most recent selected date for Live Price Meter preview
+    setSelectionHistory((prev) => [...prev.filter((d) => d !== meal.dateStr), meal.dateStr]);
+    setValidationError(null);
+
+    // Show floating top popup displaying the locked pick
+    if (popupTimeoutRef.current) {
+      clearTimeout(popupTimeoutRef.current);
+    }
+    setActiveMealPopup({
+      meal: resolvedMeal,
+      action: 'added',
+      formattedDate: dateFormatted,
+    });
+    popupTimeoutRef.current = window.setTimeout(() => {
+      setActiveMealPopup(null);
+    }, 2500);
+
+    // Reset calculation if active
+    if (showOrderBill || calculatedSummary) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      setShowOrderBill(false);
+      setCalculatedSummary(null);
+      setIsAnimationRunning(false);
+      setIsRevealComplete(false);
+      setIsCalculating(false);
+    }
+
+    setDualMealModal(null);
+  };
+
+  const handleRemoveDualMealDay = () => {
+    if (!dualMealModal) return;
+    const { meal } = dualMealModal;
+    setSelectedDaysMap((prev) => {
+      const copy = { ...prev };
+      delete copy[meal.dateStr];
+      return copy;
+    });
+    setSelectionHistory((prev) => prev.filter((d) => d !== meal.dateStr));
+    setDualMealModal(null);
+  };
+
   // Toggle selection for a workday meal
   const toggleSelectMeal = (meal: StructuredMeal) => {
     if (meal.isHoliday || meal.isNoDelivery) return;
+
+    // Monday and Thursday dual-meal choice requirement: Prompt user to choose between Option 1 and Option 2
+    const isDualDay = meal.hasDualOptions || meal.day === 'Monday' || meal.day === 'Thursday';
+    if (isDualDay && meal.mealOptions && meal.mealOptions.length >= 2) {
+      handleOpenDualMealModal(meal);
+      return;
+    }
 
     // Friday / swallow popup requirement: On BOTH desktop and mobile, show popup to choose swallow
     const isSwallowOrFriday = isFridayOrSwallowMeal(meal);
@@ -537,13 +642,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     return remaining.length > 0 ? remaining[remaining.length - 1] : null;
   }, [selectionHistory, selectedDaysMap]);
 
+  const activePreviewDayItem = activePreviewDateStr ? selectedDaysMap[activePreviewDateStr] : null;
+
   const activePreviewMeal = useMemo(() => {
     if (!activePreviewDateStr) return null;
-    const [y, m, d] = activePreviewDateStr.split('-').map(Number);
-    const freshMeal = getStructuredMealForDate(new Date(y, m - 1, d));
-    if (freshMeal) return freshMeal;
     const dayItem = selectedDaysMap[activePreviewDateStr];
-    return dayItem?.meal || null;
+    if (dayItem?.meal) return dayItem.meal;
+    const [y, m, d] = activePreviewDateStr.split('-').map(Number);
+    return getStructuredMealForDate(new Date(y, m - 1, d));
   }, [activePreviewDateStr, selectedDaysMap, menuVersion]);
 
   const activePreviewSwallow = activePreviewDateStr ? selectedDaysMap[activePreviewDateStr]?.selectedSwallow : undefined;
@@ -1034,13 +1140,37 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                         isSelected ? 'text-white' : 'text-zinc-800'
                       }`}
                     >
-                      {meal.mealName}
+                      {isSelected && selectedDaysMap[cell.dateStr]?.meal?.mealName
+                        ? selectedDaysMap[cell.dateStr].meal.mealName
+                        : meal.mealName}
                     </p>
                   </div>
 
-                  {/* Bottom: Friday swallow selection if selected */}
+                  {/* Bottom: Monday/Thursday dual option pick or Friday swallow selection */}
                   <div>
-                    {isSelected && isSwallowMeal ? (
+                    {isSelected && meal.hasDualOptions ? (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDualMealModal(meal, e);
+                        }}
+                        className="mt-1 pt-1 border-t border-white/30 flex items-center justify-between text-[8px] sm:text-[9px] font-black uppercase text-white cursor-pointer px-1 bg-white/20 hover:bg-white/30 rounded py-0.5 transition"
+                        title="Click to switch meal option"
+                      >
+                        <span className="truncate">
+                          {selectedDaysMap[cell.dateStr]?.selectedMealOption?.id === 'opt-2' ? 'Opt 2' : 'Opt 1'} Pick
+                        </span>
+                        <span className="opacity-80 shrink-0 ml-1">↻ Change</span>
+                      </div>
+                    ) : !isSelected && meal.hasDualOptions ? (
+                      <div className="mt-1 flex items-center justify-between">
+                        <span className="text-[7px] sm:text-[8px] font-black uppercase text-[#FF4C00] bg-orange-50 border border-orange-200/60 px-1 py-0.5 rounded">
+                          2 Options
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {isSelected && isSwallowMeal && !meal.hasDualOptions ? (
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1103,8 +1233,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                       {activePreviewMeal.mealName}
                     </h4>
 
-                    {/* Active Swallow selection or category tag */}
+                    {/* Active Dual Option or Swallow selection or category tag */}
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {activePreviewDayItem?.selectedMealOption ? (
+                        <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-bold uppercase tracking-wide border border-emerald-200">
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span>Pick Locked: {activePreviewDayItem.selectedMealOption.id === 'opt-1' ? 'Option 1' : 'Option 2'}</span>
+                        </span>
+                      ) : null}
                       {activePreviewSwallow ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-orange-50 text-[#FF4C00] text-[10px] font-bold uppercase tracking-wide border border-orange-200/60">
                           Swallow: {activePreviewSwallow}
@@ -1439,6 +1575,151 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
           </div>
         )}
+
+      {/* UNIVERSAL MONDAY & THURSDAY DUAL MEAL TYPE SELECTION POPUP */}
+      {dualMealModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm font-['Poppins'] animate-in fade-in duration-200">
+          <div className="relative w-full max-w-xl bg-white text-zinc-900 rounded-3xl border border-zinc-200 shadow-2xl p-6 sm:p-7 space-y-5 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200 text-left">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-zinc-150 pb-3">
+              <div>
+                <span className="inline-flex items-center space-x-1.5 text-[10px] font-black uppercase tracking-widest text-[#FF4C00] bg-orange-50 border border-orange-200 px-2.5 py-0.5 rounded-full mb-1">
+                  <Sparkles className="w-3 h-3" />
+                  <span>{dualMealModal.meal.day} Choice • 2 Meal Types</span>
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-black leading-tight">
+                  Choose Your {dualMealModal.meal.day} Meal
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {dualMealModal.dateFormatted} • Select which meal you want delivered to your office desk.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDualMealModal(null)}
+                className="p-2 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-black transition cursor-pointer shrink-0"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 2 Meal Options Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {(dualMealModal.meal.mealOptions || []).map((opt, idx) => {
+                const isSelected = selectedMealChoiceId === opt.id;
+                return (
+                  <div
+                    key={opt.id}
+                    onClick={() => setSelectedMealChoiceId(opt.id)}
+                    className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-3 relative text-left group ${
+                      isSelected
+                        ? 'border-[#FF4C00] bg-orange-50/40 shadow-sm ring-2 ring-[#FF4C00]/25'
+                        : 'border-zinc-200 hover:border-zinc-300 bg-white hover:bg-[#FAF7F2]'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span
+                          className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                            isSelected
+                              ? 'bg-[#FF4C00] text-white shadow-2xs'
+                              : 'bg-zinc-100 text-zinc-600'
+                          }`}
+                        >
+                          Option {idx + 1}
+                        </span>
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition shrink-0 ${
+                            isSelected
+                              ? 'border-[#FF4C00] bg-[#FF4C00] text-white'
+                              : 'border-zinc-300 bg-white group-hover:border-zinc-400'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                      </div>
+
+                      {/* Representation Image */}
+                      {opt.imageUrl && opt.imageUrl.trim() !== '' ? (
+                        <div className="w-full h-32 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200 mb-2.5 shadow-2xs">
+                          <img
+                            src={opt.imageUrl}
+                            alt={opt.name}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full h-24 rounded-xl bg-zinc-100/70 border border-dashed border-zinc-200 mb-2.5 flex flex-col items-center justify-center text-zinc-400">
+                          <Utensils className="w-5 h-5 opacity-40 mb-1" />
+                          <span className="text-[10px] font-medium text-zinc-400">Fresh Chef Recipe</span>
+                        </div>
+                      )}
+
+                      <h4 className="text-sm font-black text-black leading-snug break-words">
+                        {opt.name}
+                      </h4>
+                    </div>
+
+                    <div className="pt-2 border-t border-zinc-150 flex items-center justify-between text-[11px]">
+                      <span className="text-zinc-500 font-semibold px-2 py-0.5 rounded bg-zinc-100 text-[10px]">
+                        {opt.category}
+                      </span>
+                      <span className="font-black text-[#FF4C00]">
+                        ₦{(opt.price || calculateMealPrice(dualMealModal.meal)).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Actions: Lock in pick */}
+            <div className="pt-2 space-y-2.5">
+              <button
+                type="button"
+                onClick={handleConfirmMealChoice}
+                className="w-full py-3.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white font-black text-xs uppercase tracking-wider transition shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <Lock className="w-4 h-4" />
+                <span>
+                  Lock in My Pick (
+                  {dualMealModal.meal.mealOptions?.find((o) => o.id === selectedMealChoiceId)?.id === 'opt-2'
+                    ? 'Option 2'
+                    : 'Option 1'}
+                  )
+                </span>
+              </button>
+
+              <div className="flex items-center justify-between text-xs pt-1 px-1">
+                {dualMealModal.isAlreadySelected ? (
+                  <button
+                    type="button"
+                    onClick={handleRemoveDualMealDay}
+                    className="text-red-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Remove Day from Plan
+                  </button>
+                ) : (
+                  <span />
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setDualMealModal(null)}
+                  className="text-zinc-500 font-semibold hover:text-black cursor-pointer ml-auto"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* UNIVERSAL FRIDAY SWALLOW SELECTION & CONFIRMATION POPUP (Desktop & Mobile) */}
       {swallowModal && (

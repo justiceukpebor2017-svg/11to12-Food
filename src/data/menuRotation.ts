@@ -1,4 +1,4 @@
-import { DayOfWeek, MenuItem, MealCategory, StructuredMeal, SwallowType } from '../types';
+import { DayOfWeek, MenuItem, MealCategory, StructuredMeal, SwallowType, MealOption } from '../types';
 import {
   saveMenuOverridesToFirestore,
   subscribeToMenuOverrides,
@@ -371,6 +371,74 @@ export const MEAL_INGREDIENTS_MAP: Record<string, string[]> = {
   'fried rice + turkey': ['Rice', 'Turkey', 'Carrots', 'Peas', 'Sweet corn', 'Green beans', 'Spring onions', 'Liver', 'Curry', 'Vegetable oil', 'Seasoning', 'Salt'],
 };
 
+// Curated Nigerian lunch alternatives for Monday and Thursday dual-meal choices
+export const MONDAY_ALTERNATIVE_MEALS: { name: string; category: MealCategory }[] = [
+  { name: 'Smoky Jollof Rice + Peppered Chicken + Sweet Plantain', category: 'Rice' },
+  { name: 'Special Fried Rice + Grilled Turkey + Coleslaw', category: 'Rice' },
+  { name: 'Honey Beans + Sweet Fried Plantain + Fish', category: 'Beans / Moi Moi' },
+  { name: 'Stir-fry Spaghetti + Shredded Beef + Fried Egg', category: 'Pasta' },
+  { name: 'White Rice + Rich Tomato Stew + Spiced Chicken', category: 'Rice' },
+  { name: 'Crispy Fried Yam + Peppered Turkey + Egg Sauce', category: 'Yam' },
+  { name: 'Smoky Jollof Rice + Grilled Croaker Fish', category: 'Rice' },
+  { name: 'Yam Pottage (Asaro) + Peppered Chicken', category: 'Yam' },
+  { name: 'Special Fried Rice + Grilled Chicken + Dodo', category: 'Rice' },
+  { name: 'Boiled Sweet Potato + Fish Egg Sauce', category: 'Yam' },
+  { name: 'Ofada Rice + Designer Stew (Ayamase) + Boiled Egg', category: 'Rice' },
+  { name: 'Honey Beans + Sweet Fried Plantain + Peppered Turkey', category: 'Beans / Moi Moi' },
+  { name: 'Jollof Spaghetti + Slow-Cooked Beef + Dodo', category: 'Pasta' },
+];
+
+export const THURSDAY_ALTERNATIVE_MEALS: { name: string; category: MealCategory }[] = [
+  { name: 'Native Jollof Rice (Iwuk Edesi) + Dry Fish + Boiled Egg', category: 'Rice' },
+  { name: 'Yam Pottage (Asaro) + Tender Shredded Beef', category: 'Yam' },
+  { name: 'Spicy Singapore Style Noodles + Turkey Bits', category: 'Pasta' },
+  { name: 'Ofada Rice + Ayamase Sauce + Seasoned Beef', category: 'Rice' },
+  { name: 'Fried Plantain (Dodo) + Peppered Gizzard + Fried Egg', category: 'Plantain' },
+  { name: 'Jollof Spaghetti + Spiced Grilled Chicken', category: 'Pasta' },
+  { name: 'White Rice + Fresh Fish Pepper Soup', category: 'Rice' },
+  { name: 'Honey Beans + Dodo + Peppered Fish', category: 'Beans / Moi Moi' },
+  { name: 'Crispy Fried Yam + Spiced Turkey + Tomato Sauce', category: 'Yam' },
+  { name: 'Special Fried Rice + Peppered Beef + Dodo', category: 'Rice' },
+  { name: 'Smoky Jollof Rice + Grilled Fish + Coleslaw', category: 'Rice' },
+  { name: 'Yam Pottage (Asaro) + Peppered Turkey', category: 'Yam' },
+  { name: 'White Rice + Rich Chicken Curry Sauce', category: 'Rice' },
+];
+
+export function getDefaultDualMealOptions(
+  dayFullName: string,
+  primaryTitle: string,
+  dateStr: string,
+  rotationIndex = 0,
+  primaryImage?: string,
+  primaryCategory: MealCategory = 'Rice',
+  primaryPrice?: number
+): MealOption[] {
+  const isMonday = dayFullName === 'Monday' || dayFullName === 'Mon';
+  const altList = isMonday ? MONDAY_ALTERNATIVE_MEALS : THURSDAY_ALTERNATIVE_MEALS;
+  const alt = altList[Math.abs(rotationIndex) % altList.length] || altList[0];
+
+  return [
+    {
+      id: 'opt-1',
+      name: primaryTitle,
+      category: primaryCategory,
+      price: primaryPrice,
+      imageUrl: primaryImage,
+      hasCustomImage: Boolean(primaryImage),
+      description: 'Chef Kitchen Selection (Option 1)',
+    },
+    {
+      id: 'opt-2',
+      name: alt.name,
+      category: alt.category,
+      price: primaryPrice,
+      imageUrl: undefined,
+      hasCustomImage: false,
+      description: 'Alternative Kitchen Selection (Option 2)',
+    },
+  ];
+}
+
 // Helper to structure each meal according to user-defined categories
 export function parseStructuredMeal(
   mealTitle: string,
@@ -467,6 +535,11 @@ export function parseStructuredMeal(
   const holidayName = KNOWN_HOLIDAYS[dateStr];
   const isHoliday = Boolean(holidayName);
 
+  const isDualDay = day === 'Monday' || day === 'Mon' || day === 'Thursday' || day === 'Thu';
+  const mealOptions = isDualDay
+    ? getDefaultDualMealOptions(day, mealTitle, dateStr, 0, imageUrl, mealCategory, priceOverride)
+    : undefined;
+
   return {
     id: `meal-${dateStr}`,
     dateStr,
@@ -484,6 +557,8 @@ export function parseStructuredMeal(
     imageUrl,
     hasCustomImage: Boolean(imageUrl),
     ingredients,
+    hasDualOptions: isDualDay,
+    mealOptions,
   };
 }
 
@@ -704,28 +779,19 @@ export function getStructuredMealForDate(targetDate: Date): StructuredMeal | nul
   const dd = String(targetDate.getDate()).padStart(2, '0');
   const dateStr = `${yyyy}-${mm}-${dd}`;
 
-  // If the admin has edited or overridden this specific date, return the overridden meal
-  if (customMealOverrides[dateStr]) {
-    return customMealOverrides[dateStr];
-  }
-
-  const dayMap: Record<number, 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'> = {
-    1: 'Monday',
-    2: 'Tuesday',
-    3: 'Wednesday',
-    4: 'Thursday',
-    5: 'Friday',
-  };
-  const dayKeyMap: Record<number, keyof WeekMenuPlan['days']> = {
-    1: 'Mon',
-    2: 'Tue',
-    3: 'Wed',
-    4: 'Thu',
-    5: 'Fri',
-  };
-
-  const dayFullName = dayMap[dayOfWeek] || 'Monday';
-  const dayShortKey = dayKeyMap[dayOfWeek] || 'Mon';
+  const dayNames: Array<'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'> = [
+    'Monday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Monday',
+  ];
+  const dayShortKeys: Array<'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri'> = ['Mon', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Mon'];
+  const dayFullName = dayNames[dayOfWeek] || 'Monday';
+  const dayShortKey = dayShortKeys[dayOfWeek] || 'Mon';
+  const isDualDay = dayFullName === 'Monday' || dayFullName === 'Thursday';
 
   // UTC-normalized week difference to avoid DST/timezone hour offsets
   const d1 = Date.UTC(BASE_DATE.getFullYear(), BASE_DATE.getMonth(), BASE_DATE.getDate());
@@ -736,9 +802,53 @@ export function getStructuredMealForDate(targetDate: Date): StructuredMeal | nul
   const rotationIndex = ((weekNum % 26) + 26) % 26;
   const currentWeekPlan = TWENTY_SIX_WEEK_MENU[rotationIndex];
 
-  const mealTitle = currentWeekPlan.days[dayShortKey] || 'Fried yam + egg sauce + fish';
+  // If the admin has edited or overridden this specific date, return the overridden meal
+  if (customMealOverrides[dateStr]) {
+    const override = customMealOverrides[dateStr];
+    if (isDualDay) {
+      if (!override.mealOptions || override.mealOptions.length < 2) {
+        const defaultOptions = getDefaultDualMealOptions(
+          dayFullName,
+          override.mealName,
+          dateStr,
+          rotationIndex,
+          override.imageUrl,
+          override.mealCategory,
+          override.price
+        );
+        return {
+          ...override,
+          hasDualOptions: true,
+          mealOptions:
+            override.mealOptions && override.mealOptions.length === 1
+              ? [override.mealOptions[0], defaultOptions[1]]
+              : defaultOptions,
+        };
+      }
+      return {
+        ...override,
+        hasDualOptions: true,
+      };
+    }
+    return override;
+  }
 
-  return parseStructuredMeal(mealTitle, dayFullName, dateStr);
+  const mealTitle = currentWeekPlan.days[dayShortKey] || 'Fried yam + egg sauce + fish';
+  const structured = parseStructuredMeal(mealTitle, dayFullName, dateStr);
+  if (isDualDay) {
+    structured.hasDualOptions = true;
+    structured.mealOptions = getDefaultDualMealOptions(
+      dayFullName,
+      mealTitle,
+      dateStr,
+      rotationIndex,
+      structured.imageUrl,
+      structured.mealCategory,
+      structured.price
+    );
+  }
+
+  return structured;
 }
 
 export function getStructuredMealForDateStr(dateStr: string): StructuredMeal | null {
