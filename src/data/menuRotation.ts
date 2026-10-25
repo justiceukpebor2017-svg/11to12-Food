@@ -603,12 +603,20 @@ export function safeSaveStoredOverrides(overrides: Record<string, StructuredMeal
       const lightweight: Record<string, StructuredMeal> = {};
       Object.keys(overrides).forEach((k) => {
         const item = overrides[k];
-        // Strip heavy base64 data URLs from localStorage only (the backend keeps full images)
-        if (item.imageUrl && item.imageUrl.startsWith('data:') && item.imageUrl.length > 5000) {
-          lightweight[k] = { ...item, imageUrl: '' };
-        } else {
-          lightweight[k] = item;
+        let cleanedImg = item.imageUrl;
+        if (cleanedImg && cleanedImg.startsWith('data:') && cleanedImg.length > 2000) {
+          cleanedImg = '';
         }
+        let cleanedOptions = item.mealOptions;
+        if (Array.isArray(cleanedOptions)) {
+          cleanedOptions = cleanedOptions.map((opt) => {
+            if (opt?.imageUrl && opt.imageUrl.startsWith('data:') && opt.imageUrl.length > 2000) {
+              return { ...opt, imageUrl: '' };
+            }
+            return opt;
+          });
+        }
+        lightweight[k] = { ...item, imageUrl: cleanedImg, mealOptions: cleanedOptions };
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(lightweight));
     } catch {
@@ -618,6 +626,65 @@ export function safeSaveStoredOverrides(overrides: Record<string, StructuredMeal
 }
 
 export const customMealOverrides: Record<string, StructuredMeal> = loadStoredOverrides();
+
+/**
+ * Merges incoming remote overrides into local in-memory cache without
+ * overwriting custom meal names or images with blank or stale data.
+ */
+export function mergeRemoteOverrides(incoming: Record<string, any>): void {
+  if (!incoming || typeof incoming !== 'object') return;
+  let hasChanges = false;
+
+  Object.keys(incoming).forEach((dateKey) => {
+    const remoteMeal = incoming[dateKey];
+    if (!remoteMeal || typeof remoteMeal !== 'object') return;
+    const localMeal = customMealOverrides[dateKey];
+
+    if (!localMeal) {
+      customMealOverrides[dateKey] = remoteMeal;
+      hasChanges = true;
+    } else {
+      const finalMealName = remoteMeal.mealName?.trim() || localMeal.mealName;
+      const finalImageUrl = remoteMeal.imageUrl || localMeal.imageUrl || '';
+      const finalHasCustomImage = Boolean(finalImageUrl) || Boolean(remoteMeal.hasCustomImage || localMeal.hasCustomImage);
+
+      const merged: StructuredMeal = {
+        ...localMeal,
+        ...remoteMeal,
+        mealName: finalMealName,
+        imageUrl: finalImageUrl,
+        hasCustomImage: finalHasCustomImage,
+        isHoliday: remoteMeal.isHoliday ?? localMeal.isHoliday,
+        isNoDelivery: remoteMeal.isNoDelivery ?? localMeal.isNoDelivery,
+      };
+
+      if (Array.isArray(remoteMeal.mealOptions)) {
+        merged.mealOptions = remoteMeal.mealOptions.map((opt: any, idx: number) => {
+          const localOpt = localMeal.mealOptions?.[idx];
+          const optName = opt?.name?.trim() || localOpt?.name?.trim() || (idx === 0 ? finalMealName : 'Option 2 Alternative');
+          const optImg = opt?.imageUrl || localOpt?.imageUrl || (idx === 0 ? finalImageUrl : '');
+          return {
+            ...localOpt,
+            ...opt,
+            name: optName,
+            imageUrl: optImg,
+            hasCustomImage: Boolean(optImg),
+          };
+        });
+      } else if (Array.isArray(localMeal.mealOptions)) {
+        merged.mealOptions = localMeal.mealOptions;
+      }
+
+      customMealOverrides[dateKey] = merged;
+      hasChanges = true;
+    }
+  });
+
+  if (hasChanges) {
+    safeSaveStoredOverrides(customMealOverrides);
+    broadcastMenuUpdate();
+  }
+}
 
 type MenuChangeListener = () => void;
 const menuListeners: Set<MenuChangeListener> = new Set();
@@ -669,9 +736,7 @@ if (typeof window !== 'undefined') {
     getMenuOverridesFromFirestore()
       .then((remote) => {
         if (remote && typeof remote === 'object' && Object.keys(remote).length > 0) {
-          Object.assign(customMealOverrides, remote);
-          safeSaveStoredOverrides(customMealOverrides);
-          broadcastMenuUpdate();
+          mergeRemoteOverrides(remote);
         }
       })
       .catch(() => {});
@@ -683,9 +748,7 @@ if (typeof window !== 'undefined') {
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         if (json?.meals && typeof json.meals === 'object' && Object.keys(json.meals).length > 0) {
-          Object.assign(customMealOverrides, json.meals);
-          safeSaveStoredOverrides(customMealOverrides);
-          broadcastMenuUpdate();
+          mergeRemoteOverrides(json.meals);
         }
       })
       .catch(() => {});
@@ -695,9 +758,7 @@ if (typeof window !== 'undefined') {
   try {
     subscribeToMenuOverrides((remoteOverrides) => {
       if (remoteOverrides && typeof remoteOverrides === 'object') {
-        Object.assign(customMealOverrides, remoteOverrides);
-        safeSaveStoredOverrides(customMealOverrides);
-        broadcastMenuUpdate();
+        mergeRemoteOverrides(remoteOverrides);
       }
     });
   } catch (err) {
@@ -709,14 +770,14 @@ if (typeof window !== 'undefined') {
     if (e.key === STORAGE_KEY && e.newValue) {
       try {
         const parsed = JSON.parse(e.newValue);
-        Object.assign(customMealOverrides, parsed);
-        broadcastMenuUpdate();
+        mergeRemoteOverrides(parsed);
       } catch {}
     }
   });
 }
 
 export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
+  // Immediate optimistic update
   customMealOverrides[dateStr] = meal;
   safeSaveStoredOverrides(customMealOverrides);
   broadcastMenuUpdate();
@@ -727,9 +788,19 @@ export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dateStr, meal }),
-    }).catch((err) => {
-      console.warn('[Server API meal update notice]:', err);
-    });
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.meal) {
+          customMealOverrides[dateStr] = data.meal;
+          safeSaveStoredOverrides(customMealOverrides);
+          saveMenuOverridesToFirestore(customMealOverrides).catch(() => {});
+          broadcastMenuUpdate();
+        }
+      })
+      .catch((err) => {
+        console.warn('[Server API meal update notice]:', err);
+      });
   } catch {}
 
   // Worldwide instant sync 2: Firestore Cloud Document
@@ -747,9 +818,19 @@ export function batchUpdateMeals(mealsMap: Record<string, StructuredMeal>) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ meals: mealsMap }),
-    }).catch((err) => {
-      console.warn('[Server API batch meals update notice]:', err);
-    });
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.meals) {
+          Object.assign(customMealOverrides, data.meals);
+          safeSaveStoredOverrides(customMealOverrides);
+          saveMenuOverridesToFirestore(customMealOverrides).catch(() => {});
+          broadcastMenuUpdate();
+        }
+      })
+      .catch((err) => {
+        console.warn('[Server API batch meals update notice]:', err);
+      });
   } catch {}
 
   // Worldwide instant sync 2: Firestore Cloud Document
@@ -825,9 +906,19 @@ export function getStructuredMealForDate(targetDate: Date): StructuredMeal | nul
               : defaultOptions,
         };
       }
+      // Ensure Option 1 mirrors override.mealName and override.imageUrl
+      const opt1 = override.mealOptions[0];
+      const opt2 = override.mealOptions[1];
+      const syncedOpt1 = {
+        ...opt1,
+        name: override.mealName || opt1?.name || 'Option 1 Special',
+        imageUrl: opt1?.imageUrl || override.imageUrl || '',
+        hasCustomImage: Boolean(opt1?.imageUrl || override.imageUrl),
+      };
       return {
         ...override,
         hasDualOptions: true,
+        mealOptions: [syncedOpt1, opt2],
       };
     }
     return override;
@@ -852,9 +943,6 @@ export function getStructuredMealForDate(targetDate: Date): StructuredMeal | nul
 }
 
 export function getStructuredMealForDateStr(dateStr: string): StructuredMeal | null {
-  if (customMealOverrides[dateStr]) {
-    return customMealOverrides[dateStr];
-  }
   return getStructuredMealForDate(parseYmd(dateStr));
 }
 

@@ -343,7 +343,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     }
   };
 
-  const handleSaveMealOverride = () => {
+  const handleSaveMealOverride = async () => {
     if (!editingDateStr) return;
     const [y, m, d] = editingDateStr.split('-').map(Number);
     const existing = getStructuredMealForDate(new Date(y, m - 1, d));
@@ -353,12 +353,37 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     const isDual = dayOfWeekIndex === 1 || dayOfWeekIndex === 4 || Boolean(existing?.hasDualOptions);
 
     const parsedPrice = Number(editMealPrice) > 0 ? Number(editMealPrice) : 2900;
-    const finalImageUrl = editMealImageUrl.trim();
+    
+    // Auto-convert any base64 image data URL to permanent static URL on server
+    let finalImageUrl = editMealImageUrl.trim();
+    if (finalImageUrl.startsWith('data:image/')) {
+      try {
+        const uploaded = await uploadMealImageToServer(finalImageUrl);
+        if (uploaded) {
+          finalImageUrl = uploaded;
+          setEditMealImageUrl(uploaded);
+        }
+      } catch (err) {
+        console.warn('Image pre-upload notice:', err);
+      }
+    }
 
     let mealOptions: MealOption[] | undefined = undefined;
     if (isDual) {
       const parsedOpt2Price = Number(editOption2Price) > 0 ? Number(editOption2Price) : parsedPrice;
-      const finalOpt2Image = editOption2ImageUrl.trim();
+      let finalOpt2Image = editOption2ImageUrl.trim();
+      if (finalOpt2Image.startsWith('data:image/')) {
+        try {
+          const uploadedOpt2 = await uploadMealImageToServer(finalOpt2Image);
+          if (uploadedOpt2) {
+            finalOpt2Image = uploadedOpt2;
+            setEditOption2ImageUrl(uploadedOpt2);
+          }
+        } catch (err) {
+          console.warn('Option 2 image pre-upload notice:', err);
+        }
+      }
+
       mealOptions = [
         {
           id: 'opt-1',

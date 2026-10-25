@@ -360,6 +360,52 @@ app.post('/api/orders', (req, res) => {
   return res.status(201).json(order);
 });
 
+// Extract and save base64 image data URL to disk in /data/uploads, returning static /uploads/... URL
+function saveBase64DataUrlToDisk(dataUrl: string, prefix = 'meal'): string {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+    return dataUrl;
+  }
+  try {
+    let ext = 'jpg';
+    let base64Clean = dataUrl;
+    const match = dataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+    if (match) {
+      ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+      base64Clean = match[2];
+    }
+    const buffer = Buffer.from(base64Clean, 'base64');
+    const safeName = `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+    const filePath = path.join(uploadsDir, safeName);
+    fs.writeFileSync(filePath, buffer);
+    return `/uploads/${safeName}`;
+  } catch (err) {
+    console.warn('[Server] Error saving base64 image to disk:', err);
+    return dataUrl;
+  }
+}
+
+function normalizeMealImagesOnServer(meal: any, datePrefix = 'meal'): any {
+  if (!meal || typeof meal !== 'object') return meal;
+  const cleanMeal = { ...meal };
+  if (cleanMeal.imageUrl && typeof cleanMeal.imageUrl === 'string' && cleanMeal.imageUrl.startsWith('data:image/')) {
+    cleanMeal.imageUrl = saveBase64DataUrlToDisk(cleanMeal.imageUrl, `${datePrefix}-main`);
+    cleanMeal.hasCustomImage = true;
+  }
+  if (Array.isArray(cleanMeal.mealOptions)) {
+    cleanMeal.mealOptions = cleanMeal.mealOptions.map((opt: any, idx: number) => {
+      if (opt && opt.imageUrl && typeof opt.imageUrl === 'string' && opt.imageUrl.startsWith('data:image/')) {
+        return {
+          ...opt,
+          imageUrl: saveBase64DataUrlToDisk(opt.imageUrl, `${datePrefix}-opt${idx + 1}`),
+          hasCustomImage: true,
+        };
+      }
+      return opt;
+    });
+  }
+  return cleanMeal;
+}
+
 // Custom Meal Schedule Endpoints
 app.get('/api/meals', (_req, res) => {
   res.json({ meals: getCustomMealsInDb() });
@@ -370,8 +416,9 @@ app.post('/api/meals', (req, res) => {
   if (!dateStr || !meal) {
     return res.status(400).json({ error: 'dateStr and meal are required' });
   }
-  updateCustomMealInDb(dateStr, meal);
-  return res.json({ success: true, dateStr, meal });
+  const cleanMeal = normalizeMealImagesOnServer(meal, `meal-${dateStr}`);
+  updateCustomMealInDb(dateStr, cleanMeal);
+  return res.json({ success: true, dateStr, meal: cleanMeal });
 });
 
 app.post('/api/meals/batch', (req, res) => {
@@ -379,8 +426,12 @@ app.post('/api/meals/batch', (req, res) => {
   if (!meals || typeof meals !== 'object') {
     return res.status(400).json({ error: 'meals map required' });
   }
-  batchUpdateMealsInDb(meals);
-  return res.json({ success: true, count: Object.keys(meals).length });
+  const cleanBatch: Record<string, any> = {};
+  for (const [dateStr, meal] of Object.entries(meals)) {
+    cleanBatch[dateStr] = normalizeMealImagesOnServer(meal, `meal-${dateStr}`);
+  }
+  batchUpdateMealsInDb(cleanBatch);
+  return res.json({ success: true, count: Object.keys(cleanBatch).length, meals: cleanBatch });
 });
 
 // Meal representation image upload endpoint: accepts base64 data URL, saves to disk in /uploads, returns public URL
@@ -391,24 +442,7 @@ app.post('/api/upload-meal-image', (req, res) => {
       return res.status(400).json({ error: 'imageData string is required' });
     }
 
-    let ext = 'jpg';
-    let base64Clean = imageData;
-
-    if (imageData.startsWith('data:image/')) {
-      const match = imageData.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
-      if (match) {
-        ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-        base64Clean = match[2];
-      }
-    }
-
-    const buffer = Buffer.from(base64Clean, 'base64');
-    const safeName = `meal-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
-    const filePath = path.join(uploadsDir, safeName);
-
-    fs.writeFileSync(filePath, buffer);
-
-    const publicUrl = `/uploads/${safeName}`;
+    const publicUrl = saveBase64DataUrlToDisk(imageData, `meal-${Date.now()}`);
     return res.json({ success: true, url: publicUrl });
   } catch (err: any) {
     console.error('Error saving uploaded meal image:', err);

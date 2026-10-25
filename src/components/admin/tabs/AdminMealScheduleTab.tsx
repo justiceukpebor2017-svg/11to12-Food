@@ -5,8 +5,10 @@ import {
   calculateMealPrice,
   PER_DAY_FEE,
   CreditRedemptionOrder,
+  MealCategory,
+  MealOption,
 } from '../../../types';
-import { getStructuredMealForDate, updateCustomMealForDate, subscribeMenuChanges } from '../../../data/menuRotation';
+import { getStructuredMealForDate, updateCustomMealForDate, subscribeMenuChanges, uploadMealImageToServer } from '../../../data/menuRotation';
 import { exportToCsv } from '../../../utils/csvExport';
 import { downloadMealExcelTemplate, parseAndApplyMealSpreadsheet } from '../../../utils/mealExcelService';
 import { liveSync } from '../../../services/liveSyncService';
@@ -31,7 +33,47 @@ import {
   Edit,
   Sparkles,
   X,
+  UploadCloud,
+  Image as ImageIcon,
+  Trash2,
 } from 'lucide-react';
+
+// Client-side image compressor for lightweight storage and fast syncing
+function compressMealImage(file: File, maxDim = 600, quality = 0.78): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 interface AdminMealScheduleTabProps {
   customers: CustomerRecord[];
@@ -112,7 +154,21 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
   // Inline edit state for selected date
   const [isEditingMeal, setIsEditingMeal] = useState(false);
   const [editMealName, setEditMealName] = useState('');
+  const [editMealCategory, setEditMealCategory] = useState<MealCategory>('Rice');
   const [editMealPrice, setEditMealPrice] = useState(2900);
+  const [editMealImageUrl, setEditMealImageUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const mealImageInputRef = useRef<HTMLInputElement>(null);
+
+  // Monday & Thursday Dual Meal Type - Option 2 state
+  const [editOption2Name, setEditOption2Name] = useState('');
+  const [editOption2Category, setEditOption2Category] = useState<MealCategory>('Rice');
+  const [editOption2Price, setEditOption2Price] = useState(2900);
+  const [editOption2ImageUrl, setEditOption2ImageUrl] = useState('');
+  const [isUploadingOption2Image, setIsUploadingOption2Image] = useState(false);
+  const option2ImageInputRef = useRef<HTMLInputElement>(null);
+  const [activeEditOptionTab, setActiveEditOptionTab] = useState<'opt1' | 'opt2'>('opt1');
+
   const [editIsHoliday, setEditIsHoliday] = useState(false);
 
   // Selected Date Object
@@ -127,24 +183,133 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
   }, [selectedDateObj, importStatus]);
 
   const handleStartEditCurrentDate = () => {
-    if (mealForDate) {
-      setEditMealName(mealForDate.mealName);
-      setEditMealPrice(calculateMealPrice(mealForDate));
-      setEditIsHoliday(mealForDate.isHoliday || mealForDate.isNoDelivery || false);
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dayOfWeekIndex = new Date(y, m - 1, d).getDay();
+    const isDual = dayOfWeekIndex === 1 || dayOfWeekIndex === 4 || Boolean(mealForDate?.hasDualOptions);
+
+    setActiveEditOptionTab('opt1');
+
+    const opt1 = mealForDate?.mealOptions?.[0];
+    const opt2 = mealForDate?.mealOptions?.[1];
+
+    setEditMealName(opt1?.name || mealForDate?.mealName || 'Jollof Rice + Chicken');
+    setEditMealCategory(opt1?.category || mealForDate?.mealCategory || 'Rice');
+    setEditMealPrice(opt1?.price || (mealForDate ? calculateMealPrice(mealForDate) : 2900));
+    setEditMealImageUrl(opt1?.imageUrl || mealForDate?.imageUrl || '');
+    setEditIsHoliday(mealForDate?.isHoliday || mealForDate?.isNoDelivery || false);
+
+    if (isDual) {
+      setEditOption2Name(
+        opt2?.name ||
+        (dayOfWeekIndex === 1
+          ? 'Smoky Jollof Rice + Peppered Chicken + Sweet Plantain'
+          : 'Native Jollof Rice (Iwuk Edesi) + Dry Fish + Boiled Egg')
+      );
+      setEditOption2Category(opt2?.category || 'Rice');
+      setEditOption2Price(opt2?.price || (mealForDate ? calculateMealPrice(mealForDate) : 2900));
+      setEditOption2ImageUrl(opt2?.imageUrl || '');
     } else {
-      setEditMealName('Jollof Rice + Chicken');
-      setEditMealPrice(2900);
-      setEditIsHoliday(false);
+      setEditOption2Name('');
+      setEditOption2ImageUrl('');
     }
+
     setIsEditingMeal(true);
   };
 
-  const handleSaveCurrentDateMeal = () => {
+  const handleMealImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingImage(true);
+    try {
+      const compressedDataUrl = await compressMealImage(file, 600, 0.78);
+      const uploadedUrl = await uploadMealImageToServer(compressedDataUrl, file.name);
+      if (uploadedUrl) {
+        setEditMealImageUrl(uploadedUrl);
+      } else {
+        setEditMealImageUrl(compressedDataUrl);
+      }
+    } catch (err) {
+      console.warn('Image upload error:', err);
+    } finally {
+      setIsUploadingImage(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleOption2ImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingOption2Image(true);
+    try {
+      const compressedDataUrl = await compressMealImage(file, 600, 0.78);
+      const uploadedUrl = await uploadMealImageToServer(compressedDataUrl, file.name);
+      if (uploadedUrl) {
+        setEditOption2ImageUrl(uploadedUrl);
+      } else {
+        setEditOption2ImageUrl(compressedDataUrl);
+      }
+    } catch (err) {
+      console.warn('Option 2 image upload error:', err);
+    } finally {
+      setIsUploadingOption2Image(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleSaveCurrentDateMeal = async () => {
     const [y, m, d] = selectedDate.split('-').map(Number);
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayName = (dayNames[new Date(y, m - 1, d).getDay()] || 'Monday') as any;
+    const dayOfWeekIndex = new Date(y, m - 1, d).getDay();
+    const dayName = (dayNames[dayOfWeekIndex] || 'Monday') as any;
+    const isDual = dayOfWeekIndex === 1 || dayOfWeekIndex === 4 || Boolean(mealForDate?.hasDualOptions);
 
     const parsedPrice = Number(editMealPrice) > 0 ? Number(editMealPrice) : 2900;
+
+    // Auto-convert any base64 image data URL to permanent static URL on server
+    let finalImageUrl = editMealImageUrl.trim();
+    if (finalImageUrl.startsWith('data:image/')) {
+      try {
+        const uploaded = await uploadMealImageToServer(finalImageUrl);
+        if (uploaded) finalImageUrl = uploaded;
+      } catch (err) {
+        console.warn('Image pre-upload notice:', err);
+      }
+    }
+
+    let mealOptions: MealOption[] | undefined = undefined;
+    if (isDual) {
+      const parsedOpt2Price = Number(editOption2Price) > 0 ? Number(editOption2Price) : parsedPrice;
+      let finalOpt2Image = editOption2ImageUrl.trim();
+      if (finalOpt2Image.startsWith('data:image/')) {
+        try {
+          const uploadedOpt2 = await uploadMealImageToServer(finalOpt2Image);
+          if (uploadedOpt2) finalOpt2Image = uploadedOpt2;
+        } catch (err) {
+          console.warn('Option 2 image pre-upload notice:', err);
+        }
+      }
+
+      mealOptions = [
+        {
+          id: 'opt-1',
+          name: editMealName.trim() || 'Option 1 Special',
+          category: editMealCategory,
+          price: parsedPrice,
+          imageUrl: finalImageUrl || '',
+          hasCustomImage: Boolean(finalImageUrl),
+          description: 'Chef Kitchen Selection (Option 1)',
+        },
+        {
+          id: 'opt-2',
+          name: editOption2Name.trim() || 'Option 2 Special',
+          category: editOption2Category,
+          price: parsedOpt2Price,
+          imageUrl: finalOpt2Image || '',
+          hasCustomImage: Boolean(finalOpt2Image),
+          description: 'Alternative Kitchen Selection (Option 2)',
+        },
+      ];
+    }
 
     const updatedMeal: StructuredMeal = {
       ...(mealForDate || {
@@ -152,19 +317,23 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
         dateStr: selectedDate,
         day: dayName,
         mealName: editMealName,
-        mealCategory: 'Rice',
-        imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800',
+        mealCategory: editMealCategory,
       }),
       mealName: editMealName.trim() || (mealForDate?.mealName ?? 'Daily Chef Special'),
+      mealCategory: editMealCategory,
       price: parsedPrice,
+      imageUrl: finalImageUrl || '',
+      hasCustomImage: Boolean(finalImageUrl),
       isHoliday: editIsHoliday,
       isNoDelivery: editIsHoliday,
       holidayName: editIsHoliday ? 'Holiday / No Delivery' : undefined,
+      hasDualOptions: isDual,
+      mealOptions: isDual ? mealOptions : mealForDate?.mealOptions,
     };
 
     updateCustomMealForDate(selectedDate, updatedMeal);
     setIsEditingMeal(false);
-    setImportStatus(`Saved & Distributed! Meal "${updatedMeal.mealName}" (₦${parsedPrice.toLocaleString()}) updated real-time across Website, Dashboard & Admin.`);
+    setImportStatus(`Saved & Distributed! Meal "${updatedMeal.mealName}"${isDual ? ' with 2 Meal Types' : ''} (₦${parsedPrice.toLocaleString()}) updated real-time across Website, Dashboard & Admin.`);
     setTimeout(() => setImportStatus(null), 4000);
   };
 
@@ -621,99 +790,304 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
           {/* Meal Details & Quick Pricing/Holiday Controls */}
           <div className="md:col-span-2 bg-[#FAF7F2] border border-zinc-200/80 rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
             {isEditingMeal ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between pb-1 border-b border-zinc-200">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4C00]">
-                    Edit Meal & Price for {formattedDateLabel}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingMeal(false)}
-                    className="text-zinc-400 hover:text-zinc-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+              (() => {
+                const [y, m, d] = selectedDate.split('-').map(Number);
+                const dayOfWeekIndex = new Date(y, m - 1, d).getDay();
+                const isDual = dayOfWeekIndex === 1 || dayOfWeekIndex === 4 || Boolean(mealForDate?.hasDualOptions);
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-zinc-700 mb-1">
-                      Meal Name
-                    </label>
-                    <input
-                      type="text"
-                      value={editMealName}
-                      onChange={(e) => setEditMealName(e.target.value)}
-                      placeholder="e.g. Jollof rice + chicken + plantain"
-                      className="w-full bg-white border border-zinc-300 rounded-xl px-3 py-2 text-xs font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
-                    />
-                  </div>
+                return (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-zinc-200">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#FF4C00]">
+                          Edit Food Name, Image & Price for {formattedDateLabel}
+                        </span>
+                        {isDual && (
+                          <span className="text-[9px] font-black uppercase tracking-wider bg-orange-100 text-[#FF4C00] px-2 py-0.5 rounded-full">
+                            2 Meal Types
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingMeal(false)}
+                        className="text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-zinc-700 mb-1">
-                      Meal Price (₦)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2 text-zinc-400 font-bold">₦</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="100"
-                        value={editMealPrice}
-                        onChange={(e) => setEditMealPrice(Number(e.target.value))}
-                        className="w-full bg-white border border-zinc-300 rounded-xl pl-7 pr-3 py-2 text-xs font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
-                      />
+                    {/* Dual Option Switcher Tabs on Monday & Thursday */}
+                    {isDual && (
+                      <div className="flex items-center space-x-2 bg-zinc-100 p-1 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => setActiveEditOptionTab('opt1')}
+                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center space-x-1.5 ${
+                            activeEditOptionTab === 'opt1'
+                              ? 'bg-white text-zinc-900 shadow-2xs'
+                              : 'text-zinc-500 hover:text-zinc-800'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-[#FF4C00]"></span>
+                          <span>Option 1 (Primary Meal)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveEditOptionTab('opt2')}
+                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center space-x-1.5 ${
+                            activeEditOptionTab === 'opt2'
+                              ? 'bg-white text-zinc-900 shadow-2xs'
+                              : 'text-zinc-500 hover:text-zinc-800'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                          <span>Option 2 (Alternative Meal)</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Option 1 Fields */}
+                    {(!isDual || activeEditOptionTab === 'opt1') && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                          <div className="sm:col-span-2">
+                            <label className="block text-[11px] font-bold uppercase text-zinc-700 mb-1">
+                              {isDual ? 'Option 1 Food Name' : 'Meal Name'}
+                            </label>
+                            <input
+                              type="text"
+                              value={editMealName}
+                              onChange={(e) => setEditMealName(e.target.value)}
+                              placeholder="e.g. Boiled plantain & egg sauce"
+                              className="w-full bg-white border border-zinc-300 rounded-xl px-3 py-2 text-xs font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold uppercase text-zinc-700 mb-1">
+                              Price (₦)
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-2 text-zinc-400 font-bold">₦</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="100"
+                                value={editMealPrice}
+                                onChange={(e) => setEditMealPrice(Number(e.target.value))}
+                                className="w-full bg-white border border-zinc-300 rounded-xl pl-7 pr-3 py-2 text-xs font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Image upload & URL for Option 1 */}
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase text-zinc-700 mb-1">
+                            {isDual ? 'Option 1 Food Image (Upload or URL)' : 'Food Image (Upload or URL)'}
+                          </label>
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <input
+                              type="file"
+                              ref={mealImageInputRef}
+                              accept="image/*"
+                              onChange={handleMealImageFileChange}
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => mealImageInputRef.current?.click()}
+                              disabled={isUploadingImage}
+                              className="px-3 py-2 rounded-xl bg-white border border-zinc-300 hover:border-[#FF4C00] text-xs font-bold text-zinc-800 flex items-center justify-center space-x-1.5 transition cursor-pointer shrink-0"
+                            >
+                              <UploadCloud className="w-4 h-4 text-[#FF4C00]" />
+                              <span>{isUploadingImage ? 'Uploading Image...' : 'Upload Image'}</span>
+                            </button>
+
+                            <div className="relative flex-1">
+                              <ImageIcon className="w-4 h-4 text-zinc-400 absolute left-3 top-2.5" />
+                              <input
+                                type="text"
+                                value={editMealImageUrl}
+                                onChange={(e) => setEditMealImageUrl(e.target.value)}
+                                placeholder="Paste image link or upload above (e.g. /uploads/... or https://...)"
+                                className="w-full bg-white border border-zinc-300 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
+                              />
+                              {editMealImageUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditMealImageUrl('')}
+                                  className="absolute right-2 top-2 text-zinc-400 hover:text-red-500 cursor-pointer"
+                                  title="Clear Image"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            {editMealImageUrl && (
+                              <div className="w-10 h-10 rounded-xl overflow-hidden border border-zinc-200 shrink-0 bg-zinc-100 flex items-center justify-center">
+                                <img
+                                  src={editMealImageUrl}
+                                  alt="Preview"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Option 2 Fields on Monday & Thursday */}
+                    {isDual && activeEditOptionTab === 'opt2' && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                          <div className="sm:col-span-2">
+                            <label className="block text-[11px] font-bold uppercase text-zinc-700 mb-1">
+                              Option 2 Food Name (Alternative)
+                            </label>
+                            <input
+                              type="text"
+                              value={editOption2Name}
+                              onChange={(e) => setEditOption2Name(e.target.value)}
+                              placeholder="e.g. Native Jollof Rice (Iwuk Edesi) + Fish"
+                              className="w-full bg-white border border-zinc-300 rounded-xl px-3 py-2 text-xs font-bold text-zinc-900 focus:outline-none focus:border-blue-600"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold uppercase text-zinc-700 mb-1">
+                              Price (₦)
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-2 text-zinc-400 font-bold">₦</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="100"
+                                value={editOption2Price}
+                                onChange={(e) => setEditOption2Price(Number(e.target.value))}
+                                className="w-full bg-white border border-zinc-300 rounded-xl pl-7 pr-3 py-2 text-xs font-bold text-zinc-900 focus:outline-none focus:border-blue-600"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Image upload & URL for Option 2 */}
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase text-zinc-700 mb-1">
+                            Option 2 Food Image (Upload or URL)
+                          </label>
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <input
+                              type="file"
+                              ref={option2ImageInputRef}
+                              accept="image/*"
+                              onChange={handleOption2ImageFileChange}
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => option2ImageInputRef.current?.click()}
+                              disabled={isUploadingOption2Image}
+                              className="px-3 py-2 rounded-xl bg-white border border-zinc-300 hover:border-blue-600 text-xs font-bold text-zinc-800 flex items-center justify-center space-x-1.5 transition cursor-pointer shrink-0"
+                            >
+                              <UploadCloud className="w-4 h-4 text-blue-600" />
+                              <span>{isUploadingOption2Image ? 'Uploading...' : 'Upload Image'}</span>
+                            </button>
+
+                            <div className="relative flex-1">
+                              <ImageIcon className="w-4 h-4 text-zinc-400 absolute left-3 top-2.5" />
+                              <input
+                                type="text"
+                                value={editOption2ImageUrl}
+                                onChange={(e) => setEditOption2ImageUrl(e.target.value)}
+                                placeholder="Paste image link or upload above (e.g. /uploads/... or https://...)"
+                                className="w-full bg-white border border-zinc-300 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-zinc-900 focus:outline-none focus:border-blue-600"
+                              />
+                              {editOption2ImageUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditOption2ImageUrl('')}
+                                  className="absolute right-2 top-2 text-zinc-400 hover:text-red-500 cursor-pointer"
+                                  title="Clear Image"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            {editOption2ImageUrl && (
+                              <div className="w-10 h-10 rounded-xl overflow-hidden border border-zinc-200 shrink-0 bg-zinc-100 flex items-center justify-center">
+                                <img
+                                  src={editOption2ImageUrl}
+                                  alt="Option 2 Preview"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Holiday Toggle */}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-xs font-semibold text-zinc-700">Day Delivery Status:</span>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditIsHoliday(false)}
+                          className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                            !editIsHoliday
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
+                          }`}
+                        >
+                          ✓ Delivering Food
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditIsHoliday(true)}
+                          className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                            editIsHoliday
+                              ? 'bg-amber-600 text-white'
+                              : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
+                          }`}
+                        >
+                          Holiday (No Delivery)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end space-x-2 pt-2 border-t border-zinc-200">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingMeal(false)}
+                        className="px-3 py-1.5 rounded-xl border border-zinc-300 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveCurrentDateMeal}
+                        className="px-4 py-1.5 rounded-xl bg-[#FF4C00] hover:bg-[#E04300] text-white text-xs font-bold flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Save & Distribute</span>
+                      </button>
                     </div>
                   </div>
-                </div>
-
-                {/* Holiday Toggle */}
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-xs font-semibold text-zinc-700">Day Delivery Status:</span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => setEditIsHoliday(false)}
-                      className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
-                        !editIsHoliday
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
-                      }`}
-                    >
-                      ✓ Delivering Food
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditIsHoliday(true)}
-                      className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
-                        editIsHoliday
-                          ? 'bg-amber-600 text-white'
-                          : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
-                      }`}
-                    >
-                      Holiday (No Delivery)
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end space-x-2 pt-2 border-t border-zinc-200">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingMeal(false)}
-                    className="px-3 py-1.5 rounded-xl border border-zinc-300 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveCurrentDateMeal}
-                    className="px-4 py-1.5 rounded-xl bg-[#FF4C00] hover:bg-[#E04300] text-white text-xs font-bold flex items-center space-x-1.5 shadow-xs"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Save Meal & Price</span>
-                  </button>
-                </div>
-              </div>
+                );
+              })()
             ) : (
               <div className="flex flex-col justify-between gap-3 h-full">
                 <div className="space-y-2">
@@ -751,9 +1125,19 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
                             {option1Tally} ordered
                           </span>
                         </div>
-                        <p className="text-xs font-bold text-zinc-900 line-clamp-2 mt-1">
-                          {mealForDate.mealOptions?.[0]?.name || mealForDate.mealName}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {mealForDate.mealOptions?.[0]?.imageUrl && (
+                            <img
+                              src={mealForDate.mealOptions[0].imageUrl}
+                              alt="Option 1"
+                              className="w-9 h-9 rounded-lg object-cover border border-orange-200 shrink-0"
+                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                            />
+                          )}
+                          <p className="text-xs font-bold text-zinc-900 line-clamp-2">
+                            {mealForDate.mealOptions?.[0]?.name || mealForDate.mealName}
+                          </p>
+                        </div>
                         <span className="text-[11px] font-black text-[#FF4C00] block">
                           ₦{(mealForDate.mealOptions?.[0]?.price || calculateMealPrice(mealForDate)).toLocaleString()}
                         </span>
@@ -769,19 +1153,39 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
                             {option2Tally} ordered
                           </span>
                         </div>
-                        <p className="text-xs font-bold text-zinc-900 line-clamp-2 mt-1">
-                          {mealForDate.mealOptions?.[1]?.name || 'Option 2 Alternative'}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {mealForDate.mealOptions?.[1]?.imageUrl && (
+                            <img
+                              src={mealForDate.mealOptions[1].imageUrl}
+                              alt="Option 2"
+                              className="w-9 h-9 rounded-lg object-cover border border-blue-200 shrink-0"
+                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                            />
+                          )}
+                          <p className="text-xs font-bold text-zinc-900 line-clamp-2">
+                            {mealForDate.mealOptions?.[1]?.name || 'Option 2 Alternative'}
+                          </p>
+                        </div>
                         <span className="text-[11px] font-black text-blue-600 block">
                           ₦{(mealForDate.mealOptions?.[1]?.price || calculateMealPrice(mealForDate)).toLocaleString()}
                         </span>
                       </div>
                     </div>
                   ) : (
-                    <div>
-                      <h2 className="text-lg font-bold text-zinc-900">
-                        {mealForDate ? mealForDate.mealName : 'Kitchen Off / Weekend'}
-                      </h2>
+                    <div className="flex items-center gap-3">
+                      {mealForDate?.imageUrl && (
+                        <img
+                          src={mealForDate.imageUrl}
+                          alt={mealForDate.mealName}
+                          className="w-12 h-12 rounded-xl object-cover border border-zinc-200 shrink-0"
+                          onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                        />
+                      )}
+                      <div>
+                        <h2 className="text-lg font-bold text-zinc-900">
+                          {mealForDate ? mealForDate.mealName : 'Kitchen Off / Weekend'}
+                        </h2>
+                      </div>
                     </div>
                   )}
 

@@ -762,7 +762,26 @@ export async function saveMenuOverridesToFirestore(
   overrides: Record<string, any>
 ): Promise<void> {
   try {
-    const cleanOverrides = sanitizeForFirestore(overrides);
+    // Strip heavy base64 data URLs from Firestore payload (backend server stores actual files)
+    const lightweightOverrides: Record<string, any> = {};
+    for (const [k, meal] of Object.entries(overrides)) {
+      if (!meal || typeof meal !== 'object') continue;
+      const cleanMeal = { ...meal };
+      if (typeof cleanMeal.imageUrl === 'string' && cleanMeal.imageUrl.startsWith('data:image/')) {
+        cleanMeal.imageUrl = '';
+      }
+      if (Array.isArray(cleanMeal.mealOptions)) {
+        cleanMeal.mealOptions = cleanMeal.mealOptions.map((opt: any) => {
+          if (opt && typeof opt.imageUrl === 'string' && opt.imageUrl.startsWith('data:image/')) {
+            return { ...opt, imageUrl: '' };
+          }
+          return opt;
+        });
+      }
+      lightweightOverrides[k] = cleanMeal;
+    }
+
+    const cleanOverrides = sanitizeForFirestore(lightweightOverrides);
     const menuRef = doc(db, 'settings', 'menu');
     await setDoc(menuRef, {
       overrides: cleanOverrides,
