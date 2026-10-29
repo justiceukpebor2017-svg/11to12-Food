@@ -591,6 +591,14 @@ app.all('/api/*', (req, res) => {
   return res.status(404).json({ error: `API route ${req.method} ${req.path} not found` });
 });
 
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught Exception:', err?.message || err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled Rejection:', reason);
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -606,9 +614,19 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`11 to 12 Server running on http://0.0.0.0:${PORT}`);
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[Server] Port ${PORT} already in use, continuing with running instance.`);
+    } else {
+      console.error('[Server] Listen error:', err);
+    }
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('[Server] Fatal startup error:', err);
+});

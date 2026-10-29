@@ -535,11 +535,6 @@ export function parseStructuredMeal(
   const holidayName = KNOWN_HOLIDAYS[dateStr];
   const isHoliday = Boolean(holidayName);
 
-  const isDualDay = day === 'Monday' || day === 'Mon' || day === 'Thursday' || day === 'Thu';
-  const mealOptions = isDualDay
-    ? getDefaultDualMealOptions(day, mealTitle, dateStr, 0, imageUrl, mealCategory, priceOverride)
-    : undefined;
-
   return {
     id: `meal-${dateStr}`,
     dateStr,
@@ -557,8 +552,7 @@ export function parseStructuredMeal(
     imageUrl,
     hasCustomImage: Boolean(imageUrl),
     ingredients,
-    hasDualOptions: isDualDay,
-    mealOptions,
+    hasDualOptions: false,
   };
 }
 
@@ -872,7 +866,6 @@ export function getStructuredMealForDate(targetDate: Date): StructuredMeal | nul
   const dayShortKeys: Array<'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri'> = ['Mon', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Mon'];
   const dayFullName = dayNames[dayOfWeek] || 'Monday';
   const dayShortKey = dayShortKeys[dayOfWeek] || 'Mon';
-  const isDualDay = dayFullName === 'Monday' || dayFullName === 'Thursday';
 
   // UTC-normalized week difference to avoid DST/timezone hour offsets
   const d1 = Date.UTC(BASE_DATE.getFullYear(), BASE_DATE.getMonth(), BASE_DATE.getDate());
@@ -886,59 +879,15 @@ export function getStructuredMealForDate(targetDate: Date): StructuredMeal | nul
   // If the admin has edited or overridden this specific date, return the overridden meal
   if (customMealOverrides[dateStr]) {
     const override = customMealOverrides[dateStr];
-    if (isDualDay) {
-      if (!override.mealOptions || override.mealOptions.length < 2) {
-        const defaultOptions = getDefaultDualMealOptions(
-          dayFullName,
-          override.mealName,
-          dateStr,
-          rotationIndex,
-          override.imageUrl,
-          override.mealCategory,
-          override.price
-        );
-        return {
-          ...override,
-          hasDualOptions: true,
-          mealOptions:
-            override.mealOptions && override.mealOptions.length === 1
-              ? [override.mealOptions[0], defaultOptions[1]]
-              : defaultOptions,
-        };
-      }
-      // Ensure Option 1 mirrors override.mealName and override.imageUrl
-      const opt1 = override.mealOptions[0];
-      const opt2 = override.mealOptions[1];
-      const syncedOpt1 = {
-        ...opt1,
-        name: override.mealName || opt1?.name || 'Option 1 Special',
-        imageUrl: opt1?.imageUrl || override.imageUrl || '',
-        hasCustomImage: Boolean(opt1?.imageUrl || override.imageUrl),
-      };
-      return {
-        ...override,
-        hasDualOptions: true,
-        mealOptions: [syncedOpt1, opt2],
-      };
-    }
-    return override;
+    return {
+      ...override,
+      hasDualOptions: false,
+      mealOptions: undefined,
+    };
   }
 
   const mealTitle = currentWeekPlan.days[dayShortKey] || 'Fried yam + egg sauce + fish';
   const structured = parseStructuredMeal(mealTitle, dayFullName, dateStr);
-  if (isDualDay) {
-    structured.hasDualOptions = true;
-    structured.mealOptions = getDefaultDualMealOptions(
-      dayFullName,
-      mealTitle,
-      dateStr,
-      rotationIndex,
-      structured.imageUrl,
-      structured.mealCategory,
-      structured.price
-    );
-  }
-
   return structured;
 }
 
