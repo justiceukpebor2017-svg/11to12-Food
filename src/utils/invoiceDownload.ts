@@ -297,7 +297,7 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
       ${
         order.discountNGN && order.discountNGN > 0
           ? `<div class="summary-row" style="color: #059669; font-weight: bold;">
-               <span>20th Day Free Promotion:</span>
+               <span>Discount / Savings:</span>
                <span>-₦${(order.discountNGN || 0).toLocaleString()}</span>
              </div>`
           : ''

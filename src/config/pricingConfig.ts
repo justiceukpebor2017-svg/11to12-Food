@@ -80,11 +80,10 @@ export interface TierCalculationResult {
  * - 1 to 5 Days = Flat ₦20,000 (minimum order requirement is 5 days)
  * - 6 to 10 Days = Each day from 1 to 10 is priced at ₦3,600 per meal (e.g. 6 days = ₦21,600)
  * - 11 to 15 Days = Each day from 1 to 15 is priced at ₦3,400 per meal (e.g. 11 days = ₦37,400)
- * - 16 to 20 Days = Each day from 1 to 20 is priced at ₦3,200 per meal, but the 20th day is free!
- *   So 19 days = 19 * 3,200 = ₦60,800.
- *   And 20 days = 19 * 3,200 = ₦60,800 (the 20th day is completely free!).
- * - 21+ Days = Each day is priced at ₦3,000 per meal, and the 20th day remains free!
- *   So (daysCount - 1) * 3,000.
+ * - 16 to 20 Days = Each day from 1 to 20 is priced at ₦3,200 per meal.
+ *   So 20 days = 20 * 3,200 = ₦64,000.
+ * - 21+ Days = Each day is priced at ₦3,000 per meal.
+ *   So daysCount * 3,000.
  */
 export function calculateTieredOrderTotal(
   daysCount: number,
@@ -150,35 +149,30 @@ export function calculateTieredOrderTotal(
     };
   }
 
-  // 16 to 20 days: each day priced at ₦3,200 per meal, but 20th day is free!
+  // 16 to 20 days: each day priced at ₦3,200 per meal
   if (daysCount <= 20) {
     const rate = settings.tier16to20Price || 3200;
-    // For 20 days, remove the bill for the 20th day (19 billable days)
-    const billableDays = daysCount === 20 ? 19 : daysCount;
-    const total = billableDays * rate;
+    const total = daysCount * rate;
     return {
       totalNGN: total,
       foodTotalNGN: total,
       deliveryTotalNGN: 0,
       currentTierDailyRate: rate,
-      tierLabel: daysCount === 20
-        ? '16–20 Days Tier (₦3,200/day • 20th Day Free!)'
-        : '16–20 Days Tier (₦3,200/day)',
+      tierLabel: '16–20 Days Tier (₦3,200/day)',
       isEligible: true,
       minDays,
     };
   }
 
-  // 21+ days: each day priced at ₦3,000 per meal, 20th day remains free!
+  // 21+ days: each day priced at ₦3,000 per meal
   const rate = settings.tier21PlusPrice || 3000;
-  const billableDays = daysCount - 1; // 20th day is free
-  const total = billableDays * rate;
+  const total = daysCount * rate;
   return {
     totalNGN: total,
     foodTotalNGN: total,
     deliveryTotalNGN: 0,
     currentTierDailyRate: rate,
-    tierLabel: '21+ Days Best Value (₦3,000/day • 20th Day Free!)',
+    tierLabel: '21+ Days Best Value (₦3,000/day)',
     isEligible: true,
     minDays,
   };

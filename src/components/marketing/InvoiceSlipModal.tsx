@@ -252,7 +252,7 @@ Bank Details: Flutterwave MFB (Formerly OK MFB) | 9838242145 | 11 TO 12 FOODS LT
 
               {(order.discountNGN || 0) > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">
-                  <span>20th Day Free Bonus:</span>
+                  <span>Discount / Savings:</span>
                   <span>-₦{(order.discountNGN || 0).toLocaleString()}</span>
                 </div>
               )}

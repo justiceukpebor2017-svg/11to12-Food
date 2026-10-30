@@ -1062,9 +1062,6 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                       </span>
                       <span className="text-[11px] text-zinc-500">
                         Total Amount: ₦{calculatedNewOrderSummary.finalTotalNGN.toLocaleString()}
-                        {calculatedNewOrderSummary.hasTwentyDayBonus && (
-                          <span className="text-emerald-600 font-bold ml-1.5">(20th Free Applied)</span>
-                        )}
                       </span>
                     </div>
 

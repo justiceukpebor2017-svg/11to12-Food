@@ -228,10 +228,10 @@ export const FooterInfoModals: React.FC<FooterInfoModalsProps> = ({ activeModal,
 
                 <div className="space-y-1.5 border-t border-zinc-100 pt-3">
                   <h4 className="font-bold text-black text-xs uppercase tracking-wider">
-                    3. Minimum Plan Requirement & 20th Day Reward
+                    3. Minimum Plan Requirement & Tiered Value
                   </h4>
                   <p className="text-zinc-600 text-xs">
-                    To maintain dedicated kitchen batch efficiency and workstation logistics, lunch plans require a minimum selection of 8 workdays. Subscribers who select 20 or more workdays in a plan cycle receive the 20th workday meal completely free as our loyalty bonus.
+                    To maintain dedicated kitchen batch efficiency and workstation logistics, lunch plans require a minimum selection of 5 workdays. Subscribers unlock increasing daily savings with higher workday commitments across our corporate tiers.
                   </p>
                 </div>
 

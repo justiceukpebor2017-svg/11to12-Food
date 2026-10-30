@@ -71,14 +71,14 @@ export const PlanAndBillingSection: React.FC<PlanAndBillingSectionProps> = ({
         id: `plan-m-${idx}`,
         dateStr: `2026-12-${String(idx + 7).padStart(2, '0')}`,
         day: (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][idx % 5]) as any,
-        mealName: idx === 19 ? 'Chef Celebration Feast (20th Day Free)' : '11 to 12 Daily Chef Creation',
+        mealName: '11 to 12 Daily Chef Creation',
         mealCategory: 'Rice',
       },
     })),
     totalDays: totalLunches,
     subtotalNGN: totalLunches * 2900,
-    discountNGN: totalLunches >= 20 ? 2900 : 0,
-    finalTotalNGN: Math.max(0, totalLunches * 2900 - (totalLunches >= 20 ? 2900 : 0)),
+    discountNGN: 0,
+    finalTotalNGN: totalLunches * 2900,
     submittedAt: '2026-10-01T09:30:00Z',
     paymentStatus: 'Confirmed',
   };
@@ -255,8 +255,8 @@ export const PlanAndBillingSection: React.FC<PlanAndBillingSectionProps> = ({
                 <span className="font-bold text-black">Desk Drop (20 Lunches)</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-500">Bonus Applied:</span>
-                <span className="font-bold text-emerald-700">20th Day Free (100% Off)</span>
+                <span className="text-zinc-500">Tier Status:</span>
+                <span className="font-bold text-emerald-700">Corporate Monthly Plan</span>
               </div>
 
               <div className="pt-2 border-t border-zinc-200 flex justify-between text-sm font-black">

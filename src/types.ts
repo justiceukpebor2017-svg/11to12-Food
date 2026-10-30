@@ -116,8 +116,8 @@ export interface OrderSummary {
 // 1 to 5 days: Flat ₦20,000 (minimum order requirement is 5 days)
 // 6 to 10 days: ₦3,600 / day
 // 11 to 15 days: ₦3,400 / day
-// 16 to 20 days: ₦3,200 / day (20th day is free!)
-// 21+ days: ₦3,000 / day (20th day is free!)
+// 16 to 20 days: ₦3,200 / day
+// 21+ days: ₦3,000 / day
 export function calculateOrderSummary(selectedDays: SelectedLunchDay[]): OrderSummary {
   const validDays = selectedDays.filter((d) => !d.meal.isHoliday && !d.meal.isNoDelivery);
   const totalDays = validDays.length;
@@ -130,7 +130,7 @@ export function calculateOrderSummary(selectedDays: SelectedLunchDay[]): OrderSu
     subtotalNGN: tiered.totalNGN,
     discountNGN: 0,
     finalTotalNGN: tiered.totalNGN,
-    hasTwentyDayBonus: totalDays >= 20,
+    hasTwentyDayBonus: false,
   };
 }
 

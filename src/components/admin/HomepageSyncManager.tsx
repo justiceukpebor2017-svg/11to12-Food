@@ -41,7 +41,7 @@ export const HomepageSyncManager: React.FC<HomepageSyncProps> = ({
   const currentSettings = propLaunchSettings || getLaunchSettings();
 
   const [announcementText, setAnnouncementText] = useState(
-    'Founding member spots: 13 left. Free 20th workday meal on monthly plans.'
+    'Founding member spots: 13 left. Tiered corporate rates for Lagos workstations.'
   );
   const [isAnnouncementActive, setIsAnnouncementActive] = useState(true);
   const [foundingCount, setFoundingCount] = useState(37);

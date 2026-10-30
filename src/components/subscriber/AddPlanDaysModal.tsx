@@ -49,8 +49,8 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
   // Calculate pricing
   const costPerDay = 2900;
   const subtotal = selectedDays * costPerDay;
-  const discount = selectedDays >= 20 ? 2900 : 0; // 20th Day Free
-  const finalTotal = Math.max(0, subtotal - discount);
+  const discount = 0;
+  const finalTotal = subtotal;
 
   const invoiceRef = `11TO12-TOPUP-${Date.now().toString().slice(-4)}`;
 
@@ -137,7 +137,7 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[5, 10, 15, 20].map((days) => {
-                    const price = days * 2900 - (days >= 20 ? 2900 : 0);
+                    const price = days * 2900;
                     const isSelected = selectedDays === days;
                     return (
                       <button
@@ -150,13 +150,6 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
                             : 'bg-[#FAF7F2] border-zinc-200 text-zinc-800 hover:border-black'
                         }`}
                       >
-                        {days === 20 && (
-                          <span className={`absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
-                            isSelected ? 'bg-black text-white' : 'bg-emerald-600 text-white'
-                          }`}>
-                            1 Free Day
-                          </span>
-                        )}
                         <span className="text-lg font-black block">+{days} Days</span>
                         <span className={`text-[11px] block mt-0.5 ${isSelected ? 'text-white/90' : 'text-zinc-500'}`}>
                           ₦{price.toLocaleString()}
@@ -177,12 +170,6 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
                   <span>Price per lunch plate:</span>
                   <span className="font-bold text-black">₦2,900 NGN</span>
                 </div>
-                {discount > 0 && (
-                  <div className="flex justify-between items-center text-emerald-700 font-bold">
-                    <span>20th Day Free Bonus:</span>
-                    <span>-₦{discount.toLocaleString()} NGN</span>
-                  </div>
-                )}
                 <div className="pt-2 border-t border-zinc-200 flex justify-between items-baseline text-sm font-black">
                   <span>Total Amount Payable:</span>
                   <span className="text-lg text-[#FF4C00]">₦{finalTotal.toLocaleString()} NGN</span>

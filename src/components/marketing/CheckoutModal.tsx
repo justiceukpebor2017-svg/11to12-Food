@@ -327,9 +327,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </span>
                   <span className="text-xs font-semibold text-zinc-700">
                     {summary.totalDays} Scheduled Workdays
-                    {summary.hasTwentyDayBonus && (
-                      <span className="text-emerald-600 font-bold ml-1.5">(20th Day Free Applied)</span>
-                    )}
                   </span>
                 </div>
 

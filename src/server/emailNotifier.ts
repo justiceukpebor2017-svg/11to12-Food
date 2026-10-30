@@ -229,7 +229,7 @@ export async function notifyAdminPaymentOrder(order: OrderSubmission): Promise<A
           ${order.discountNGN > 0 ? `
           <tr>
             <td style="padding: 8px 0; color: #777;"><strong>Bonus Discount:</strong></td>
-            <td style="padding: 8px 0; color: #FF4C00; font-weight: bold;">- ₦${discountNGN} (20th Day Free)</td>
+            <td style="padding: 8px 0; color: #FF4C00; font-weight: bold;">- ₦${discountNGN} (Special Promo / Discount)</td>
           </tr>
           ` : ''}
           <tr>

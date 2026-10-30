@@ -231,7 +231,7 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
   const perDayAddition = chosenCount * PER_DAY_FEE;
   const subtotal = foodTotal + perDayAddition;
   const totalSubscribedWithAdditions = (userProfile.selectedDays?.length || 0) + chosenCount;
-  const discount = totalSubscribedWithAdditions >= 20 ? 2900 : 0;
+  const discount = 0;
   const realFinalTotal = Math.max(0, subtotal - discount);
 
   if (!isOpen) return null;
@@ -810,13 +810,6 @@ export const AddExtraDaysModal: React.FC<AddExtraDaysModalProps> = ({
                     <span>Workstation Delivery Addition:</span>
                     <span className="font-semibold text-zinc-900">₦{perDayAddition.toLocaleString()}</span>
                   </div>
-
-                  {discount > 0 && (
-                    <div className="flex items-center justify-between text-xs text-emerald-700 font-semibold">
-                      <span>20th Day Free Perk:</span>
-                      <span>-₦{discount.toLocaleString()}</span>
-                    </div>
-                  )}
 
                   <div className="pt-2 border-t border-zinc-200 flex items-center justify-between">
                     <div>

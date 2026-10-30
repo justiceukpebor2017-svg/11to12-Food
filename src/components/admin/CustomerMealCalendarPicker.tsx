@@ -393,11 +393,6 @@ export const CustomerMealCalendarPicker: React.FC<CustomerMealCalendarPickerProp
         </div>
 
         <div className="flex items-center space-x-4 self-end sm:self-auto">
-          {orderSummary.hasTwentyDayBonus && (
-            <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950 border border-emerald-800 px-2.5 py-1 rounded-full">
-              ★ 20th Day Free Applied
-            </span>
-          )}
           <div className="text-right">
             <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
               Total Subscription Amount

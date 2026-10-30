@@ -1175,7 +1175,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                           <span className="font-bold">21+ Days</span>
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">₦3,000 / day</span>
                         </div>
-                        <span className="text-[9px] text-zinc-400 block">Best Value • 20th Day Free!</span>
+                        <span className="text-[9px] text-zinc-400 block">Best Value Monthly Plan</span>
                       </div>
 
                       {/* 16-20 Days Tier */}
@@ -1184,7 +1184,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                           <span className="font-bold">16 – 20 Days</span>
                           <span className="text-[10px] font-bold text-[#FF4C00] bg-orange-50 px-2 py-0.5 rounded border border-orange-200">₦3,200 / day</span>
                         </div>
-                        <span className="text-[9px] text-zinc-400 block">20th Day Free Perk Included</span>
+                        <span className="text-[9px] text-zinc-400 block">4-Week Workday Tier</span>
                       </div>
 
                       {/* 11-15 Days Tier */}
@@ -1246,12 +1246,6 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
               <span className="text-xl sm:text-2xl font-black text-black">
                 {selectedCount} lunch {selectedCount === 1 ? 'day' : 'days'} selected
               </span>
-              {selectedCount >= 20 && (
-                <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center space-x-1 shrink-0">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>20th Day Free!</span>
-                </span>
-              )}
             </div>
 
             {/* Helper status text - No premature prices */}
@@ -1267,13 +1261,9 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 <span className="text-amber-700 font-semibold">
                   ⚠️ Minimum Requirement: 5 days or more ({selectedCount}/5 days selected. Please select {5 - selectedCount} more to calculate your order).
                 </span>
-              ) : selectedCount < 20 ? (
+              ) : (
                 <span className="text-emerald-700 font-semibold">
                   ✓ {selectedCount} days selected. Click "Calculate Order" below to view pricing & proceed.
-                </span>
-              ) : (
-                <span className="text-emerald-600 font-semibold">
-                  ✓ 20-day threshold reached! (20th day free perk). Click "Calculate Order" to view your total.
                 </span>
               )}
             </div>
@@ -1351,12 +1341,6 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 >
                   ₦{displayedPrice.toLocaleString()}
                 </div>
-                {calculatedSummary.hasTwentyDayBonus && (
-                  <span className="mt-2.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center space-x-1 border border-emerald-200">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>20th Day Free Perk Applied (₦0 charged for 20th day)</span>
-                  </span>
-                )}
               </div>
 
               {/* Sub-status */}

@@ -93,8 +93,8 @@ export const CustomerHomeTab: React.FC<CustomerHomeTabProps> = ({
   const skippedCount = (userProfile.skippedDates || []).length;
   const remainingLunches = Math.max(0, (userProfile.selectedDays?.length || 0) - skippedCount);
 
-  // 20th Day Reward Progress
-  const rewardProgress = Math.min(100, Math.round(((totalSubscribed) / 20) * 100));
+  // Plan Progress
+  const planProgress = Math.min(100, Math.round(((totalSubscribed) / 20) * 100));
 
   const handleConfirmSkip = () => {
     if (dateToSkip) {
@@ -312,30 +312,30 @@ export const CustomerHomeTab: React.FC<CustomerHomeTabProps> = ({
           </button>
         </div>
 
-        {/* 20th Day Free Perk / Plan Progress */}
+        {/* Subscriber Plan Progress */}
         <div className="bg-zinc-950 text-white rounded-3xl p-5 shadow-xs space-y-3 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4C00]">
-                Subscriber Milestone
+                Monthly Plan Status
               </span>
               <span className="text-xs font-bold text-zinc-400">
-                {totalSubscribed}/20 Lunches
+                {totalSubscribed} Scheduled
               </span>
             </div>
 
             <h3 className="text-base font-bold text-white mt-2">
-              20th Day Free Lunch Perk
+              Desk Drop Deliveries Active
             </h3>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Subscribers reaching 20 scheduled workdays receive their 20th gourmet lunch food cost free.
+              Enjoy freshly sealed, chef-prepared corporate lunches delivered right to your office workstation.
             </p>
 
             {/* Progress bar */}
             <div className="w-full bg-zinc-800 rounded-full h-2 mt-3 overflow-hidden">
               <div
                 className="bg-[#FF4C00] h-2 rounded-full transition-all duration-500"
-                style={{ width: `${rewardProgress}%` }}
+                style={{ width: `${planProgress}%` }}
               />
             </div>
           </div>

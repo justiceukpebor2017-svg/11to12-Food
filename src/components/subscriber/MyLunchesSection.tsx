@@ -1012,7 +1012,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                         {newPlanDays.length} Workday{newPlanDays.length > 1 ? 's' : ''} Ready to Add
                       </h4>
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        Synced with daily kitchen menu rotation and packaging logistics. Select 20 days and the 20th day is completely FREE!
+                        Synced with daily kitchen menu rotation and packaging logistics. Tiered corporate rates apply automatically based on days selected.
                       </p>
                     </div>
 
@@ -1057,11 +1057,6 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                         <span className="text-xs font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full">
                           ✓ Order Calculated
                         </span>
-                        {topUpCalculatedSummary.hasTwentyDayBonus && (
-                          <span className="text-xs font-bold text-[#FF4C00] bg-orange-100/80 px-2 py-0.5 rounded-full border border-orange-200">
-                            ★ 20th Meal Free Bonus Applied!
-                          </span>
-                        )}
                       </div>
                       <h4 className="text-base font-black text-black mt-1">
                         {topUpCalculatedSummary.totalDays} Workdays Top-Up Plan
@@ -1094,7 +1089,7 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                     </div>
                     {topUpCalculatedSummary.discountNGN > 0 && (
                       <div className="flex items-center justify-between text-emerald-600 font-bold">
-                        <span>Bonus 20th Day Reward:</span>
+                        <span>Discount / Savings:</span>
                         <span>-₦{topUpCalculatedSummary.discountNGN.toLocaleString()}</span>
                       </div>
                     )}
