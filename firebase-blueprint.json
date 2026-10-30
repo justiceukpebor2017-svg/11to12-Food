@@ -91,6 +91,26 @@
         "launchDate": { "type": "string", "maxLength": 30 },
         "isEnabled": { "type": "boolean" }
       }
+    },
+    "Meal": {
+      "title": "Meal",
+      "description": "Daily scheduled corporate meal with custom name, category, pricing, and representation image",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "dateStr": { "type": "string", "maxLength": 30 },
+        "day": { "type": "string", "maxLength": 30 },
+        "mealName": { "type": "string", "maxLength": 160 },
+        "mealCategory": { "type": "string", "maxLength": 60 },
+        "imageUrl": { "type": "string", "maxLength": 200000 },
+        "hasCustomImage": { "type": "boolean" },
+        "price": { "type": "number" },
+        "isHoliday": { "type": "boolean" },
+        "isNoDelivery": { "type": "boolean" },
+        "holidayName": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "maxLength": 60 }
+      },
+      "required": ["dateStr", "mealName"]
     }
   },
   "firestore": {
@@ -113,6 +133,10 @@
     "/settings/{settingId}": {
       "schema": { "$ref": "#/entities/Setting" },
       "description": "App configuration settings including master launch date"
+    },
+    "/meals/{dateStr}": {
+      "schema": { "$ref": "#/entities/Meal" },
+      "description": "Collection of daily scheduled meal dishes, pricing, and custom food images synced in real time across all devices"
     }
   }
 }

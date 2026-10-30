@@ -388,20 +388,12 @@ function normalizeMealImagesOnServer(meal: any, datePrefix = 'meal'): any {
   if (!meal || typeof meal !== 'object') return meal;
   const cleanMeal = { ...meal };
   if (cleanMeal.imageUrl && typeof cleanMeal.imageUrl === 'string' && cleanMeal.imageUrl.startsWith('data:image/')) {
-    cleanMeal.imageUrl = saveBase64DataUrlToDisk(cleanMeal.imageUrl, `${datePrefix}-main`);
+    // Save backup to disk for local file serving
+    try {
+      saveBase64DataUrlToDisk(cleanMeal.imageUrl, `${datePrefix}-main`);
+    } catch {}
+    // Retain the self-contained portable image URL so all devices and domains can render it reliably
     cleanMeal.hasCustomImage = true;
-  }
-  if (Array.isArray(cleanMeal.mealOptions)) {
-    cleanMeal.mealOptions = cleanMeal.mealOptions.map((opt: any, idx: number) => {
-      if (opt && opt.imageUrl && typeof opt.imageUrl === 'string' && opt.imageUrl.startsWith('data:image/')) {
-        return {
-          ...opt,
-          imageUrl: saveBase64DataUrlToDisk(opt.imageUrl, `${datePrefix}-opt${idx + 1}`),
-          hasCustomImage: true,
-        };
-      }
-      return opt;
-    });
   }
   return cleanMeal;
 }

@@ -188,13 +188,10 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
     if (!file) return;
     setIsUploadingImage(true);
     try {
-      const compressedDataUrl = await compressMealImage(file, 600, 0.78);
-      const uploadedUrl = await uploadMealImageToServer(compressedDataUrl, file.name);
-      if (uploadedUrl) {
-        setEditMealImageUrl(uploadedUrl);
-      } else {
-        setEditMealImageUrl(compressedDataUrl);
-      }
+      const compressedDataUrl = await compressMealImage(file, 480, 0.75);
+      setEditMealImageUrl(compressedDataUrl);
+      // Background upload to server as backup
+      uploadMealImageToServer(compressedDataUrl, file.name).catch(() => {});
     } catch (err) {
       console.warn('Image upload error:', err);
     } finally {
@@ -210,17 +207,7 @@ export const AdminMealScheduleTab: React.FC<AdminMealScheduleTabProps> = ({
     const dayName = (dayNames[dayOfWeekIndex] || 'Monday') as any;
 
     const parsedPrice = Number(editMealPrice) > 0 ? Number(editMealPrice) : 2900;
-
-    // Auto-convert any base64 image data URL to permanent static URL on server
-    let finalImageUrl = editMealImageUrl.trim();
-    if (finalImageUrl.startsWith('data:image/')) {
-      try {
-        const uploaded = await uploadMealImageToServer(finalImageUrl);
-        if (uploaded) finalImageUrl = uploaded;
-      } catch (err) {
-        console.warn('Image pre-upload notice:', err);
-      }
-    }
+    const finalImageUrl = editMealImageUrl.trim();
 
     const updatedMeal: StructuredMeal = {
       ...(mealForDate || {

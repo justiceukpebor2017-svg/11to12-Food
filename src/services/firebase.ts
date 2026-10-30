@@ -762,21 +762,21 @@ export async function saveMenuOverridesToFirestore(
   overrides: Record<string, any>
 ): Promise<void> {
   try {
-    // Strip heavy base64 data URLs from Firestore payload (backend server stores actual files)
+    // 1. Save each individual meal into the dedicated /meals/{dateStr} collection with full image preservation
+    for (const [dateStr, meal] of Object.entries(overrides)) {
+      if (meal && typeof meal === 'object') {
+        await saveMealToFirestore(dateStr, meal);
+      }
+    }
+
+    // 2. Also save an index in settings/menu for fast bulk loading
     const lightweightOverrides: Record<string, any> = {};
     for (const [k, meal] of Object.entries(overrides)) {
       if (!meal || typeof meal !== 'object') continue;
       const cleanMeal = { ...meal };
-      if (typeof cleanMeal.imageUrl === 'string' && cleanMeal.imageUrl.startsWith('data:image/')) {
-        cleanMeal.imageUrl = '';
-      }
-      if (Array.isArray(cleanMeal.mealOptions)) {
-        cleanMeal.mealOptions = cleanMeal.mealOptions.map((opt: any) => {
-          if (opt && typeof opt.imageUrl === 'string' && opt.imageUrl.startsWith('data:image/')) {
-            return { ...opt, imageUrl: '' };
-          }
-          return opt;
-        });
+      // If image is a massive data URL (>100KB), keep lightweight in settings/menu doc, but it is already fully saved in /meals/{dateStr}
+      if (typeof cleanMeal.imageUrl === 'string' && cleanMeal.imageUrl.startsWith('data:image/') && cleanMeal.imageUrl.length > 80000) {
+        cleanMeal.imageUrl = cleanMeal.imageUrl.substring(0, 100) + '...';
       }
       lightweightOverrides[k] = cleanMeal;
     }
@@ -791,6 +791,89 @@ export async function saveMenuOverridesToFirestore(
   } catch (e) {
     console.error('[Firebase] Failed to save menu overrides to Firestore:', e);
   }
+}
+
+/**
+ * Save an individual Meal to Firestore collection /meals/{dateStr}
+ * Stores the full image data URL so every device on any network/domain receives the image in real time.
+ */
+export async function saveMealToFirestore(dateStr: string, meal: any): Promise<void> {
+  if (!dateStr || !meal) return;
+  try {
+    const mealPayload = sanitizeForFirestore({
+      id: meal.id || `meal-${dateStr}`,
+      dateStr,
+      day: meal.day || '',
+      mealName: meal.mealName || '',
+      mealCategory: meal.mealCategory || '',
+      price: meal.price || 2900,
+      imageUrl: meal.imageUrl || '',
+      hasCustomImage: Boolean(meal.imageUrl),
+      isHoliday: Boolean(meal.isHoliday),
+      isNoDelivery: Boolean(meal.isNoDelivery),
+      holidayName: meal.holidayName || '',
+      swallowOptions: meal.swallowOptions || null,
+      ingredients: meal.ingredients || [],
+      updatedAt: new Date().toISOString(),
+    });
+
+    const mealDocRef = doc(db, 'meals', dateStr);
+    await setDoc(mealDocRef, mealPayload, { merge: true });
+    console.log(`[Firebase] Meal ${dateStr} saved to /meals collection in real time with image:`, Boolean(meal.imageUrl));
+  } catch (e) {
+    console.error(`[Firebase] Failed to save meal ${dateStr} to Firestore:`, e);
+    handleFirestoreError(e, OperationType.WRITE, `meals/${dateStr}`);
+  }
+}
+
+/**
+ * Real-time subscription to /meals collection via onSnapshot.
+ * Triggers instantly across all devices whenever an admin updates any food name or image.
+ */
+export function subscribeToMeals(
+  callback: (mealsMap: Record<string, any>) => void,
+  onError?: (err: any) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'meals'),
+    (snapshot) => {
+      const mealsMap: Record<string, any> = {};
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        const dateStr = data.dateStr || docSnap.id;
+        mealsMap[dateStr] = {
+          ...data,
+          dateStr,
+        };
+      });
+      callback(mealsMap);
+    },
+    (err) => {
+      console.warn('[Firebase onSnapshot meals collection error]:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Fetch all meals from Firestore /meals collection on initial load
+ */
+export async function getAllMealsFromFirestore(): Promise<Record<string, any>> {
+  const mealsMap: Record<string, any> = {};
+  try {
+    const snap = await getDocs(collection(db, 'meals'));
+    snap.docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      const dateStr = data.dateStr || docSnap.id;
+      mealsMap[dateStr] = {
+        ...data,
+        dateStr,
+      };
+    });
+  } catch (err) {
+    console.warn('[Firebase getAllMealsFromFirestore notice]:', err);
+  }
+  return mealsMap;
 }
 
 /**

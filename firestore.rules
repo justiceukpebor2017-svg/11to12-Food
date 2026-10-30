@@ -51,6 +51,11 @@ service cloud.firestore {
     match /creditRedemptions/{redemptionId} {
       allow read, write: if true;
     }
+
+    // 11. Meals & Custom Meal Images (Real-time sync across all devices worldwide)
+    match /meals/{dateStr} {
+      allow read, write: if true;
+    }
   }
 }
 

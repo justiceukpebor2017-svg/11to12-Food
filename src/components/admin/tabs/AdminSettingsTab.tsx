@@ -130,17 +130,11 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     if (!file) return;
     setIsUploadingImage(true);
     try {
-      const compressedDataUrl = await compressMealImage(file, 600, 0.78);
-      // Upload to server disk storage to get a permanent, lightweight relative URL (/uploads/...)
-      const uploadedUrl = await uploadMealImageToServer(compressedDataUrl, file.name);
-      if (uploadedUrl) {
-        setEditMealImageUrl(uploadedUrl);
-        showSaved('Meal representation image uploaded! Click "Save and Distribute" below to apply.');
-      } else {
-        // Fallback to compressed data URL if offline/network issue
-        setEditMealImageUrl(compressedDataUrl);
-        showSaved('Meal representation image loaded! Click "Save and Distribute" below to apply.');
-      }
+      const compressedDataUrl = await compressMealImage(file, 480, 0.75);
+      setEditMealImageUrl(compressedDataUrl);
+      // Background upload to server as backup
+      uploadMealImageToServer(compressedDataUrl, file.name).catch(() => {});
+      showSaved('Meal representation image loaded! Click "Save and Distribute" below to apply.');
     } catch (err) {
       console.error('Image compression or upload failed', err);
       showSaved('Failed to load image file. Please try another image or paste URL.');
@@ -276,20 +270,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     const dayName = (dayNames[dayOfWeekIndex] || 'Monday') as any;
 
     const parsedPrice = Number(editMealPrice) > 0 ? Number(editMealPrice) : 2900;
-    
-    // Auto-convert any base64 image data URL to permanent static URL on server
-    let finalImageUrl = editMealImageUrl.trim();
-    if (finalImageUrl.startsWith('data:image/')) {
-      try {
-        const uploaded = await uploadMealImageToServer(finalImageUrl);
-        if (uploaded) {
-          finalImageUrl = uploaded;
-          setEditMealImageUrl(uploaded);
-        }
-      } catch (err) {
-        console.warn('Image pre-upload notice:', err);
-      }
-    }
+    const finalImageUrl = editMealImageUrl.trim();
 
     const updatedMeal: StructuredMeal = {
       ...(existing || {

@@ -3,6 +3,9 @@ import {
   saveMenuOverridesToFirestore,
   subscribeToMenuOverrides,
   getMenuOverridesFromFirestore,
+  saveMealToFirestore,
+  subscribeToMeals,
+  getAllMealsFromFirestore,
 } from '../services/firebase';
 import { apiUrl } from '../utils/apiConfig';
 
@@ -639,8 +642,15 @@ export function mergeRemoteOverrides(incoming: Record<string, any>): void {
       hasChanges = true;
     } else {
       const finalMealName = remoteMeal.mealName?.trim() || localMeal.mealName;
-      const finalImageUrl = remoteMeal.imageUrl || localMeal.imageUrl || '';
-      const finalHasCustomImage = Boolean(finalImageUrl) || Boolean(remoteMeal.hasCustomImage || localMeal.hasCustomImage);
+      let finalImageUrl = localMeal.imageUrl || '';
+      if (typeof remoteMeal.imageUrl === 'string') {
+        if (remoteMeal.imageUrl.trim() !== '') {
+          finalImageUrl = remoteMeal.imageUrl.trim();
+        } else if (remoteMeal.hasCustomImage === false) {
+          finalImageUrl = '';
+        }
+      }
+      const finalHasCustomImage = Boolean(finalImageUrl);
 
       const merged: StructuredMeal = {
         ...localMeal,
@@ -725,7 +735,18 @@ export async function uploadMealImageToServer(imageData: string, fileName?: stri
 
 // Real-Time Worldwide Cloud Sync via Firestore & Live Server API
 if (typeof window !== 'undefined') {
-  // 1. Instantly pull latest overrides from Firestore on startup
+  // 1. Instantly pull latest meals from dedicated /meals collection in Firestore on startup
+  try {
+    getAllMealsFromFirestore()
+      .then((remote) => {
+        if (remote && typeof remote === 'object' && Object.keys(remote).length > 0) {
+          mergeRemoteOverrides(remote);
+        }
+      })
+      .catch(() => {});
+  } catch {}
+
+  // 1b. Fallback to settings/menu if present
   try {
     getMenuOverridesFromFirestore()
       .then((remote) => {
@@ -748,7 +769,18 @@ if (typeof window !== 'undefined') {
       .catch(() => {});
   } catch {}
 
-  // 3. Real-time Firestore subscription via onSnapshot
+  // 3. Real-time Firestore subscription to /meals collection via onSnapshot (primary sync across all devices)
+  try {
+    subscribeToMeals((remoteMeals) => {
+      if (remoteMeals && typeof remoteMeals === 'object' && Object.keys(remoteMeals).length > 0) {
+        mergeRemoteOverrides(remoteMeals);
+      }
+    });
+  } catch (err) {
+    console.warn('[Firebase meals collection subscription init notice]:', err);
+  }
+
+  // 3b. Real-time Firestore subscription to settings/menu
   try {
     subscribeToMenuOverrides((remoteOverrides) => {
       if (remoteOverrides && typeof remoteOverrides === 'object') {
@@ -771,12 +803,20 @@ if (typeof window !== 'undefined') {
 }
 
 export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
-  // Immediate optimistic update
+  // Immediate optimistic local update
   customMealOverrides[dateStr] = meal;
   safeSaveStoredOverrides(customMealOverrides);
   broadcastMenuUpdate();
 
-  // Worldwide instant sync 1: Backend Server Database & SSE broadcast
+  // Worldwide instant sync 1: Dedicated Firestore Document in /meals/{dateStr} (Includes full image data URL)
+  saveMealToFirestore(dateStr, meal).catch((err) => {
+    console.warn('[Firebase saveMealToFirestore notice]:', err);
+  });
+
+  // Worldwide instant sync 2: Index in settings/menu
+  saveMenuOverridesToFirestore(customMealOverrides).catch(() => {});
+
+  // Worldwide instant sync 3: Backend Server Database & SSE broadcast
   try {
     fetch(apiUrl('/api/meals'), {
       method: 'POST',
@@ -786,9 +826,15 @@ export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.meal) {
-          customMealOverrides[dateStr] = data.meal;
+          // If local meal already has an active image, retain it so server normalization never wipes image
+          const merged = {
+            ...meal,
+            ...data.meal,
+            imageUrl: meal.imageUrl || data.meal.imageUrl,
+            hasCustomImage: Boolean(meal.imageUrl || data.meal.imageUrl),
+          };
+          customMealOverrides[dateStr] = merged;
           safeSaveStoredOverrides(customMealOverrides);
-          saveMenuOverridesToFirestore(customMealOverrides).catch(() => {});
           broadcastMenuUpdate();
         }
       })
@@ -796,9 +842,6 @@ export function updateCustomMealForDate(dateStr: string, meal: StructuredMeal) {
         console.warn('[Server API meal update notice]:', err);
       });
   } catch {}
-
-  // Worldwide instant sync 2: Firestore Cloud Document
-  saveMenuOverridesToFirestore(customMealOverrides).catch(() => {});
 }
 
 export function batchUpdateMeals(mealsMap: Record<string, StructuredMeal>) {
@@ -806,29 +849,20 @@ export function batchUpdateMeals(mealsMap: Record<string, StructuredMeal>) {
   safeSaveStoredOverrides(customMealOverrides);
   broadcastMenuUpdate();
 
-  // Worldwide instant sync 1: Backend Server Database & SSE broadcast
+  // Save each meal to Firestore collection /meals/{dateStr}
+  for (const [dateStr, meal] of Object.entries(mealsMap)) {
+    saveMealToFirestore(dateStr, meal).catch(() => {});
+  }
+  saveMenuOverridesToFirestore(customMealOverrides).catch(() => {});
+
+  // Backend Server Database
   try {
     fetch(apiUrl('/api/meals/batch'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ meals: mealsMap }),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.meals) {
-          Object.assign(customMealOverrides, data.meals);
-          safeSaveStoredOverrides(customMealOverrides);
-          saveMenuOverridesToFirestore(customMealOverrides).catch(() => {});
-          broadcastMenuUpdate();
-        }
-      })
-      .catch((err) => {
-        console.warn('[Server API batch meals update notice]:', err);
-      });
+    }).catch(() => {});
   } catch {}
-
-  // Worldwide instant sync 2: Firestore Cloud Document
-  saveMenuOverridesToFirestore(customMealOverrides).catch(() => {});
 }
 
 export function getCustomMealForDate(dateStr: string): StructuredMeal | undefined {
