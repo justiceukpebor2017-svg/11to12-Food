@@ -42,6 +42,7 @@ import { FaqSection } from './components/marketing/FaqSection';
 import { Footer } from './components/Footer';
 import { CookieConsentBanner } from './components/common/CookieConsentBanner';
 import { CheckoutModal } from './components/marketing/CheckoutModal';
+import { LocationVerificationModal } from './components/marketing/LocationVerificationModal';
 import { SubscriberAuthModal } from './components/subscriber/SubscriberAuthModal';
 import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
@@ -124,6 +125,7 @@ export default function App() {
   });
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('morning');
   const [showSubscriberAuthModal, setShowSubscriberAuthModal] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(true);
   
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
   const [, setMenuSyncVersion] = useState(0);
@@ -1286,6 +1288,16 @@ export default function App() {
     trackBeginCheckout(summary.totalDays, summary.finalTotalNGN);
   };
 
+  const handleProceedToPlanFromLocation = () => {
+    setShowLocationModal(false);
+    setTimeout(() => {
+      const planSection = document.getElementById('plan-builder');
+      if (planSection) {
+        planSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 120);
+  };
+
   const handleCloseCheckout = () => {
     setIsCheckoutOpen(false);
     setSelectedLunchDays([]);
@@ -1850,6 +1862,13 @@ export default function App() {
               onOrderSubmitted={handleOrderSubmitted}
               waitlistLeads={waitlistLeads}
               customers={customers}
+            />
+
+            {/* Pop-up question on website load: Lagos Island location check */}
+            <LocationVerificationModal
+              isOpen={showLocationModal}
+              onClose={() => setShowLocationModal(false)}
+              onProceedToPlan={handleProceedToPlanFromLocation}
             />
 
           </main>

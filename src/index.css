@@ -150,3 +150,23 @@
   animation: shrinkWidth 2s linear forwards;
 }
 
+@keyframes flowLeftToRight {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+.animate-flow-left-to-right {
+  display: flex;
+  width: max-content;
+  animation: flowLeftToRight 28s linear infinite;
+  will-change: transform;
+}
+
+.animate-flow-left-to-right:hover {
+  animation-play-state: paused;
+}
+
