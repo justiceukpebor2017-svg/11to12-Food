@@ -1869,6 +1869,16 @@ export default function App() {
               isOpen={showLocationModal}
               onClose={() => setShowLocationModal(false)}
               onProceedToPlan={handleProceedToPlanFromLocation}
+              existingWaitlist={waitlistLeads}
+              existingCustomers={customers}
+              onJoinWaitlist={async (leadData) => {
+                const res = await liveSync.joinWaitlist(leadData);
+                if (res.success && res.lead) {
+                  await saveWaitlistLeadToFirestore(res.lead);
+                  setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
+                }
+                return res;
+              }}
             />
 
           </main>

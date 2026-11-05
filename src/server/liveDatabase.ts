@@ -319,7 +319,32 @@ export function addWaitlistLead(leadData: Omit<WaitlistLead, 'id' | 'createdAt' 
     };
   }
 
-  // Phone number and email can be used as many times as desired without restriction
+  // Strictly prevent duplicate email usage
+  const existingByEmail = dbState.waitlistLeads.find((l) => normalizeEmail(l.email) === email) ||
+    dbState.customers.find((c) => normalizeEmail(c.email) === email);
+
+  if (existingByEmail) {
+    return {
+      success: false,
+      error: 'DUPLICATE_EMAIL',
+      message: 'This email address is already registered on the waitlist.',
+      existingLead: 'status' in existingByEmail && (existingByEmail as any).status === 'Waitlisted' ? (existingByEmail as WaitlistLead) : undefined,
+    };
+  }
+
+  // Strictly prevent duplicate phone number usage
+  const existingByPhone = dbState.waitlistLeads.find((l) => getStandardPhoneKey(l.phone) === phoneKey) ||
+    dbState.customers.find((c) => getStandardPhoneKey(c.phone) === phoneKey);
+
+  if (existingByPhone) {
+    return {
+      success: false,
+      error: 'DUPLICATE_PHONE',
+      message: 'This phone number is already registered on the waitlist.',
+      existingLead: 'status' in existingByPhone && (existingByPhone as any).status === 'Waitlisted' ? (existingByPhone as WaitlistLead) : undefined,
+    };
+  }
+
   const newLead: WaitlistLead = {
     id: `wl-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
     name: leadData.name.trim(),

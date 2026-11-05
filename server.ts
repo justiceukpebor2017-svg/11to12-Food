@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -592,9 +593,14 @@ process.on('unhandledRejection', (reason) => {
 });
 
 async function startServer() {
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: { server: httpServer },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -606,11 +612,11 @@ async function startServer() {
     });
   }
 
-  const server = app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`11 to 12 Server running on http://0.0.0.0:${PORT}`);
   });
 
-  server.on('error', (err: any) => {
+  httpServer.on('error', (err: any) => {
     if (err.code === 'EADDRINUSE') {
       console.warn(`[Server] Port ${PORT} already in use, continuing with running instance.`);
     } else {

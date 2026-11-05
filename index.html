@@ -9,6 +9,27 @@
       gtag('js', new Date());
 
       gtag('config', 'G-V5D8ZC0E8Z');
+
+      // Ignore harmless Vite HMR WebSocket connection errors in preview / iframe environments
+      window.addEventListener('unhandledrejection', function (event) {
+        var reason = event.reason;
+        var msg = (reason && (reason.message || reason.stack || String(reason))) || '';
+        if (
+          msg.includes('WebSocket') ||
+          msg.includes('WebSocket closed without opened') ||
+          msg.includes('vite:ws')
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      });
+      window.addEventListener('error', function (event) {
+        var msg = (event.message || (event.error && (event.error.message || String(event.error)))) || '';
+        if (msg.includes('WebSocket') || msg.includes('vite:ws')) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      });
     </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

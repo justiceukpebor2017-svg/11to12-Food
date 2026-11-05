@@ -1,6 +1,30 @@
 {
   "waitlistLeads": [
     {
+      "id": "wl-1793920331424-562",
+      "name": "Amina Balogun",
+      "email": "amina.balogun@fintechcorp.ng",
+      "phone": "08031234567",
+      "workplace": "Fintech Corp VGC",
+      "addressFloor": "Floor 4",
+      "createdAt": "2026-11-05T23:12:11.424Z",
+      "status": "Waitlisted",
+      "memberCode": "DD-75219",
+      "notes": ""
+    },
+    {
+      "id": "wl-1793920310087-721",
+      "name": "Duplicate Test",
+      "email": "test@example.com",
+      "phone": "08099999999",
+      "workplace": "ABC",
+      "addressFloor": "F1",
+      "createdAt": "2026-11-05T23:11:50.087Z",
+      "status": "Waitlisted",
+      "memberCode": "DD-70002",
+      "notes": ""
+    },
+    {
       "id": "wl-1791072597095-590",
       "name": "Test User",
       "email": "test@example.com",
@@ -301,6 +325,32 @@
       "dateStr": "2026-12-17",
       "mealName": "Ewa agoyin, pepper sauce, fish and plantain",
       "isHoliday": false,
+      "hasDualOptions": false
+    },
+    "2026-12-31": {
+      "mealName": "Boiled plantain & egg sauce",
+      "price": 2900,
+      "imageUrl": "",
+      "ingredients": [
+        "Irish potatoes",
+        "eggs",
+        "tomatoes",
+        "pepper",
+        "onions",
+        "vegetable oil",
+        "seasoning",
+        "salt"
+      ],
+      "isNoDelivery": false,
+      "day": "Thursday",
+      "id": "meal-2026-12-31",
+      "mealCategory": "Rice",
+      "swallowOptions": null,
+      "updatedAt": "2026-11-04T10:32:49.046Z",
+      "dateStr": "2026-12-31",
+      "hasCustomImage": false,
+      "isHoliday": false,
+      "baseIngredient": "Boiled Potatoes",
       "hasDualOptions": false
     }
   },
