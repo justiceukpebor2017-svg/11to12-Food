@@ -805,6 +805,51 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             
             {/* Left Column: Workdays Calendar Grid */}
             <div className="lg:col-span-8">
+              {/* For only mobile version: Calculate Order button above "Select workdays for your office desk drop" */}
+              <div id="mobile-calculate-order-btn" className="block md:hidden mb-4">
+                <div className="bg-[#FAF7F2] border border-zinc-200/90 rounded-2xl p-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between mb-2 px-0.5">
+                    <span className="text-xs font-black text-black">
+                      {selectedCount} lunch {selectedCount === 1 ? 'day' : 'days'} selected
+                    </span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                      selectedCount < 5 ? 'text-amber-700' : 'text-emerald-700'
+                    }`}>
+                      {selectedCount < 5 ? `Min: 5 Days (${selectedCount}/5)` : 'Ready'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCalculateOrder}
+                    disabled={isCalculating || isAnimationRunning || selectedCount < 5}
+                    className={`w-full py-3.5 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-sm active:scale-95 flex items-center justify-center space-x-2 ${
+                      selectedCount < 5
+                        ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+                        : 'bg-black hover:bg-zinc-800 text-white cursor-pointer shadow-md'
+                    }`}
+                  >
+                    {isCalculating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Calculating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{selectedCount < 5 ? `Select 5+ Days (${selectedCount}/5)` : 'Calculate Order'}</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+
+                  {validationError && (
+                    <p className="text-[11px] text-rose-600 font-semibold mt-2 text-center">
+                      {validationError}
+                    </p>
+                  )}
+                </div>
+              </div>
+
               {/* Month Navigation & Action Bar */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-zinc-100">
                 <div className="flex items-center space-x-3">
@@ -812,14 +857,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                     <CalendarIcon className="w-5 h-5" />
                   </div>
                   <div>
-                <h3 className="text-xl font-bold text-black">
-                  {monthNames[currentMonth]} {currentYear}
-                </h3>
-                <p className="text-xs text-zinc-400">
-                  Select workdays for your office desk drop
-                </p>
-              </div>
-            </div>
+                    <h3 className="text-xl font-bold text-black">
+                      {monthNames[currentMonth]} {currentYear}
+                    </h3>
+                    <p className="text-xs text-zinc-400">
+                      Select workdays for your office desk drop
+                    </p>
+                  </div>
+                </div>
 
             <div className="flex items-center space-x-3">
               <button
@@ -1262,15 +1307,21 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   ⚠️ Minimum Requirement: 5 days or more ({selectedCount}/5 days selected. Please select {5 - selectedCount} more to calculate your order).
                 </span>
               ) : (
-                <span className="text-emerald-700 font-semibold">
-                  ✓ {selectedCount} days selected. Click "Calculate Order" below to view pricing & proceed.
+                <span
+                  onClick={() => {
+                    const el = document.getElementById('mobile-calculate-order-btn');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                  className="text-emerald-700 font-semibold cursor-pointer"
+                >
+                  ✓ {selectedCount} days selected. Click "Calculate Order" <span className="md:hidden font-bold underline">above ↑</span><span className="hidden md:inline">below</span> to view pricing & proceed.
                 </span>
               )}
             </div>
           </div>
 
-          {/* Action Button: Calculate Order (Pay Now Button Removed as Requested) */}
-          <div className="flex flex-col sm:flex-row items-center gap-3">
+          {/* Action Button: Calculate Order (Desktop only - on mobile it was taken above 'Select workdays for your office desk drop') */}
+          <div className="hidden md:flex flex-col sm:flex-row items-center gap-3">
             <button
               onClick={handleCalculateOrder}
               disabled={isCalculating || isAnimationRunning || selectedCount < 5}
