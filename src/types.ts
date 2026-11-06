@@ -110,6 +110,7 @@ export interface OrderSummary {
   discountNGN: number;
   finalTotalNGN: number;
   hasTwentyDayBonus: boolean;
+  hasTwentyThreeDayDiscount?: boolean;
 }
 
 // Order calculation logic using tiered corporate rates:
@@ -117,7 +118,7 @@ export interface OrderSummary {
 // 6 to 10 days: ₦3,600 / day
 // 11 to 15 days: ₦3,400 / day
 // 16 to 20 days: ₦3,200 / day
-// 21+ days: ₦3,000 / day
+// 21+ days: ₦3,000 / day (23 days special fee: ₦66,000 with ₦3,000 discount)
 export function calculateOrderSummary(selectedDays: SelectedLunchDay[]): OrderSummary {
   const validDays = selectedDays.filter((d) => !d.meal.isHoliday && !d.meal.isNoDelivery);
   const totalDays = validDays.length;
@@ -127,10 +128,11 @@ export function calculateOrderSummary(selectedDays: SelectedLunchDay[]): OrderSu
     totalDays,
     foodTotalNGN: tiered.foodTotalNGN,
     perDayAdditionNGN: tiered.deliveryTotalNGN,
-    subtotalNGN: tiered.totalNGN,
-    discountNGN: 0,
+    subtotalNGN: tiered.foodTotalNGN + tiered.deliveryTotalNGN,
+    discountNGN: tiered.discountNGN || 0,
     finalTotalNGN: tiered.totalNGN,
     hasTwentyDayBonus: false,
+    hasTwentyThreeDayDiscount: totalDays === 23,
   };
 }
 

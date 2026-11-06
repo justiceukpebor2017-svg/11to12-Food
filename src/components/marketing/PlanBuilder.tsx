@@ -1392,6 +1392,11 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 >
                   ₦{displayedPrice.toLocaleString()}
                 </div>
+                {calculatedSummary.discountNGN > 0 && isRevealComplete && (
+                  <div className="mt-2.5 inline-flex items-center space-x-1.5 bg-emerald-50 text-emerald-800 px-3.5 py-1 rounded-full text-xs font-bold border border-emerald-200 animate-in fade-in zoom-in-95 duration-200">
+                    <span>-₦{calculatedSummary.discountNGN.toLocaleString()} discount applied (Original: ₦{calculatedSummary.subtotalNGN.toLocaleString()})</span>
+                  </div>
+                )}
               </div>
 
               {/* Sub-status */}

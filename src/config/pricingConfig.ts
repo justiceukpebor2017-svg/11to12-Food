@@ -72,6 +72,7 @@ export interface TierCalculationResult {
   tierLabel: string;
   isEligible: boolean;
   minDays: number;
+  discountNGN: number;
 }
 
 /**
@@ -101,6 +102,7 @@ export function calculateTieredOrderTotal(
       tierLabel: 'Select at least 5 days',
       isEligible: false,
       minDays,
+      discountNGN: 0,
     };
   }
 
@@ -116,6 +118,7 @@ export function calculateTieredOrderTotal(
       tierLabel: '5-Day Starter (₦20,000 flat)',
       isEligible: daysCount >= minDays,
       minDays,
+      discountNGN: 0,
     };
   }
 
@@ -131,6 +134,7 @@ export function calculateTieredOrderTotal(
       tierLabel: '6–10 Days Tier (₦3,600/day)',
       isEligible: true,
       minDays,
+      discountNGN: 0,
     };
   }
 
@@ -146,6 +150,7 @@ export function calculateTieredOrderTotal(
       tierLabel: '11–15 Days Tier (₦3,400/day)',
       isEligible: true,
       minDays,
+      discountNGN: 0,
     };
   }
 
@@ -161,19 +166,26 @@ export function calculateTieredOrderTotal(
       tierLabel: '16–20 Days Tier (₦3,200/day)',
       isEligible: true,
       minDays,
+      discountNGN: 0,
     };
   }
 
   // 21+ days: each day priced at ₦3,000 per meal
   const rate = settings.tier21PlusPrice || 3000;
-  const total = daysCount * rate;
+  const baseFoodTotal = daysCount * rate;
+
+  // Special rule: Only if a user selects exactly 23 days, the fee is ₦66,000 (meaning a discount of ₦3,000)
+  const discountNGN = daysCount === 23 ? 3000 : 0;
+  const total = baseFoodTotal - discountNGN;
+
   return {
     totalNGN: total,
-    foodTotalNGN: total,
+    foodTotalNGN: baseFoodTotal,
     deliveryTotalNGN: 0,
     currentTierDailyRate: rate,
     tierLabel: '21+ Days Best Value (₦3,000/day)',
     isEligible: true,
     minDays,
+    discountNGN,
   };
 }

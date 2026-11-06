@@ -335,6 +335,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <span className="text-2xl font-black text-black">
                     ₦{summary.finalTotalNGN.toLocaleString()}
                   </span>
+                  {summary.discountNGN > 0 && (
+                    <span className="text-[11px] font-bold text-emerald-600 block mt-0.5">
+                      Includes -₦{summary.discountNGN.toLocaleString()} discount
+                    </span>
+                  )}
                 </div>
               </div>
 
