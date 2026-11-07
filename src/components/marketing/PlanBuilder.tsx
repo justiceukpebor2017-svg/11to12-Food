@@ -1589,6 +1589,55 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       )}
 
       </div>
+
+      {/* Mobile-Only Floating Calculate Order Bar: floats on screen bottom once a user clicks any date, removed when no date is selected */}
+      {selectedCount > 0 && !showOrderBill && (
+        <aside
+          aria-label="Mobile Calculate Order"
+          className="fixed bottom-3 inset-x-3 z-40 md:hidden font-['Poppins'] animate-in fade-in slide-in-from-bottom-5 duration-300 select-none pointer-events-auto"
+        >
+          <div className="bg-zinc-950/95 text-white backdrop-blur-md border border-zinc-800/90 rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-2.5 max-w-lg mx-auto">
+            {/* Selected days count & status */}
+            <div className="flex flex-col min-w-0 pr-1">
+              <div className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#FF4C00] animate-pulse shrink-0" />
+                <span className="text-xs font-black text-white truncate">
+                  {selectedCount} lunch {selectedCount === 1 ? 'day' : 'days'}
+                </span>
+              </div>
+              <span className="text-[10px] text-zinc-400 font-medium pl-3.5 leading-tight mt-0.5">
+                {selectedCount < 5
+                  ? `Select ${5 - selectedCount} more (Min: 5)`
+                  : 'Ready to calculate bill'}
+              </span>
+            </div>
+
+            {/* Calculate Order Action Button */}
+            <button
+              type="button"
+              onClick={handleCalculateOrder}
+              disabled={isCalculating || isAnimationRunning || selectedCount < 5}
+              className={`py-2.5 px-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition active:scale-95 flex items-center justify-center space-x-1.5 shrink-0 ${
+                selectedCount < 5
+                  ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/60'
+                  : 'bg-[#FF4C00] hover:bg-[#E04300] text-white cursor-pointer shadow-lg shadow-orange-600/30'
+              }`}
+            >
+              {isCalculating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Calculating...</span>
+                </>
+              ) : (
+                <>
+                  <span>{selectedCount < 5 ? `${selectedCount}/5 Days` : 'Calculate Order'}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        </aside>
+      )}
     </section>
   );
 };
