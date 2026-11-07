@@ -28,6 +28,24 @@ export const KNOWN_HOLIDAYS: Record<string, string> = {
   '2027-01-01': "New Year's Holiday (No Service)",
 };
 
+export function isMealTitleSwallow(title?: string): boolean {
+  if (!title) return false;
+  const t = title.toLowerCase();
+  return (
+    t.includes('egusi') ||
+    t.includes('efo riro') ||
+    t.includes('efo') ||
+    t.includes('ogbono') ||
+    t.includes('soup') ||
+    t.includes('swallow') ||
+    t.includes('semo') ||
+    t.includes('eba') ||
+    t.includes('fufu') ||
+    t.includes('amala') ||
+    t.includes('pounded yam')
+  );
+}
+
 export interface CanonicalDayMenu {
   dateStr: string;
   dayShort: 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri';
@@ -37,6 +55,8 @@ export interface CanonicalDayMenu {
   holidayName?: string;
   option1: string;
   option2: string;
+  option1IsSwallow?: boolean;
+  option2IsSwallow?: boolean;
 }
 
 export interface CanonicalWeekMenu {
@@ -49,98 +69,98 @@ export interface CanonicalWeekMenu {
 export const CANONICAL_8_WEEKS_MENU: CanonicalWeekMenu[] = [
   {
     weekNumber: 1,
-    title: 'Week 1: December 7–11',
+    title: 'Dec 7 – 11',
     dateRange: 'Dec 7 – 11',
     days: [
-      { dateStr: '2026-12-07', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 7', option1: 'Yam porridge with fish', option2: 'White rice, stew & fried plantain' },
-      { dateStr: '2026-12-08', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 8', option1: 'Jollof rice & chicken', option2: 'Fried rice & beef' },
-      { dateStr: '2026-12-09', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 9', option1: 'Ewa Agoyin, pepper sauce, fish & plantain', option2: 'Spaghetti & chicken' },
-      { dateStr: '2026-12-10', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 10', option1: 'Boiled plantain & egg sauce', option2: 'Fried yam & fried plantain' },
-      { dateStr: '2026-12-11', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Dec 11', option1: 'Egusi soup', option2: 'Efo riro' },
+      { dateStr: '2026-12-07', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 7', option1: 'Yam porridge with fish', option2: 'White rice, stew & fried plantain', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-08', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 8', option1: 'Jollof rice & chicken', option2: 'Fried rice & beef', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-09', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 9', option1: 'Ewa Agoyin, pepper sauce, fish & plantain', option2: 'Spaghetti & chicken', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-10', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 10', option1: 'Boiled plantain & egg sauce', option2: 'Fried yam & fried plantain', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-11', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Dec 11', option1: 'Egusi soup', option2: 'Efo riro', option1IsSwallow: true, option2IsSwallow: true },
     ],
   },
   {
     weekNumber: 2,
-    title: 'Week 2: December 14–18',
+    title: 'Dec 14 – 18',
     dateRange: 'Dec 14 – 18',
     days: [
-      { dateStr: '2026-12-14', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 14', option1: 'Coconut rice & grilled chicken', option2: 'White rice, vegetable sauce & beef' },
-      { dateStr: '2026-12-15', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 15', option1: 'Spaghetti Bolognese', option2: 'Fried yam & fried plantain' },
-      { dateStr: '2026-12-16', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 16', option1: 'Boiled yam & garden egg sauce', option2: 'Jollof rice & grilled fish' },
-      { dateStr: '2026-12-17', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 17', option1: 'Efo riro', option2: 'Fried plantain & egg sauce' },
-      { dateStr: '2026-12-18', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Dec 18', option1: 'Ogbono soup', option2: 'Native rice & fish' },
+      { dateStr: '2026-12-14', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 14', option1: 'Coconut rice & grilled chicken', option2: 'White rice, vegetable sauce & beef', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-15', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 15', option1: 'Spaghetti Bolognese', option2: 'Fried yam & fried plantain', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-16', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 16', option1: 'Boiled yam & garden egg sauce', option2: 'Jollof rice & grilled fish', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-17', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 17', option1: 'Efo riro', option2: 'Fried plantain & egg sauce', option1IsSwallow: true, option2IsSwallow: false },
+      { dateStr: '2026-12-18', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Dec 18', option1: 'Ogbono soup', option2: 'Native rice & fish', option1IsSwallow: true, option2IsSwallow: false },
     ],
   },
   {
     weekNumber: 3,
-    title: 'Week 3: December 21–25',
+    title: 'Dec 21 – 25',
     dateRange: 'Dec 21 – 25',
     days: [
-      { dateStr: '2026-12-21', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 21', option1: 'Vegetable fried rice & chicken', option2: 'White rice, stew & fried fish' },
-      { dateStr: '2026-12-22', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 22', option1: 'Yam and vegetable porridge', option2: 'Spaghetti & beef' },
-      { dateStr: '2026-12-23', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 23', option1: 'Ewa Agoyin, pepper sauce, fish & fried plantain', option2: 'Fried rice & chicken' },
-      { dateStr: '2026-12-24', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 24', option1: 'Jollof rice & beef', option2: 'Fried yam & fried plantain' },
-      { dateStr: '2026-12-25', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Dec 25', option1: 'Christmas holiday', option2: 'No service', isHoliday: true, holidayName: 'Christmas Holiday (No service)' },
+      { dateStr: '2026-12-21', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 21', option1: 'Vegetable fried rice & chicken', option2: 'White rice, stew & fried fish', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-22', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 22', option1: 'Yam and vegetable porridge', option2: 'Spaghetti & beef', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-23', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 23', option1: 'Ewa Agoyin, pepper sauce, fish & fried plantain', option2: 'Fried rice & chicken', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-24', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 24', option1: 'Jollof rice & beef', option2: 'Fried yam & fried plantain', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-25', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Dec 25', option1: 'Christmas holiday', option2: 'No service', isHoliday: true, holidayName: 'Christmas Holiday (No service)', option1IsSwallow: false, option2IsSwallow: false },
     ],
   },
   {
     weekNumber: 4,
-    title: 'Week 4: December 28 – January 1',
+    title: 'Dec 28 – Jan 1',
     dateRange: 'Dec 28 – Jan 1',
     days: [
-      { dateStr: '2026-12-28', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 28', option1: 'Ofada rice & ayamase sauce', option2: 'Vegetable fried rice & chicken' },
-      { dateStr: '2026-12-29', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 29', option1: 'Boiled plantain & fish stew', option2: 'Spaghetti & chicken' },
-      { dateStr: '2026-12-30', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 30', option1: 'Fried yam & fried plantain', option2: 'Yam porridge with fish' },
-      { dateStr: '2026-12-31', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 31', option1: 'Jollof rice & grilled fish', option2: 'Coconut rice & chicken' },
-      { dateStr: '2027-01-01', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 1', option1: "New Year's holiday", option2: 'No service', isHoliday: true, holidayName: "New Year's Holiday (No service)" },
+      { dateStr: '2026-12-28', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 28', option1: 'Ofada rice & ayamase sauce', option2: 'Vegetable fried rice & chicken', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-29', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 29', option1: 'Boiled plantain & fish stew', option2: 'Spaghetti & chicken', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-30', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 30', option1: 'Fried yam & fried plantain', option2: 'Yam porridge with fish', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2026-12-31', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 31', option1: 'Jollof rice & grilled fish', option2: 'Coconut rice & chicken', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-01', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 1', option1: "New Year's holiday", option2: 'No service', isHoliday: true, holidayName: "New Year's Holiday (No service)", option1IsSwallow: false, option2IsSwallow: false },
     ],
   },
   {
     weekNumber: 5,
-    title: 'Week 5: January 4–8',
+    title: 'Jan 4 – 8',
     dateRange: 'Jan 4 – 8',
     days: [
-      { dateStr: '2027-01-04', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 4', option1: 'White rice, stew & chicken', option2: 'Fried rice & beef' },
-      { dateStr: '2027-01-05', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 5', option1: 'Ewa Agoyin, pepper sauce, fish & fried plantain', option2: 'Boiled yam & egg sauce' },
-      { dateStr: '2027-01-06', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 6', option1: 'Spaghetti & grilled chicken', option2: 'Yam porridge with fish' },
-      { dateStr: '2027-01-07', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 7', option1: 'Native rice & assorted meat', option2: 'Fried yam & fried plantain' },
-      { dateStr: '2027-01-08', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 8', option1: 'Egusi soup', option2: 'Jollof rice & chicken' },
+      { dateStr: '2027-01-04', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 4', option1: 'White rice, stew & chicken', option2: 'Fried rice & beef', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-05', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 5', option1: 'Ewa Agoyin, pepper sauce, fish & fried plantain', option2: 'Boiled yam & egg sauce', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-06', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 6', option1: 'Spaghetti & grilled chicken', option2: 'Yam porridge with fish', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-07', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 7', option1: 'Native rice & assorted meat', option2: 'Fried yam & fried plantain', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-08', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 8', option1: 'Egusi soup', option2: 'Jollof rice & chicken', option1IsSwallow: true, option2IsSwallow: false },
     ],
   },
   {
     weekNumber: 6,
-    title: 'Week 6: January 11–15',
+    title: 'Jan 11 – 15',
     dateRange: 'Jan 11 – 15',
     days: [
-      { dateStr: '2027-01-11', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 11', option1: 'Vegetable fried rice & chicken', option2: 'Coconut rice & grilled fish' },
-      { dateStr: '2027-01-12', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 12', option1: 'Boiled yam & garden egg sauce', option2: 'Spaghetti Bolognese' },
-      { dateStr: '2027-01-13', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 13', option1: 'Ofada rice & ayamase sauce', option2: 'Fried plantain & egg sauce' },
-      { dateStr: '2027-01-14', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 14', option1: 'White rice & vegetable sauce', option2: 'Yam porridge with fish' },
-      { dateStr: '2027-01-15', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 15', option1: 'Ogbono soup', option2: 'Native rice & grilled fish' },
+      { dateStr: '2027-01-11', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 11', option1: 'Vegetable fried rice & chicken', option2: 'Coconut rice & grilled fish', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-12', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 12', option1: 'Boiled yam & garden egg sauce', option2: 'Spaghetti Bolognese', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-13', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 13', option1: 'Ofada rice & ayamase sauce', option2: 'Fried plantain & egg sauce', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-14', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 14', option1: 'White rice & vegetable sauce', option2: 'Yam porridge with fish', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-15', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 15', option1: 'Ogbono soup', option2: 'Native rice & grilled fish', option1IsSwallow: true, option2IsSwallow: false },
     ],
   },
   {
     weekNumber: 7,
-    title: 'Week 7: January 18–22',
+    title: 'Jan 18 – 22',
     dateRange: 'Jan 18 – 22',
     days: [
-      { dateStr: '2027-01-18', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 18', option1: 'Jollof rice & grilled fish', option2: 'Fried rice & chicken' },
-      { dateStr: '2027-01-19', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 19', option1: 'Sweet potato porridge', option2: 'Spaghetti & beef' },
-      { dateStr: '2027-01-20', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 20', option1: 'Ewa Agoyin, pepper sauce, fish & fried plantain', option2: 'White rice & stew' },
-      { dateStr: '2027-01-21', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 21', option1: 'Boiled plantain & egg sauce', option2: 'Fried yam & fried plantain' },
-      { dateStr: '2027-01-22', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 22', option1: 'Efo riro', option2: 'Fried rice & chicken' },
+      { dateStr: '2027-01-18', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 18', option1: 'Jollof rice & grilled fish', option2: 'Fried rice & chicken', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-19', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 19', option1: 'Sweet potato porridge', option2: 'Spaghetti & beef', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-20', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 20', option1: 'Ewa Agoyin, pepper sauce, fish & fried plantain', option2: 'White rice & stew', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-21', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 21', option1: 'Boiled plantain & egg sauce', option2: 'Fried yam & fried plantain', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-22', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 22', option1: 'Efo riro', option2: 'Fried rice & chicken', option1IsSwallow: true, option2IsSwallow: false },
     ],
   },
   {
     weekNumber: 8,
-    title: 'Week 8: January 25–29',
+    title: 'Jan 25 – 29',
     dateRange: 'Jan 25 – 29',
     days: [
-      { dateStr: '2027-01-25', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 25', option1: 'Native rice & grilled chicken', option2: 'White rice, stew & fried plantain' },
-      { dateStr: '2027-01-26', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 26', option1: 'Yam porridge with fish', option2: 'Spaghetti & beef' },
-      { dateStr: '2027-01-27', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 27', option1: 'Boiled sweet potatoes & egg sauce', option2: 'Ofada rice & ayamase sauce' },
-      { dateStr: '2027-01-28', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 28', option1: 'Nigerian fried rice & chicken', option2: 'Fried yam & fried plantain' },
-      { dateStr: '2027-01-29', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 29', option1: 'Egusi soup', option2: 'Jollof rice & chicken' },
+      { dateStr: '2027-01-25', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 25', option1: 'Native rice & grilled chicken', option2: 'White rice, stew & fried plantain', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-26', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 26', option1: 'Yam porridge with fish', option2: 'Spaghetti & beef', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-27', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 27', option1: 'Boiled sweet potatoes & egg sauce', option2: 'Ofada rice & ayamase sauce', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-28', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 28', option1: 'Nigerian fried rice & chicken', option2: 'Fried yam & fried plantain', option1IsSwallow: false, option2IsSwallow: false },
+      { dateStr: '2027-01-29', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 29', option1: 'Egusi soup', option2: 'Jollof rice & chicken', option1IsSwallow: true, option2IsSwallow: false },
     ],
   },
 ];
@@ -750,6 +770,7 @@ export function safeSaveStoredOverrides(overrides: Record<string, StructuredMeal
 }
 
 export const customMealOverrides: Record<string, StructuredMeal> = loadStoredOverrides();
+syncOverridesToCanonical();
 
 /**
  * Merges incoming remote overrides into local in-memory cache without
@@ -812,6 +833,7 @@ export function mergeRemoteOverrides(incoming: Record<string, any>): void {
   });
 
   if (hasChanges) {
+    syncOverridesToCanonical();
     safeSaveStoredOverrides(customMealOverrides);
     broadcastMenuUpdate();
   }
@@ -992,6 +1014,141 @@ export function batchUpdateMeals(mealsMap: Record<string, StructuredMeal>) {
   } catch {}
 }
 
+export function syncOverridesToCanonical(): void {
+  try {
+    if (typeof customMealOverrides === 'undefined') return;
+    Object.keys(customMealOverrides).forEach((dateKey) => {
+      const override = customMealOverrides[dateKey];
+      if (!override) return;
+      const opt1Name = override.mealOptions?.[0]?.name || (override as any).option1 || override.mealName;
+      const opt2Name = override.mealOptions?.[1]?.name || (override as any).option2;
+      const opt1Swallow = override.option1IsSwallow !== undefined ? override.option1IsSwallow : (override.mealOptions?.[0]?.isSwallow);
+      const opt2Swallow = override.option2IsSwallow !== undefined ? override.option2IsSwallow : (override.mealOptions?.[1]?.isSwallow);
+
+      if (CANONICAL_DATES_MAP[dateKey] && opt1Name) {
+        CANONICAL_DATES_MAP[dateKey].option1 = opt1Name;
+        if (opt2Name) CANONICAL_DATES_MAP[dateKey].option2 = opt2Name;
+        if (override.isHoliday !== undefined) CANONICAL_DATES_MAP[dateKey].isHoliday = override.isHoliday;
+        if (override.holidayName) CANONICAL_DATES_MAP[dateKey].holidayName = override.holidayName;
+        if (opt1Swallow !== undefined) CANONICAL_DATES_MAP[dateKey].option1IsSwallow = opt1Swallow;
+        if (opt2Swallow !== undefined) CANONICAL_DATES_MAP[dateKey].option2IsSwallow = opt2Swallow;
+      }
+      CANONICAL_8_WEEKS_MENU.forEach((week) => {
+        const found = week.days.find((d) => d.dateStr === dateKey);
+        if (found && opt1Name) {
+          found.option1 = opt1Name;
+          if (opt2Name) found.option2 = opt2Name;
+          if (override.isHoliday !== undefined) found.isHoliday = override.isHoliday;
+          if (override.holidayName) found.holidayName = override.holidayName;
+          if (opt1Swallow !== undefined) found.option1IsSwallow = opt1Swallow;
+          if (opt2Swallow !== undefined) found.option2IsSwallow = opt2Swallow;
+        }
+      });
+    });
+  } catch {}
+}
+
+/**
+ * Update both Option 1 and Option 2 for any date in the 8-week menu schedule.
+ * Persists to Firestore, localStorage, and broadcasts in real-time worldwide.
+ */
+export function updateCanonicalOptionsForDate(
+  dateStr: string,
+  option1: string,
+  option2: string,
+  isHoliday?: boolean,
+  holidayName?: string,
+  price?: number,
+  option1IsSwallow?: boolean,
+  option2IsSwallow?: boolean
+): StructuredMeal {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const targetDate = new Date(y, (m || 1) - 1, d || 1);
+  const dayNames: Array<'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'> = [
+    'Monday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Monday'
+  ];
+  const dayFullName = dayNames[targetDate.getDay()] || 'Monday';
+
+  const cleanOpt1 = option1.trim();
+  const cleanOpt2 = option2.trim();
+  const isOpt1Sw = option1IsSwallow !== undefined ? Boolean(option1IsSwallow) : isMealTitleSwallow(cleanOpt1);
+  const isOpt2Sw = option2IsSwallow !== undefined ? Boolean(option2IsSwallow) : isMealTitleSwallow(cleanOpt2);
+
+  // 1. Update in CANONICAL_DATES_MAP if exists
+  if (CANONICAL_DATES_MAP[dateStr]) {
+    CANONICAL_DATES_MAP[dateStr].option1 = cleanOpt1;
+    CANONICAL_DATES_MAP[dateStr].option2 = cleanOpt2;
+    CANONICAL_DATES_MAP[dateStr].isHoliday = Boolean(isHoliday);
+    CANONICAL_DATES_MAP[dateStr].holidayName = isHoliday ? (holidayName || 'Holiday (No Service)') : undefined;
+    CANONICAL_DATES_MAP[dateStr].option1IsSwallow = isOpt1Sw;
+    CANONICAL_DATES_MAP[dateStr].option2IsSwallow = isOpt2Sw;
+  }
+
+  // 2. Also update in CANONICAL_8_WEEKS_MENU in place
+  CANONICAL_8_WEEKS_MENU.forEach((week) => {
+    const dayItem = week.days.find((day) => day.dateStr === dateStr);
+    if (dayItem) {
+      dayItem.option1 = cleanOpt1;
+      dayItem.option2 = cleanOpt2;
+      dayItem.isHoliday = Boolean(isHoliday);
+      dayItem.holidayName = isHoliday ? (holidayName || 'Holiday (No Service)') : undefined;
+      dayItem.option1IsSwallow = isOpt1Sw;
+      dayItem.option2IsSwallow = isOpt2Sw;
+    }
+  });
+
+  // 3. Build StructuredMeal with dual options
+  const opt1Parsed = parseStructuredMeal(cleanOpt1, dayFullName, dateStr);
+  const opt2Parsed = parseStructuredMeal(cleanOpt2, dayFullName, dateStr);
+
+  const mealObj: StructuredMeal = {
+    id: `meal-${dateStr}`,
+    dateStr,
+    day: dayFullName,
+    mealName: isHoliday ? (holidayName || 'Holiday (No Service)') : cleanOpt1,
+    mealCategory: isOpt1Sw ? 'Swallow' : opt1Parsed.mealCategory,
+    price: price && price > 0 ? price : 2900,
+    isHoliday: Boolean(isHoliday),
+    isNoDelivery: Boolean(isHoliday),
+    holidayName: isHoliday ? (holidayName || 'Holiday (No Service)') : undefined,
+    hasDualOptions: !isHoliday,
+    isSwallow: isOpt1Sw,
+    option1IsSwallow: isOpt1Sw,
+    option2IsSwallow: isOpt2Sw,
+    swallowOptions: isOpt1Sw ? ['Eba', 'Semo', 'Fufu'] : undefined,
+    mealOptions: isHoliday ? undefined : [
+      {
+        id: 'opt-1',
+        name: cleanOpt1,
+        category: isOpt1Sw ? 'Swallow' : opt1Parsed.mealCategory,
+        description: 'Option 1',
+        isSwallow: isOpt1Sw,
+        swallowOptions: isOpt1Sw ? ['Eba', 'Semo', 'Fufu'] : undefined,
+      },
+      {
+        id: 'opt-2',
+        name: cleanOpt2,
+        category: isOpt2Sw ? 'Swallow' : opt2Parsed.mealCategory,
+        description: 'Option 2',
+        isSwallow: isOpt2Sw,
+        swallowOptions: isOpt2Sw ? ['Eba', 'Semo', 'Fufu'] : undefined,
+      },
+    ],
+    selectedOptionId: 'opt-1',
+  };
+
+  (mealObj as any).option1 = cleanOpt1;
+  (mealObj as any).option2 = cleanOpt2;
+  (mealObj as any).option1IsSwallow = isOpt1Sw;
+  (mealObj as any).option2IsSwallow = isOpt2Sw;
+
+  // 4. Update customMealOverrides and broadcast
+  updateCustomMealForDate(dateStr, mealObj);
+  syncOverridesToCanonical();
+
+  return mealObj;
+}
+
 export function getCustomMealForDate(dateStr: string): StructuredMeal | undefined {
   return customMealOverrides[dateStr];
 }
@@ -1039,7 +1196,48 @@ export function getStructuredMealForDate(targetDate: Date): StructuredMeal | nul
 
   // If the admin has edited or overridden this specific date, return the overridden meal
   if (customMealOverrides[dateStr]) {
-    return customMealOverrides[dateStr];
+    const override = customMealOverrides[dateStr];
+    if (override.hasDualOptions && override.mealOptions && override.mealOptions.length >= 2) {
+      return override;
+    }
+    if (CANONICAL_DATES_MAP[dateStr]) {
+      const canonical = CANONICAL_DATES_MAP[dateStr];
+      const opt1Name = override.mealOptions?.[0]?.name || (override as any).option1 || override.mealName || canonical.option1;
+      const opt2Name = override.mealOptions?.[1]?.name || (override as any).option2 || canonical.option2;
+      const opt1Sw = override.option1IsSwallow !== undefined ? Boolean(override.option1IsSwallow) : (canonical.option1IsSwallow !== undefined ? Boolean(canonical.option1IsSwallow) : isMealTitleSwallow(opt1Name));
+      const opt2Sw = override.option2IsSwallow !== undefined ? Boolean(override.option2IsSwallow) : (canonical.option2IsSwallow !== undefined ? Boolean(canonical.option2IsSwallow) : isMealTitleSwallow(opt2Name));
+      const opt1 = parseStructuredMeal(opt1Name, dayFullName, dateStr);
+      const opt2 = parseStructuredMeal(opt2Name, dayFullName, dateStr);
+      return {
+        ...override,
+        mealName: opt1Name,
+        hasDualOptions: true,
+        option1IsSwallow: opt1Sw,
+        option2IsSwallow: opt2Sw,
+        isSwallow: opt1Sw,
+        swallowOptions: opt1Sw ? ['Eba', 'Semo', 'Fufu'] : undefined,
+        mealOptions: [
+          {
+            id: 'opt-1',
+            name: opt1Name,
+            category: opt1Sw ? 'Swallow' : opt1.mealCategory,
+            description: 'Option 1',
+            isSwallow: opt1Sw,
+            swallowOptions: opt1Sw ? ['Eba', 'Semo', 'Fufu'] : undefined,
+          },
+          {
+            id: 'opt-2',
+            name: opt2Name,
+            category: opt2Sw ? 'Swallow' : opt2.mealCategory,
+            description: 'Option 2',
+            isSwallow: opt2Sw,
+            swallowOptions: opt2Sw ? ['Eba', 'Semo', 'Fufu'] : undefined,
+          },
+        ],
+        selectedOptionId: override.selectedOptionId || 'opt-1',
+      };
+    }
+    return override;
   }
 
   // Canonical 8-Week Menu with Option 1 & Option 2
@@ -1061,22 +1259,32 @@ export function getStructuredMealForDate(targetDate: Date): StructuredMeal | nul
 
     const opt1 = parseStructuredMeal(canonical.option1, dayFullName, dateStr);
     const opt2 = parseStructuredMeal(canonical.option2, dayFullName, dateStr);
+    const opt1Sw = canonical.option1IsSwallow !== undefined ? Boolean(canonical.option1IsSwallow) : isMealTitleSwallow(canonical.option1);
+    const opt2Sw = canonical.option2IsSwallow !== undefined ? Boolean(canonical.option2IsSwallow) : isMealTitleSwallow(canonical.option2);
 
     return {
       ...opt1,
       hasDualOptions: true,
+      option1IsSwallow: opt1Sw,
+      option2IsSwallow: opt2Sw,
+      isSwallow: opt1Sw,
+      swallowOptions: opt1Sw ? ['Eba', 'Semo', 'Fufu'] : undefined,
       mealOptions: [
         {
           id: 'opt-1',
           name: canonical.option1,
-          category: opt1.mealCategory,
+          category: opt1Sw ? 'Swallow' : opt1.mealCategory,
           description: 'Option 1',
+          isSwallow: opt1Sw,
+          swallowOptions: opt1Sw ? ['Eba', 'Semo', 'Fufu'] : undefined,
         },
         {
           id: 'opt-2',
           name: canonical.option2,
-          category: opt2.mealCategory,
+          category: opt2Sw ? 'Swallow' : opt2.mealCategory,
           description: 'Option 2',
+          isSwallow: opt2Sw,
+          swallowOptions: opt2Sw ? ['Eba', 'Semo', 'Fufu'] : undefined,
         },
       ],
       selectedOptionId: 'opt-1',

@@ -26,6 +26,8 @@ export interface MealOption {
   hasCustomImage?: boolean;
   description?: string;
   protein?: string;
+  isSwallow?: boolean;
+  swallowOptions?: SwallowType[];
 }
 
 export interface StructuredMeal {
@@ -41,6 +43,9 @@ export interface StructuredMeal {
   isHoliday?: boolean;
   holidayName?: string;
   isNoDelivery?: boolean;
+  isSwallow?: boolean;
+  option1IsSwallow?: boolean;
+  option2IsSwallow?: boolean;
   swallowOptions?: SwallowType[];
   imageUrl?: string;
   hasCustomImage?: boolean; // Set to true when an image is uploaded or linked by the admin

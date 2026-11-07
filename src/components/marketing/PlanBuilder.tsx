@@ -18,6 +18,8 @@ import {
   getStructuredMealForDate,
   subscribeMenuChanges,
   CANONICAL_8_WEEKS_MENU,
+  CANONICAL_DATES_MAP,
+  customMealOverrides,
   CanonicalWeekMenu,
   CanonicalDayMenu,
   parseStructuredMeal,
@@ -1169,8 +1171,22 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
               {/* Day Cards List (Monday through Friday) */}
               <div className="space-y-4">
-                {activeWeek.days.map((dayMenu) => {
-                  const isHoliday = Boolean(dayMenu.isHoliday);
+                {activeWeek.days.map((rawDay) => {
+                  const canonical = CANONICAL_DATES_MAP[rawDay.dateStr];
+                  const override = customMealOverrides[rawDay.dateStr];
+                  const opt1Name = override?.mealOptions?.[0]?.name || (override as any)?.option1 || canonical?.option1 || rawDay.option1;
+                  const opt2Name = override?.mealOptions?.[1]?.name || (override as any)?.option2 || canonical?.option2 || rawDay.option2;
+                  const isHoliday = override?.isHoliday !== undefined ? Boolean(override.isHoliday || override.isNoDelivery) : Boolean(canonical?.isHoliday ?? rawDay.isHoliday);
+                  const holidayName = override?.holidayName || canonical?.holidayName || rawDay.holidayName;
+
+                  const dayMenu: CanonicalDayMenu = {
+                    ...rawDay,
+                    option1: opt1Name,
+                    option2: opt2Name,
+                    isHoliday,
+                    holidayName,
+                  };
+
                   const selectedItem = selectedDaysMap[dayMenu.dateStr];
                   const isSelected = Boolean(selectedItem);
                   const selectedOptionId = selectedItem?.selectedMealOption?.id || selectedItem?.meal?.selectedOptionId || (selectedItem ? 'opt-1' : null);
@@ -1419,7 +1435,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         <div className="lg:col-span-4 w-full">
             <div className="bg-[#FAF7F2] border-2 border-zinc-200/90 rounded-3xl p-5 sm:p-6 flex flex-col justify-between shadow-xs sticky top-24">
               <div>
-                {/* Selected Meal Name & Representation Image (Appears above Live Price Meter upon date selection) */}
+                {/* Selected Meal Name (No image on selection) */}
                 {activePreviewMeal && (
                   <div className="mb-4 bg-white rounded-2xl border border-zinc-200/90 p-3.5 sm:p-4 shadow-2xs overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-top-2 text-left">
                     <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-zinc-100">
@@ -1434,25 +1450,6 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                       </span>
                     </div>
 
-                    {/* Meal Representation Image: Only shown if uploaded or linked by admin */}
-                    {activePreviewMeal.imageUrl && activePreviewMeal.imageUrl.trim() !== '' ? (
-                      <div className="relative w-full h-36 sm:h-44 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200/80 mb-2.5 group shadow-2xs">
-                        <img
-                          src={activePreviewMeal.imageUrl}
-                          alt={activePreviewMeal.mealName}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                        {activePreviewMeal.mealCategory ? (
-                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[9px] font-bold text-white uppercase tracking-wider">
-                            {activePreviewMeal.mealCategory}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-
                     {/* Meal Name (Always prominent) */}
                     <h4 className="text-sm sm:text-base font-black text-black leading-snug break-words">
                       {activePreviewMeal.mealName}
@@ -1460,14 +1457,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
                     {/* Swallow selection or category tag */}
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {activePreviewMeal.mealCategory ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-700 text-[10px] font-bold uppercase tracking-wide">
+                          {activePreviewMeal.mealCategory}
+                        </span>
+                      ) : null}
                       {activePreviewSwallow ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-orange-50 text-[#FF4C00] text-[10px] font-bold uppercase tracking-wide border border-orange-200/60">
                           Swallow: {activePreviewSwallow}
-                        </span>
-                      ) : null}
-                      {activePreviewMeal.mealCategory && (!activePreviewMeal.imageUrl || activePreviewMeal.imageUrl.trim() === '') ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-600 text-[10px] font-semibold">
-                          {activePreviewMeal.mealCategory}
                         </span>
                       ) : null}
                     </div>
