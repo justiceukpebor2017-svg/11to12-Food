@@ -23,7 +23,134 @@ export interface WeekMenuPlan {
 
 // Configurable Nigerian Public Holidays & No Delivery Days
 // Admin can explicitly set any date as holiday or delivering food
-export const KNOWN_HOLIDAYS: Record<string, string> = {};
+export const KNOWN_HOLIDAYS: Record<string, string> = {
+  '2026-12-25': 'Christmas Holiday (No Service)',
+  '2027-01-01': "New Year's Holiday (No Service)",
+};
+
+export interface CanonicalDayMenu {
+  dateStr: string;
+  dayShort: 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri';
+  dayFull: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday';
+  dateFormatted: string;
+  isHoliday?: boolean;
+  holidayName?: string;
+  option1: string;
+  option2: string;
+}
+
+export interface CanonicalWeekMenu {
+  weekNumber: number;
+  title: string;
+  dateRange: string;
+  days: CanonicalDayMenu[];
+}
+
+export const CANONICAL_8_WEEKS_MENU: CanonicalWeekMenu[] = [
+  {
+    weekNumber: 1,
+    title: 'Week 1: December 7–11',
+    dateRange: 'Dec 7 – 11',
+    days: [
+      { dateStr: '2026-12-07', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 7', option1: 'Yam porridge with fish', option2: 'White rice, stew & fried plantain' },
+      { dateStr: '2026-12-08', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 8', option1: 'Jollof rice & chicken', option2: 'Fried rice & beef' },
+      { dateStr: '2026-12-09', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 9', option1: 'Ewa Agoyin, pepper sauce, fish & plantain', option2: 'Spaghetti & chicken' },
+      { dateStr: '2026-12-10', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 10', option1: 'Boiled plantain & egg sauce', option2: 'Fried yam & fried plantain' },
+      { dateStr: '2026-12-11', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Dec 11', option1: 'Egusi soup', option2: 'Efo riro' },
+    ],
+  },
+  {
+    weekNumber: 2,
+    title: 'Week 2: December 14–18',
+    dateRange: 'Dec 14 – 18',
+    days: [
+      { dateStr: '2026-12-14', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 14', option1: 'Coconut rice & grilled chicken', option2: 'White rice, vegetable sauce & beef' },
+      { dateStr: '2026-12-15', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 15', option1: 'Spaghetti Bolognese', option2: 'Fried yam & fried plantain' },
+      { dateStr: '2026-12-16', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 16', option1: 'Boiled yam & garden egg sauce', option2: 'Jollof rice & grilled fish' },
+      { dateStr: '2026-12-17', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 17', option1: 'Efo riro', option2: 'Fried plantain & egg sauce' },
+      { dateStr: '2026-12-18', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Dec 18', option1: 'Ogbono soup', option2: 'Native rice & fish' },
+    ],
+  },
+  {
+    weekNumber: 3,
+    title: 'Week 3: December 21–25',
+    dateRange: 'Dec 21 – 25',
+    days: [
+      { dateStr: '2026-12-21', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 21', option1: 'Vegetable fried rice & chicken', option2: 'White rice, stew & fried fish' },
+      { dateStr: '2026-12-22', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 22', option1: 'Yam and vegetable porridge', option2: 'Spaghetti & beef' },
+      { dateStr: '2026-12-23', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 23', option1: 'Ewa Agoyin, pepper sauce, fish & fried plantain', option2: 'Fried rice & chicken' },
+      { dateStr: '2026-12-24', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 24', option1: 'Jollof rice & beef', option2: 'Fried yam & fried plantain' },
+      { dateStr: '2026-12-25', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Dec 25', option1: 'Christmas holiday', option2: 'No service', isHoliday: true, holidayName: 'Christmas Holiday (No service)' },
+    ],
+  },
+  {
+    weekNumber: 4,
+    title: 'Week 4: December 28 – January 1',
+    dateRange: 'Dec 28 – Jan 1',
+    days: [
+      { dateStr: '2026-12-28', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Dec 28', option1: 'Ofada rice & ayamase sauce', option2: 'Vegetable fried rice & chicken' },
+      { dateStr: '2026-12-29', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Dec 29', option1: 'Boiled plantain & fish stew', option2: 'Spaghetti & chicken' },
+      { dateStr: '2026-12-30', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Dec 30', option1: 'Fried yam & fried plantain', option2: 'Yam porridge with fish' },
+      { dateStr: '2026-12-31', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Dec 31', option1: 'Jollof rice & grilled fish', option2: 'Coconut rice & chicken' },
+      { dateStr: '2027-01-01', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 1', option1: "New Year's holiday", option2: 'No service', isHoliday: true, holidayName: "New Year's Holiday (No service)" },
+    ],
+  },
+  {
+    weekNumber: 5,
+    title: 'Week 5: January 4–8',
+    dateRange: 'Jan 4 – 8',
+    days: [
+      { dateStr: '2027-01-04', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 4', option1: 'White rice, stew & chicken', option2: 'Fried rice & beef' },
+      { dateStr: '2027-01-05', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 5', option1: 'Ewa Agoyin, pepper sauce, fish & fried plantain', option2: 'Boiled yam & egg sauce' },
+      { dateStr: '2027-01-06', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 6', option1: 'Spaghetti & grilled chicken', option2: 'Yam porridge with fish' },
+      { dateStr: '2027-01-07', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 7', option1: 'Native rice & assorted meat', option2: 'Fried yam & fried plantain' },
+      { dateStr: '2027-01-08', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 8', option1: 'Egusi soup', option2: 'Jollof rice & chicken' },
+    ],
+  },
+  {
+    weekNumber: 6,
+    title: 'Week 6: January 11–15',
+    dateRange: 'Jan 11 – 15',
+    days: [
+      { dateStr: '2027-01-11', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 11', option1: 'Vegetable fried rice & chicken', option2: 'Coconut rice & grilled fish' },
+      { dateStr: '2027-01-12', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 12', option1: 'Boiled yam & garden egg sauce', option2: 'Spaghetti Bolognese' },
+      { dateStr: '2027-01-13', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 13', option1: 'Ofada rice & ayamase sauce', option2: 'Fried plantain & egg sauce' },
+      { dateStr: '2027-01-14', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 14', option1: 'White rice & vegetable sauce', option2: 'Yam porridge with fish' },
+      { dateStr: '2027-01-15', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 15', option1: 'Ogbono soup', option2: 'Native rice & grilled fish' },
+    ],
+  },
+  {
+    weekNumber: 7,
+    title: 'Week 7: January 18–22',
+    dateRange: 'Jan 18 – 22',
+    days: [
+      { dateStr: '2027-01-18', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 18', option1: 'Jollof rice & grilled fish', option2: 'Fried rice & chicken' },
+      { dateStr: '2027-01-19', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 19', option1: 'Sweet potato porridge', option2: 'Spaghetti & beef' },
+      { dateStr: '2027-01-20', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 20', option1: 'Ewa Agoyin, pepper sauce, fish & fried plantain', option2: 'White rice & stew' },
+      { dateStr: '2027-01-21', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 21', option1: 'Boiled plantain & egg sauce', option2: 'Fried yam & fried plantain' },
+      { dateStr: '2027-01-22', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 22', option1: 'Efo riro', option2: 'Fried rice & chicken' },
+    ],
+  },
+  {
+    weekNumber: 8,
+    title: 'Week 8: January 25–29',
+    dateRange: 'Jan 25 – 29',
+    days: [
+      { dateStr: '2027-01-25', dayShort: 'Mon', dayFull: 'Monday', dateFormatted: 'Mon, Jan 25', option1: 'Native rice & grilled chicken', option2: 'White rice, stew & fried plantain' },
+      { dateStr: '2027-01-26', dayShort: 'Tue', dayFull: 'Tuesday', dateFormatted: 'Tue, Jan 26', option1: 'Yam porridge with fish', option2: 'Spaghetti & beef' },
+      { dateStr: '2027-01-27', dayShort: 'Wed', dayFull: 'Wednesday', dateFormatted: 'Wed, Jan 27', option1: 'Boiled sweet potatoes & egg sauce', option2: 'Ofada rice & ayamase sauce' },
+      { dateStr: '2027-01-28', dayShort: 'Thu', dayFull: 'Thursday', dateFormatted: 'Thu, Jan 28', option1: 'Nigerian fried rice & chicken', option2: 'Fried yam & fried plantain' },
+      { dateStr: '2027-01-29', dayShort: 'Fri', dayFull: 'Friday', dateFormatted: 'Fri, Jan 29', option1: 'Egusi soup', option2: 'Jollof rice & chicken' },
+    ],
+  },
+];
+
+export const CANONICAL_DATES_MAP: Record<string, CanonicalDayMenu> = {};
+CANONICAL_8_WEEKS_MENU.forEach((week) => {
+  week.days.forEach((day) => {
+    CANONICAL_DATES_MAP[day.dateStr] = day;
+  });
+});
 
 export const TWENTY_SIX_WEEK_MENU: WeekMenuPlan[] = [
   // MONTH 1
@@ -912,11 +1039,47 @@ export function getStructuredMealForDate(targetDate: Date): StructuredMeal | nul
 
   // If the admin has edited or overridden this specific date, return the overridden meal
   if (customMealOverrides[dateStr]) {
-    const override = customMealOverrides[dateStr];
+    return customMealOverrides[dateStr];
+  }
+
+  // Canonical 8-Week Menu with Option 1 & Option 2
+  if (CANONICAL_DATES_MAP[dateStr]) {
+    const canonical = CANONICAL_DATES_MAP[dateStr];
+    if (canonical.isHoliday) {
+      return {
+        id: `meal-${dateStr}`,
+        dateStr,
+        day: dayFullName,
+        mealName: canonical.holidayName || canonical.option1,
+        mealCategory: 'Rice',
+        isHoliday: true,
+        holidayName: canonical.holidayName || canonical.option1,
+        isNoDelivery: true,
+        hasDualOptions: false,
+      };
+    }
+
+    const opt1 = parseStructuredMeal(canonical.option1, dayFullName, dateStr);
+    const opt2 = parseStructuredMeal(canonical.option2, dayFullName, dateStr);
+
     return {
-      ...override,
-      hasDualOptions: false,
-      mealOptions: undefined,
+      ...opt1,
+      hasDualOptions: true,
+      mealOptions: [
+        {
+          id: 'opt-1',
+          name: canonical.option1,
+          category: opt1.mealCategory,
+          description: 'Option 1',
+        },
+        {
+          id: 'opt-2',
+          name: canonical.option2,
+          category: opt2.mealCategory,
+          description: 'Option 2',
+        },
+      ],
+      selectedOptionId: 'opt-1',
     };
   }
 

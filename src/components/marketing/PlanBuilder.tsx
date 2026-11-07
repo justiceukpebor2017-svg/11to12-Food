@@ -14,7 +14,15 @@ import {
   calculateTieredOrderTotal,
   PricingSettings,
 } from '../../config/pricingConfig';
-import { getStructuredMealForDate, subscribeMenuChanges } from '../../data/menuRotation';
+import {
+  getStructuredMealForDate,
+  subscribeMenuChanges,
+  CANONICAL_8_WEEKS_MENU,
+  CanonicalWeekMenu,
+  CanonicalDayMenu,
+  parseStructuredMeal,
+} from '../../data/menuRotation';
+import { MealOption } from '../../types';
 import { LAUNCH_CONFIG, isDateBeforeLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 import {
   ChevronLeft,
@@ -73,6 +81,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       unsubMenu();
     };
   }, []);
+
+  // Active Week Index (Week 1 through Week 8: Dec 7, 2026 – Jan 29, 2027)
+  const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
+  const activeWeek = CANONICAL_8_WEEKS_MENU[currentWeekIndex] || CANONICAL_8_WEEKS_MENU[0];
 
   // Map of dateStr -> SelectedLunchDay
   const [selectedDaysMap, setSelectedDaysMap] = useState<Record<string, SelectedLunchDay>>({});
@@ -513,6 +525,231 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     setValidationError(null);
   };
 
+  const prevWeek = () => {
+    setCurrentWeekIndex((prev) => (prev > 0 ? prev - 1 : CANONICAL_8_WEEKS_MENU.length - 1));
+  };
+
+  const nextWeek = () => {
+    setCurrentWeekIndex((prev) => (prev < CANONICAL_8_WEEKS_MENU.length - 1 ? prev + 1 : 0));
+  };
+
+  // Toggle or pick Option 1 / Option 2 for a canonical workday
+  const handleSelectDayOption = (dayMenu: CanonicalDayMenu, optionId: 'opt-1' | 'opt-2') => {
+    if (dayMenu.isHoliday) return;
+    const targetOptionName = optionId === 'opt-1' ? dayMenu.option1 : dayMenu.option2;
+    const targetParsed = parseStructuredMeal(targetOptionName, dayMenu.dayFull, dayMenu.dateStr);
+    const isSwallowMeal = isFridayOrSwallowMeal(targetParsed);
+
+    const currentlySelected = selectedDaysMap[dayMenu.dateStr];
+
+    // If already selected with this EXACT option, deselect this day
+    if (currentlySelected && currentlySelected.selectedMealOption?.id === optionId) {
+      setSelectedDaysMap((prev) => {
+        const copy = { ...prev };
+        delete copy[dayMenu.dateStr];
+        return copy;
+      });
+      setSelectionHistory((prev) => prev.filter((d) => d !== dayMenu.dateStr));
+      setActiveMealPopup({
+        meal: currentlySelected.meal,
+        action: 'removed',
+        formattedDate: dayMenu.dateFormatted,
+      });
+      return;
+    }
+
+    // Otherwise, select or switch to this option
+    const mealObj: StructuredMeal = {
+      ...targetParsed,
+      mealName: targetOptionName,
+      hasDualOptions: true,
+      mealOptions: [
+        {
+          id: 'opt-1',
+          name: dayMenu.option1,
+          category: parseStructuredMeal(dayMenu.option1, dayMenu.dayFull, dayMenu.dateStr).mealCategory,
+          description: 'Option 1',
+        },
+        {
+          id: 'opt-2',
+          name: dayMenu.option2,
+          category: parseStructuredMeal(dayMenu.option2, dayMenu.dayFull, dayMenu.dateStr).mealCategory,
+          description: 'Option 2',
+        },
+      ],
+      selectedOptionId: optionId,
+    };
+
+    const chosenMealOpt: MealOption = {
+      id: optionId,
+      name: targetOptionName,
+      category: targetParsed.mealCategory,
+      description: optionId === 'opt-1' ? 'Option 1' : 'Option 2',
+    };
+
+    const defaultSwallow: SwallowType = currentlySelected?.selectedSwallow || 'Semo';
+
+    setSelectedDaysMap((prev) => ({
+      ...prev,
+      [dayMenu.dateStr]: {
+        dateStr: dayMenu.dateStr,
+        meal: mealObj,
+        selectedMealOption: chosenMealOpt,
+        selectedSwallow: isSwallowMeal ? defaultSwallow : undefined,
+      },
+    }));
+
+    setSelectionHistory((prev) => [...prev.filter((d) => d !== dayMenu.dateStr), dayMenu.dateStr]);
+    setValidationError(null);
+
+    setActiveMealPopup({
+      meal: mealObj,
+      action: 'added',
+      formattedDate: dayMenu.dateFormatted,
+    });
+
+    if (showOrderBill || calculatedSummary) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      setShowOrderBill(false);
+      setCalculatedSummary(null);
+      setIsAnimationRunning(false);
+      setIsRevealComplete(false);
+      setIsCalculating(false);
+    }
+  };
+
+  const handleSelectDaySwallow = (dateStr: string, swallow: SwallowType, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedDaysMap((prev) => {
+      if (!prev[dateStr]) return prev;
+      return {
+        ...prev,
+        [dateStr]: {
+          ...prev[dateStr],
+          selectedSwallow: swallow,
+        },
+      };
+    });
+  };
+
+  const selectAllThisWeek = () => {
+    const currentWeek = CANONICAL_8_WEEKS_MENU[currentWeekIndex];
+    if (!currentWeek) return;
+
+    setSelectedDaysMap((prev) => {
+      const copy = { ...prev };
+      currentWeek.days.forEach((dayMenu) => {
+        if (dayMenu.isHoliday) return;
+        if (!copy[dayMenu.dateStr]) {
+          const parsed = parseStructuredMeal(dayMenu.option1, dayMenu.dayFull, dayMenu.dateStr);
+          const isSwallow = isFridayOrSwallowMeal(parsed);
+          copy[dayMenu.dateStr] = {
+            dateStr: dayMenu.dateStr,
+            meal: {
+              ...parsed,
+              mealName: dayMenu.option1,
+              hasDualOptions: true,
+              mealOptions: [
+                {
+                  id: 'opt-1',
+                  name: dayMenu.option1,
+                  category: parsed.mealCategory,
+                  description: 'Option 1',
+                },
+                {
+                  id: 'opt-2',
+                  name: dayMenu.option2,
+                  category: parseStructuredMeal(dayMenu.option2, dayMenu.dayFull, dayMenu.dateStr).mealCategory,
+                  description: 'Option 2',
+                },
+              ],
+              selectedOptionId: 'opt-1',
+            },
+            selectedMealOption: {
+              id: 'opt-1',
+              name: dayMenu.option1,
+              category: parsed.mealCategory,
+              description: 'Option 1',
+            },
+            selectedSwallow: isSwallow ? 'Semo' : undefined,
+          };
+        }
+      });
+      return copy;
+    });
+
+    const weekDeliverableDates = currentWeek.days.filter((d) => !d.isHoliday).map((d) => d.dateStr);
+    setSelectionHistory((prev) => [...prev.filter((d) => !weekDeliverableDates.includes(d)), ...weekDeliverableDates]);
+    setValidationError(null);
+    setShowOrderBill(false);
+    setCalculatedSummary(null);
+    setIsRevealComplete(false);
+  };
+
+  const selectAll8Weeks = () => {
+    setSelectedDaysMap((prev) => {
+      const copy = { ...prev };
+      CANONICAL_8_WEEKS_MENU.forEach((week) => {
+        week.days.forEach((dayMenu) => {
+          if (dayMenu.isHoliday) return;
+          if (!copy[dayMenu.dateStr]) {
+            const parsed = parseStructuredMeal(dayMenu.option1, dayMenu.dayFull, dayMenu.dateStr);
+            const isSwallow = isFridayOrSwallowMeal(parsed);
+            copy[dayMenu.dateStr] = {
+              dateStr: dayMenu.dateStr,
+              meal: {
+                ...parsed,
+                mealName: dayMenu.option1,
+                hasDualOptions: true,
+                mealOptions: [
+                  {
+                    id: 'opt-1',
+                    name: dayMenu.option1,
+                    category: parsed.mealCategory,
+                    description: 'Option 1',
+                  },
+                  {
+                    id: 'opt-2',
+                    name: dayMenu.option2,
+                    category: parseStructuredMeal(dayMenu.option2, dayMenu.dayFull, dayMenu.dateStr).mealCategory,
+                    description: 'Option 2',
+                  },
+                ],
+                selectedOptionId: 'opt-1',
+              },
+              selectedMealOption: {
+                id: 'opt-1',
+                name: dayMenu.option1,
+                category: parsed.mealCategory,
+                description: 'Option 1',
+              },
+              selectedSwallow: isSwallow ? 'Semo' : undefined,
+            };
+          }
+        });
+      });
+      return copy;
+    });
+
+    const allDates: string[] = [];
+    CANONICAL_8_WEEKS_MENU.forEach((w) => {
+      w.days.forEach((d) => {
+        if (!d.isHoliday) allDates.push(d.dateStr);
+      });
+    });
+    setSelectionHistory(allDates);
+    setValidationError(null);
+    setShowOrderBill(false);
+    setCalculatedSummary(null);
+    setIsRevealComplete(false);
+  };
+
+  const getSelectedCountForWeek = (week: CanonicalWeekMenu) => {
+    return week.days.filter((d) => !d.isHoliday && Boolean(selectedDaysMap[d.dateStr])).length;
+  };
+
   const isCurrentMonthPreLaunch =
     currentYear < LAUNCH_CONFIG.year ||
     (currentYear === LAUNCH_CONFIG.year && currentMonth < LAUNCH_CONFIG.monthIndex);
@@ -776,36 +1013,50 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
           </div>
         </div>
 
-        {/* Navigation Month Tabs */}
-        <div className="flex items-center justify-center gap-2 overflow-x-auto pb-4 mb-8">
-          {navigationMonths.map((item) => {
-            const isCurrent = currentYear === item.year && currentMonth === item.month;
-            return (
-              <button
-                key={`${item.year}-${item.month}`}
-                onClick={() => {
-                  setCurrentYear(item.year);
-                  setCurrentMonth(item.month);
-                }}
-                className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
-                  isCurrent
-                    ? 'bg-black text-white shadow-sm'
-                    : 'bg-white text-zinc-700 border border-zinc-200 hover:border-zinc-300'
-                }`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
+        {/* 8-Week Selection Tabs Bar */}
+        <div className="mb-8">
+          <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-3 px-1 no-scrollbar">
+            {CANONICAL_8_WEEKS_MENU.map((week, idx) => {
+              const isCurrent = currentWeekIndex === idx;
+              const weekSelectedCount = getSelectedCountForWeek(week);
+              const deliverableDaysCount = week.days.filter((d) => !d.isHoliday).length;
+              return (
+                <button
+                  key={week.weekNumber}
+                  type="button"
+                  onClick={() => setCurrentWeekIndex(idx)}
+                  className={`px-3.5 sm:px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer shrink-0 flex flex-col items-center gap-0.5 border ${
+                    isCurrent
+                      ? 'bg-black text-white border-black shadow-md scale-[1.02]'
+                      : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                  }`}
+                >
+                  <div className="flex items-center space-x-1.5">
+                    <span>Week {week.weekNumber}</span>
+                    {weekSelectedCount > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                        isCurrent ? 'bg-[#FF4C00] text-white' : 'bg-[#FF4C00]/10 text-[#FF4C00]'
+                      }`}>
+                        {weekSelectedCount}/{deliverableDaysCount}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-medium ${isCurrent ? 'text-zinc-300' : 'text-zinc-400'}`}>
+                    {week.dateRange}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Calendar View Container */}
+        {/* Meal Selection Container */}
         <div className="bg-white border border-zinc-200 rounded-3xl p-3 sm:p-8 shadow-sm">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
-            {/* Left Column: Workdays Calendar Grid */}
+            {/* Left Column: Week-by-Week Workdays Selection */}
             <div className="lg:col-span-8">
-              {/* For only mobile version: Calculate Order button above "Select workdays for your office desk drop" */}
+              {/* For only mobile version: Calculate Order button above header */}
               <div id="mobile-calculate-order-btn" className="block md:hidden mb-4">
                 <div className="bg-[#FAF7F2] border border-zinc-200/90 rounded-2xl p-3.5 shadow-2xs">
                   <div className="flex items-center justify-between mb-2 px-0.5">
@@ -850,264 +1101,319 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 </div>
               </div>
 
-              {/* Month Navigation & Action Bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-zinc-100">
+              {/* Active Week Header & Quick Selection Action Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-zinc-150">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-2xl bg-[#FF4C00]/10 flex items-center justify-center text-[#FF4C00]">
-                    <CalendarIcon className="w-5 h-5" />
+                  <div className="w-11 h-11 rounded-2xl bg-[#FF4C00]/10 flex items-center justify-center text-[#FF4C00] shrink-0">
+                    <Utensils className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-black">
-                      {monthNames[currentMonth]} {currentYear}
-                    </h3>
-                    <p className="text-xs text-zinc-400">
-                      Select workdays for your office desk drop
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-lg sm:text-xl font-black text-black">
+                        {activeWeek.title}
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#FF4C00]/10 text-[#FF4C00]">
+                        Week {activeWeek.weekNumber} of 8
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-500 font-medium mt-0.5">
+                      Select Option 1 or Option 2 for each workday delivery
                     </p>
                   </div>
                 </div>
 
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={selectAllWorkdaysThisMonth}
-                disabled={!hasMenu}
-                className={`text-xs font-semibold cursor-pointer ${
-                  hasMenu ? 'text-[#FF4C00] hover:underline' : 'text-zinc-300 cursor-not-allowed'
-                }`}
-              >
-                Select All Workdays
-              </button>
-              <span className="text-zinc-300">•</span>
-              <button
-                onClick={clearAllSelected}
-                className="text-xs font-medium text-zinc-400 hover:text-zinc-600 cursor-pointer"
-              >
-                Clear All
-              </button>
-              <div className="flex items-center space-x-1 pl-2">
-                <button
-                  type="button"
-                  onClick={prevMonth}
-                  className="p-2 rounded-full border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition cursor-pointer"
-                  title="Previous Month"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={nextMonth}
-                  className="p-2 rounded-full border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition cursor-pointer"
-                  title="Next Month"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* No menu set alert banner when user goes beyond Dec 2026 / Jan 2027 */}
-          {!hasMenu && (
-            <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-              <div className="flex items-start sm:items-center space-x-3">
-                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
-                <div>
-                  <h4 className="text-sm font-bold text-amber-950">
-                    No menu set for {monthNames[currentMonth]} {currentYear}
-                  </h4>
-                  <p className="text-xs text-amber-800">
-                    Currently, official chef menus are published for December 2026 and January 2027 only.
-                  </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllThisWeek}
+                    className="text-xs font-bold text-[#FF4C00] hover:text-[#E04300] hover:underline cursor-pointer px-2 py-1"
+                  >
+                    Select This Week
+                  </button>
+                  <span className="text-zinc-300 hidden sm:inline">•</span>
+                  <button
+                    type="button"
+                    onClick={selectAll8Weeks}
+                    className="text-xs font-bold text-zinc-700 hover:text-black cursor-pointer px-2 py-1"
+                  >
+                    Select All 8 Weeks
+                  </button>
+                  <span className="text-zinc-300 hidden sm:inline">•</span>
+                  <button
+                    type="button"
+                    onClick={clearAllSelected}
+                    className="text-xs font-medium text-zinc-400 hover:text-zinc-600 cursor-pointer px-2 py-1"
+                  >
+                    Clear All
+                  </button>
+                  <div className="flex items-center space-x-1 pl-1">
+                    <button
+                      type="button"
+                      onClick={prevWeek}
+                      className="p-2 rounded-xl border border-zinc-200 text-zinc-700 hover:bg-zinc-100 transition cursor-pointer"
+                      title="Previous Week"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={nextWeek}
+                      className="p-2 rounded-xl border border-zinc-200 text-zinc-700 hover:bg-zinc-100 transition cursor-pointer"
+                      title="Next Week"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center space-x-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentYear(2026);
-                    setCurrentMonth(11);
-                  }}
-                  className="px-3.5 py-1.5 rounded-xl bg-black text-white text-xs font-bold hover:bg-zinc-800 transition cursor-pointer"
-                >
-                  View Dec 2026
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentYear(2027);
-                    setCurrentMonth(0);
-                  }}
-                  className="px-3.5 py-1.5 rounded-xl bg-[#FF4C00] text-white text-xs font-bold hover:bg-[#E04300] transition cursor-pointer"
-                >
-                  View Jan 2027
-                </button>
-              </div>
-            </div>
-          )}
 
-          {/* Pre-launch alert banner for December before launch date */}
-          {hasMenu && LAUNCH_CONFIG.isEnabled && isCurrentMonthPreLaunch && (
-            <div className="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 text-[#FF4C00] shrink-0" />
-              <span>
-                Pre-launch period. Deliveries begin <strong>{LAUNCH_CONFIG.displayDate}</strong>. All previous dates are locked.
-              </span>
-            </div>
-          )}
+              {/* Day Cards List (Monday through Friday) */}
+              <div className="space-y-4">
+                {activeWeek.days.map((dayMenu) => {
+                  const isHoliday = Boolean(dayMenu.isHoliday);
+                  const selectedItem = selectedDaysMap[dayMenu.dateStr];
+                  const isSelected = Boolean(selectedItem);
+                  const selectedOptionId = selectedItem?.selectedMealOption?.id || selectedItem?.meal?.selectedOptionId || (selectedItem ? 'opt-1' : null);
+                  const selectedSwallow = selectedItem?.selectedSwallow || 'Semo';
 
-          {/* Calendar Day Header: Monday to Sunday Worldwide */}
-          <div className="grid grid-cols-7 gap-2 mb-3 text-center text-xs font-bold text-zinc-400 uppercase tracking-wider">
-            <div>Mon</div>
-            <div>Tue</div>
-            <div>Wed</div>
-            <div>Thu</div>
-            <div>Fri</div>
-            <div className="text-zinc-400/80">Sat</div>
-            <div className="text-zinc-400/80">Sun</div>
-          </div>
+                  const opt1Parsed = parseStructuredMeal(dayMenu.option1, dayMenu.dayFull, dayMenu.dateStr);
+                  const opt2Parsed = parseStructuredMeal(dayMenu.option2, dayMenu.dayFull, dayMenu.dateStr);
 
-          {/* Calendar Days Grid */}
-          <div className="grid grid-cols-7 gap-1 sm:gap-2.5">
-            {calendarDays.map((cell, idx) => {
-              const meal = cell.meal;
-              const isSelected = Boolean(selectedDaysMap[cell.dateStr]);
-              const selectedSwallow = selectedDaysMap[cell.dateStr]?.selectedSwallow || 'Semo';
-              const isSwallowMeal = meal?.mealCategory === 'Swallow';
+                  const isOpt1Swallow = opt1Parsed.mealCategory === 'Swallow' || isFridayOrSwallowMeal(opt1Parsed);
+                  const isOpt2Swallow = opt2Parsed.mealCategory === 'Swallow' || isFridayOrSwallowMeal(opt2Parsed);
 
-              // Pre-launch dates (Faded out till infinity)
-              if (cell.isBeforeLaunch) {
-                return (
-                  <div
-                    key={idx}
-                    className="min-h-[78px] sm:min-h-[110px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl bg-zinc-100/40 border border-zinc-200/50 flex flex-col justify-between opacity-30 select-none cursor-not-allowed overflow-hidden"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] sm:text-xs font-semibold text-zinc-400">{cell.dayNumber}</span>
-                      <span className="text-[7px] sm:text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200 px-1 py-0.5 rounded truncate">
-                        <span className="hidden sm:inline">Pre-Launch</span>
-                        <span className="sm:hidden">Pre</span>
-                      </span>
-                    </div>
-                    <span className="text-[8px] sm:text-[10px] text-zinc-400 italic text-center py-1">Locked</span>
-                  </div>
-                );
-              }
-
-              // Weekend styling (Strictly No Meals - Saturday & Sunday)
-              if (cell.isWeekend) {
-                return (
-                  <div
-                    key={idx}
-                    className="min-h-[78px] sm:min-h-[110px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl bg-zinc-50/70 border border-zinc-150 flex flex-col justify-between opacity-50 select-none cursor-not-allowed overflow-hidden"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] sm:text-xs font-semibold text-zinc-400">{cell.dayNumber}</span>
-                      <span className="text-[7px] sm:text-[8px] font-semibold text-zinc-400 uppercase bg-zinc-200/60 px-1 py-0.5 rounded">Off</span>
-                    </div>
-                    <span className="text-[7px] sm:text-[10px] text-zinc-400 font-medium italic text-center py-1 leading-tight">
-                      <span className="hidden sm:inline">Strictly No Meals (Closed)</span>
-                      <span className="sm:hidden">Closed</span>
-                    </span>
-                  </div>
-                );
-              }
-
-              // Public Holiday styling
-              if (cell.meal?.isHoliday || cell.meal?.isNoDelivery) {
-                return (
-                  <div
-                    key={idx}
-                    className="min-h-[78px] sm:min-h-[110px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl bg-amber-50/50 border border-amber-200/60 flex flex-col justify-between select-none overflow-hidden"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] sm:text-xs font-bold text-amber-700">{cell.dayNumber}</span>
-                      <span className="text-[7px] sm:text-[8px] font-semibold text-amber-600 uppercase bg-amber-100 px-1 py-0.5 rounded truncate">
-                        Holiday
-                      </span>
-                    </div>
-                    <span className="text-[8px] sm:text-[10px] font-semibold text-amber-800 line-clamp-2 leading-tight break-words">
-                      {cell.meal?.holidayName || 'Holiday'}
-                    </span>
-                  </div>
-                );
-              }
-
-              // Non-current month workdays
-              if (!cell.isCurrentMonth || !meal) {
-                return (
-                  <div
-                    key={idx}
-                    className="min-h-[78px] sm:min-h-[110px] p-1 sm:p-2 rounded-xl sm:rounded-2xl bg-zinc-50/40 border border-zinc-100 opacity-40 select-none"
-                  >
-                    <span className="text-[10px] sm:text-xs font-semibold text-zinc-300">{cell.dayNumber}</span>
-                  </div>
-                );
-              }
-
-              // Active Workday Card
-              return (
-                <div
-                  key={cell.dateStr}
-                  onClick={() => toggleSelectMeal(meal)}
-                  className={`min-h-[78px] sm:min-h-[110px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group relative text-left overflow-hidden ${
-                    isSelected
-                      ? 'bg-[#FF4C00] text-white border-[#FF4C00] shadow-md scale-[1.01]'
-                      : 'bg-white text-zinc-800 border-zinc-200 hover:border-[#FF4C00]/60 hover:bg-[#FAF7F2]'
-                  }`}
-                >
-                  {/* Top: Day number & selection badge */}
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`text-[10px] sm:text-sm font-bold ${
-                        isSelected ? 'text-white' : 'text-zinc-900 group-hover:text-[#FF4C00]'
+                  return (
+                    <div
+                      key={dayMenu.dateStr}
+                      className={`border rounded-2xl p-4 sm:p-5 transition-all ${
+                        isSelected
+                          ? 'bg-zinc-50/80 border-zinc-300 shadow-2xs'
+                          : 'bg-zinc-50/40 border-zinc-200/90 hover:border-zinc-300'
                       }`}
                     >
-                      {cell.dayNumber}
-                    </span>
+                      {/* Day Header Row */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-3 border-b border-zinc-200/80">
+                        <div className="flex items-center space-x-2.5">
+                          <span className={`w-9 h-9 rounded-xl font-black text-xs flex items-center justify-center shrink-0 shadow-xs ${
+                            isSelected ? 'bg-[#FF4C00] text-white' : 'bg-black text-white'
+                          }`}>
+                            {dayMenu.dayShort}
+                          </span>
+                          <div>
+                            <h4 className="text-sm sm:text-base font-black text-zinc-950 leading-tight">
+                              {dayMenu.dayFull}, {dayMenu.dateFormatted.split(', ')[1]}
+                            </h4>
+                            <p className="text-[11px] text-zinc-500 font-medium">
+                              {isHoliday ? 'Official Nigerian Public Holiday' : 'Choose 1 meal option for your desk delivery'}
+                            </p>
+                          </div>
+                        </div>
 
-                    {isSelected ? (
-                      <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-white text-[#FF4C00] flex items-center justify-center shadow-xs shrink-0">
-                        <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[3]" />
-                      </span>
-                    ) : (
-                      <span className="text-[7px] sm:text-[9px] font-semibold text-zinc-400 group-hover:text-zinc-600 truncate">
-                        {meal.day.substring(0, 3)}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Middle: Meal Name (ONLY Food Title, fits in container) */}
-                  <div className="my-0.5 min-w-0">
-                    <p
-                      className={`text-[8px] sm:text-xs font-bold leading-tight line-clamp-2 break-words ${
-                        isSelected ? 'text-white' : 'text-zinc-800'
-                      }`}
-                    >
-                      {isSelected && selectedDaysMap[cell.dateStr]?.meal?.mealName
-                        ? selectedDaysMap[cell.dateStr].meal.mealName
-                        : meal.mealName}
-                    </p>
-                  </div>
-
-                  {/* Bottom: Friday/swallow selection */}
-                  <div>
-                    {isSelected && isSwallowMeal ? (
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenSwallowModal(meal, e);
-                        }}
-                        className="mt-1 pt-1 border-t border-white/30 flex items-center justify-between text-[8px] sm:text-[9px] font-black uppercase text-white cursor-pointer px-1 bg-white/20 hover:bg-white/30 rounded py-0.5 transition"
-                        title="Click to pick or change swallow"
-                      >
-                        <span className="truncate">Swallow: {selectedSwallow}</span>
-                        <span className="opacity-80 shrink-0 ml-1">↻ Change</span>
+                        {/* Day Selection Status Badge */}
+                        <div>
+                          {isHoliday ? (
+                            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                              <Lock className="w-3.5 h-3.5 text-amber-700" />
+                              <span>Kitchen Closed (Holiday)</span>
+                            </span>
+                          ) : isSelected ? (
+                            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Selected: {selectedOptionId === 'opt-2' ? 'Option 2' : 'Option 1'}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold text-zinc-500 bg-zinc-200/70">
+                              No meal selected yet
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+
+                      {/* Day Body: Holiday Notice or Dual Options Cards */}
+                      {isHoliday ? (
+                        <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 flex items-center space-x-3">
+                          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                          <div>
+                            <p className="text-xs sm:text-sm font-bold text-amber-950">
+                              {dayMenu.holidayName || 'Holiday (No service)'}
+                            </p>
+                            <p className="text-[11px] text-amber-800 mt-0.5">
+                              No office deliveries on this day. Fresh deliveries resume on the next scheduled workday!
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {/* Option 1 Card */}
+                          <div
+                            onClick={() => handleSelectDayOption(dayMenu, 'opt-1')}
+                            className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between select-none ${
+                              isSelected && selectedOptionId === 'opt-1'
+                                ? 'bg-white border-[#FF4C00] shadow-md ring-2 ring-[#FF4C00]/20'
+                                : 'bg-white border-zinc-200/90 hover:border-zinc-300 hover:bg-zinc-50/80 shadow-2xs'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                  isSelected && selectedOptionId === 'opt-1'
+                                    ? 'bg-[#FF4C00] text-white'
+                                    : 'bg-zinc-100 text-zinc-600'
+                                }`}>
+                                  Option 1
+                                </span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded">
+                                  {opt1Parsed.mealCategory}
+                                </span>
+                              </div>
+
+                              <h5 className="text-sm sm:text-base font-black text-zinc-950 leading-snug">
+                                {dayMenu.option1}
+                              </h5>
+                            </div>
+
+                            {/* Option 1 Footer */}
+                            <div className="mt-3 pt-3 border-t border-zinc-100 flex flex-col gap-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold">
+                                  {isSelected && selectedOptionId === 'opt-1' ? (
+                                    <span className="text-emerald-700 font-bold flex items-center space-x-1">
+                                      <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-600" />
+                                      <span>Selected Choice</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-zinc-400 text-[11px]">Click card to choose</span>
+                                  )}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                    isSelected && selectedOptionId === 'opt-1'
+                                      ? 'bg-zinc-100 text-zinc-700 hover:bg-rose-50 hover:text-rose-600'
+                                      : 'bg-black text-white hover:bg-zinc-800'
+                                  }`}
+                                >
+                                  {isSelected && selectedOptionId === 'opt-1' ? 'Deselect' : 'Select Option 1'}
+                                </button>
+                              </div>
+
+                              {/* Swallow selector if Option 1 is chosen and is a swallow meal */}
+                              {isSelected && selectedOptionId === 'opt-1' && isOpt1Swallow && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="mt-1 pt-2 border-t border-dashed border-zinc-200 flex flex-wrap items-center justify-between gap-1.5"
+                                >
+                                  <span className="text-[11px] font-bold text-zinc-700">Choose Swallow:</span>
+                                  <div className="flex items-center space-x-1">
+                                    {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((sw) => (
+                                      <button
+                                        key={sw}
+                                        type="button"
+                                        onClick={(e) => handleSelectDaySwallow(dayMenu.dateStr, sw, e)}
+                                        className={`px-2.5 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                                          selectedSwallow === sw
+                                            ? 'bg-[#FF4C00] text-white shadow-2xs'
+                                            : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                                        }`}
+                                      >
+                                        {sw}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Option 2 Card */}
+                          <div
+                            onClick={() => handleSelectDayOption(dayMenu, 'opt-2')}
+                            className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between select-none ${
+                              isSelected && selectedOptionId === 'opt-2'
+                                ? 'bg-white border-[#FF4C00] shadow-md ring-2 ring-[#FF4C00]/20'
+                                : 'bg-white border-zinc-200/90 hover:border-zinc-300 hover:bg-zinc-50/80 shadow-2xs'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                  isSelected && selectedOptionId === 'opt-2'
+                                    ? 'bg-[#FF4C00] text-white'
+                                    : 'bg-zinc-100 text-zinc-600'
+                                }`}>
+                                  Option 2
+                                </span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded">
+                                  {opt2Parsed.mealCategory}
+                                </span>
+                              </div>
+
+                              <h5 className="text-sm sm:text-base font-black text-zinc-950 leading-snug">
+                                {dayMenu.option2}
+                              </h5>
+                            </div>
+
+                            {/* Option 2 Footer */}
+                            <div className="mt-3 pt-3 border-t border-zinc-100 flex flex-col gap-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold">
+                                  {isSelected && selectedOptionId === 'opt-2' ? (
+                                    <span className="text-emerald-700 font-bold flex items-center space-x-1">
+                                      <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-600" />
+                                      <span>Selected Choice</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-zinc-400 text-[11px]">Click card to choose</span>
+                                  )}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                    isSelected && selectedOptionId === 'opt-2'
+                                      ? 'bg-zinc-100 text-zinc-700 hover:bg-rose-50 hover:text-rose-600'
+                                      : 'bg-black text-white hover:bg-zinc-800'
+                                  }`}
+                                >
+                                  {isSelected && selectedOptionId === 'opt-2' ? 'Deselect' : 'Select Option 2'}
+                                </button>
+                              </div>
+
+                              {/* Swallow selector if Option 2 is chosen and is a swallow meal */}
+                              {isSelected && selectedOptionId === 'opt-2' && isOpt2Swallow && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="mt-1 pt-2 border-t border-dashed border-zinc-200 flex flex-wrap items-center justify-between gap-1.5"
+                                >
+                                  <span className="text-[11px] font-bold text-zinc-700">Choose Swallow:</span>
+                                  <div className="flex items-center space-x-1">
+                                    {(['Eba', 'Semo', 'Fufu'] as SwallowType[]).map((sw) => (
+                                      <button
+                                        key={sw}
+                                        type="button"
+                                        onClick={(e) => handleSelectDaySwallow(dayMenu.dateStr, sw, e)}
+                                        className={`px-2.5 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                                          selectedSwallow === sw
+                                            ? 'bg-[#FF4C00] text-white shadow-2xs'
+                                            : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                                        }`}
+                                      >
+                                        {sw}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
         {/* Right Column: Interactive Price Vertical Line UI & Live Gauge */}
         <div className="lg:col-span-4 w-full">
