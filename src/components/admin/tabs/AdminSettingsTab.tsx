@@ -16,6 +16,7 @@ import {
   updateCanonicalOptionsForDate,
   CANONICAL_DATES_MAP,
   subscribeMenuChanges,
+  isMealTitleSwallow,
 } from '../../../data/menuRotation';
 import { downloadMealExcelTemplate, parseAndApplyMealSpreadsheet } from '../../../utils/mealExcelService';
 import {
@@ -78,6 +79,8 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   const [editingDateStr, setEditingDateStr] = useState<string | null>(null);
   const [editOption1, setEditOption1] = useState('');
   const [editOption2, setEditOption2] = useState('');
+  const [editOption1IsSwallow, setEditOption1IsSwallow] = useState(false);
+  const [editOption2IsSwallow, setEditOption2IsSwallow] = useState(false);
   const [editMealPrice, setEditMealPrice] = useState<number>(2900);
   const [editIsUnavailable, setEditIsUnavailable] = useState(false);
   const [editHolidayName, setEditHolidayName] = useState('');
@@ -184,8 +187,17 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     const opt1 = item.meal?.mealOptions?.[0]?.name || (item.meal as any)?.option1 || canonical?.option1 || item.meal?.mealName || '';
     const opt2 = item.meal?.mealOptions?.[1]?.name || (item.meal as any)?.option2 || canonical?.option2 || '';
 
+    const isOpt1Sw = item.meal?.mealOptions?.[0]?.isSwallow !== undefined
+      ? Boolean(item.meal?.mealOptions?.[0]?.isSwallow)
+      : (canonical?.option1IsSwallow !== undefined ? Boolean(canonical.option1IsSwallow) : isMealTitleSwallow(opt1));
+    const isOpt2Sw = item.meal?.mealOptions?.[1]?.isSwallow !== undefined
+      ? Boolean(item.meal?.mealOptions?.[1]?.isSwallow)
+      : (canonical?.option2IsSwallow !== undefined ? Boolean(canonical.option2IsSwallow) : isMealTitleSwallow(opt2));
+
     setEditOption1(opt1);
     setEditOption2(opt2);
+    setEditOption1IsSwallow(isOpt1Sw);
+    setEditOption2IsSwallow(isOpt2Sw);
     setEditMealPrice(item.meal ? calculateMealPrice(item.meal) : 2900);
     setEditIsUnavailable(Boolean(item.meal?.isHoliday || item.meal?.isNoDelivery || canonical?.isHoliday));
     setEditHolidayName(item.meal?.holidayName || canonical?.holidayName || 'Holiday (No Service)');
@@ -198,9 +210,18 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     const opt1 = existing?.mealOptions?.[0]?.name || (existing as any)?.option1 || canonical?.option1 || existing?.mealName || '';
     const opt2 = existing?.mealOptions?.[1]?.name || (existing as any)?.option2 || canonical?.option2 || '';
 
+    const isOpt1Sw = existing?.mealOptions?.[0]?.isSwallow !== undefined
+      ? Boolean(existing?.mealOptions?.[0]?.isSwallow)
+      : (canonical?.option1IsSwallow !== undefined ? Boolean(canonical.option1IsSwallow) : isMealTitleSwallow(opt1));
+    const isOpt2Sw = existing?.mealOptions?.[1]?.isSwallow !== undefined
+      ? Boolean(existing?.mealOptions?.[1]?.isSwallow)
+      : (canonical?.option2IsSwallow !== undefined ? Boolean(canonical.option2IsSwallow) : isMealTitleSwallow(opt2));
+
     setEditingDateStr(dateStr);
     setEditOption1(opt1);
     setEditOption2(opt2);
+    setEditOption1IsSwallow(isOpt1Sw);
+    setEditOption2IsSwallow(isOpt2Sw);
     setEditMealPrice(existing ? calculateMealPrice(existing) : 2900);
     setEditIsUnavailable(Boolean(existing?.isHoliday || existing?.isNoDelivery || canonical?.isHoliday));
     setEditHolidayName(existing?.holidayName || canonical?.holidayName || 'Holiday (No Service)');
@@ -218,12 +239,14 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
       opt2,
       editIsUnavailable,
       editHolidayName,
-      parsedPrice
+      parsedPrice,
+      editOption1IsSwallow,
+      editOption2IsSwallow
     );
 
     setRefreshKey((prev) => prev + 1);
     setEditingDateStr(null);
-    showSaved(`Saved & Distributed! Option 1: "${opt1}" & Option 2: "${opt2}" (₦${parsedPrice.toLocaleString()}) updated real-time across Website, Dashboard & Admin.`);
+    showSaved(`Saved & Distributed! Option 1: "${opt1}" (${editOption1IsSwallow ? 'Swallow' : 'Regular'}) & Option 2: "${opt2}" (${editOption2IsSwallow ? 'Swallow' : 'Regular'}) updated real-time across Website, Dashboard & Admin.`);
   };
 
   const handleSavePricing = async () => {
@@ -440,12 +463,26 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                       <div className="space-y-2">
                         {/* Option 1 */}
                         <div className="p-2 rounded-xl bg-white border border-zinc-200">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-[#FF4C00] block">Option 1</span>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-[#FF4C00] block">Option 1</span>
+                            {(item.meal?.mealOptions?.[0]?.isSwallow || canonical?.option1IsSwallow) && (
+                              <span className="text-[9px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-1.5 py-0.2 rounded">
+                                🍲 Swallow
+                              </span>
+                            )}
+                          </div>
                           <span className="text-xs font-bold text-zinc-900 line-clamp-2">{opt1}</span>
                         </div>
                         {/* Option 2 */}
                         <div className="p-2 rounded-xl bg-white border border-zinc-200">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-zinc-500 block">Option 2</span>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-zinc-500 block">Option 2</span>
+                            {(item.meal?.mealOptions?.[1]?.isSwallow || canonical?.option2IsSwallow) && (
+                              <span className="text-[9px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-1.5 py-0.2 rounded">
+                                🍲 Swallow
+                              </span>
+                            )}
+                          </div>
                           <span className="text-xs font-bold text-zinc-900 line-clamp-2">{opt2}</span>
                         </div>
                         <div className="flex items-center justify-between pt-1">
@@ -570,6 +607,22 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                         placeholder="e.g. Yam porridge with fish"
                         className="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
                       />
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-orange-50/70 border border-orange-200">
+                        <span className="text-[11px] font-bold text-zinc-800">
+                          🍲 Swallow Meal?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditOption1IsSwallow(!editOption1IsSwallow)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                            editOption1IsSwallow
+                              ? 'bg-[#FF4C00] text-white shadow-2xs'
+                              : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
+                          }`}
+                        >
+                          {editOption1IsSwallow ? '✓ ON (Eba, Semo, Fufu)' : 'OFF'}
+                        </button>
+                      </div>
                       <p className="text-[10px] text-zinc-400">
                         Primary meal shown for this day.
                       </p>
@@ -592,6 +645,22 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                         placeholder="e.g. White rice, stew & fried plantain"
                         className="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
                       />
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-100 border border-zinc-200">
+                        <span className="text-[11px] font-bold text-zinc-800">
+                          🍲 Swallow Meal?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditOption2IsSwallow(!editOption2IsSwallow)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                            editOption2IsSwallow
+                              ? 'bg-[#FF4C00] text-white shadow-2xs'
+                              : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
+                          }`}
+                        >
+                          {editOption2IsSwallow ? '✓ ON (Eba, Semo, Fufu)' : 'OFF'}
+                        </button>
+                      </div>
                       <p className="text-[10px] text-zinc-400">
                         Secondary meal choice user can switch to.
                       </p>

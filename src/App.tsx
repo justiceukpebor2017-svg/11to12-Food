@@ -769,6 +769,27 @@ export default function App() {
 
     liveSync.addCreditRedemption(order).catch(() => {});
 
+    setUserProfile((prev) => {
+      const isMatch =
+        prev.id === order.userId ||
+        Boolean(prev.email && order.email && prev.email.toLowerCase() === order.email.toLowerCase());
+      if (isMatch) {
+        const updatedUsedDates = Array.from(new Set([...(prev.creditUsedDates || []), ...(dateStr ? [dateStr] : [])]));
+        const updatedRedemptions = [...(prev.creditRedemptions || []).filter((r) => r.id !== order.id), order];
+        const updatedProfile: UserProfile = {
+          ...prev,
+          creditUsedDates: updatedUsedDates,
+          creditRedemptions: updatedRedemptions,
+          creditsBalance: Math.max(0, (prev.creditsBalance ?? 1) - (order.totalCreditsUsed || 1)),
+        };
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.USER_PROFILE, JSON.stringify(updatedProfile));
+        } catch {}
+        return updatedProfile;
+      }
+      return prev;
+    });
+
     const dateStr = order.items?.[0]?.dateStr;
     setCustomers((prev) => {
       const matchedIdx = prev.findIndex(
@@ -806,8 +827,8 @@ export default function App() {
   };
 
   const handleMoveCreditDate = (redemptionId: string, oldDateStr: string, newDateStr: string, newSwallow?: SwallowType) => {
-    setCreditRedemptions((prev) =>
-      prev.map((r) => {
+    setCreditRedemptions((prev) => {
+      const next = prev.map((r) => {
         if (r.id !== redemptionId) return r;
         const updatedItems = r.items.map((it) => {
           if (it.dateStr === oldDateStr) {
@@ -824,8 +845,78 @@ export default function App() {
           ...r,
           items: updatedItems,
         };
-      })
-    );
+      });
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.CREDIT_REDEMPTIONS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    setUserProfile((prev) => {
+      if (!prev.creditRedemptions) return prev;
+      const updatedRedemptions = prev.creditRedemptions.map((r) => {
+        if (r.id !== redemptionId) return r;
+        const updatedItems = r.items.map((it) => {
+          if (it.dateStr === oldDateStr) {
+            return {
+              ...it,
+              dateStr: newDateStr,
+              isFriday: new Date(newDateStr).getDay() === 5,
+              swallowChoice: newSwallow || it.swallowChoice,
+            };
+          }
+          return it;
+        });
+        return { ...r, items: updatedItems };
+      });
+      const updatedUsedDates = (prev.creditUsedDates || []).map((d) => (d === oldDateStr ? newDateStr : d));
+      const updatedProfile: UserProfile = {
+        ...prev,
+        creditRedemptions: updatedRedemptions,
+        creditUsedDates: updatedUsedDates,
+      };
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.USER_PROFILE, JSON.stringify(updatedProfile));
+      } catch {}
+      return updatedProfile;
+    });
+
+    setCustomers((prev) => {
+      const copy = prev.map((c) => {
+        if (c.creditRedemptions?.some((r) => r.id === redemptionId)) {
+          const updatedRedemptions = c.creditRedemptions.map((r) => {
+            if (r.id !== redemptionId) return r;
+            return {
+              ...r,
+              items: r.items.map((it) =>
+                it.dateStr === oldDateStr
+                  ? {
+                      ...it,
+                      dateStr: newDateStr,
+                      isFriday: new Date(newDateStr).getDay() === 5,
+                      swallowChoice: newSwallow || it.swallowChoice,
+                    }
+                  : it
+              ),
+            };
+          });
+          const updatedUsed = (c.creditUsedDates || []).map((d) => (d === oldDateStr ? newDateStr : d));
+          const updatedCust = {
+            ...c,
+            creditRedemptions: updatedRedemptions,
+            creditUsedDates: updatedUsed,
+          };
+          liveSync.updateCustomer(updatedCust.id, updatedCust).catch(() => {});
+          saveCustomerToFirestore(updatedCust).catch(() => {});
+          return updatedCust;
+        }
+        return c;
+      });
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(copy));
+      } catch {}
+      return copy;
+    });
   };
 
   // Customer Management Handlers

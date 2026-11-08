@@ -1,17 +1,28 @@
 /**
  * Meal Schedule Spreadsheet Import & Template Utility
+ * Accommodates dual meal options (Option 1 & Option 2), Swallow indicator flags,
+ * and Holiday indications for the 8-week menu schedule.
  * Supports both Excel (.xlsx, .xls) and CSV (.csv) formats using the xlsx library.
  */
 import * as XLSX from 'xlsx';
-import { StructuredMeal, SwallowType, MealCategory } from '../types';
-import { parseStructuredMeal, batchUpdateMeals } from '../data/menuRotation';
+import { StructuredMeal } from '../types';
+import {
+  updateCanonicalOptionsForDate,
+  CANONICAL_8_WEEKS_MENU,
+  CANONICAL_DATES_MAP,
+  customMealOverrides,
+  isMealTitleSwallow,
+} from '../data/menuRotation';
 
 export interface ParsedMealRow {
   dateStr: string;
-  foodTitle: string;
-  category?: string;
-  base?: string;
-  ingredients?: string;
+  option1: string;
+  option1IsSwallow: boolean;
+  option2: string;
+  option2IsSwallow: boolean;
+  isHoliday: boolean;
+  holidayReason?: string;
+  price?: number;
   rawRow: any;
 }
 
@@ -63,7 +74,6 @@ export function normalizeExcelDate(val: any): string | null {
   // DD/MM/YYYY or DD-MM-YYYY
   if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(str)) {
     const parts = str.split(/[\/\-]/).map(Number);
-    // Standard international day/month/year
     const d = parts[0];
     const m = parts[1];
     const y = parts[2];
@@ -78,34 +88,74 @@ export function normalizeExcelDate(val: any): string | null {
     const y = parsed.getFullYear();
     const m = String(parsed.getMonth() + 1).padStart(2, '0');
     const d = String(parsed.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   }
 
   return null;
 }
 
 /**
- * Downloads the official Excel spreadsheet template with 1 default sample row.
+ * Helper to check boolean value from spreadsheet cell string (YES, NO, TRUE, FALSE, 1, 0, etc.)
+ */
+function parseSpreadsheetBoolean(val: any): boolean {
+  if (val === undefined || val === null) return false;
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'number') return val === 1;
+  const str = String(val).trim().toLowerCase();
+  return str === 'yes' || str === 'y' || str === 'true' || str === '1' || str === 'swallow';
+}
+
+/**
+ * Downloads the official Excel spreadsheet template pre-populated with all 40 workdays
+ * of the 8-week menu schedule, with 2 meal options, swallow flags, and holiday indications.
  */
 export function downloadMealExcelTemplate(format: 'xlsx' | 'csv' = 'xlsx'): void {
-  const sampleData = [
-    {
-      'Date (YYYY-MM-DD)': '2026-12-07',
-      'Main Food': 'Fried yam + egg sauce + fish',
-      'Category': 'Yam',
-      'Base': 'Crispy Fried Yam',
-      'Ingredients': 'Yam, eggs, fish, tomatoes, pepper, onions, vegetable oil, seasoning, salt',
-    },
-  ];
+  const rows: Array<Record<string, any>> = [];
 
-  const worksheet = XLSX.utils.json_to_sheet(sampleData);
-  // Set nice column widths
+  // Iterate over all 8 canonical weeks
+  CANONICAL_8_WEEKS_MENU.forEach((week) => {
+    week.days.forEach((day) => {
+      const canonical = CANONICAL_DATES_MAP[day.dateStr];
+      const override = customMealOverrides[day.dateStr];
+
+      const opt1 = override?.mealOptions?.[0]?.name || (override as any)?.option1 || canonical?.option1 || day.option1;
+      const opt2 = override?.mealOptions?.[1]?.name || (override as any)?.option2 || canonical?.option2 || day.option2;
+      const isHoliday = override?.isHoliday !== undefined ? Boolean(override.isHoliday) : Boolean(canonical?.isHoliday ?? day.isHoliday);
+      const holidayReason = override?.holidayName || canonical?.holidayName || day.holidayName || '';
+      const opt1Swallow = override?.option1IsSwallow !== undefined
+        ? Boolean(override.option1IsSwallow)
+        : (canonical?.option1IsSwallow !== undefined ? Boolean(canonical.option1IsSwallow) : isMealTitleSwallow(opt1));
+      const opt2Swallow = override?.option2IsSwallow !== undefined
+        ? Boolean(override.option2IsSwallow)
+        : (canonical?.option2IsSwallow !== undefined ? Boolean(canonical.option2IsSwallow) : isMealTitleSwallow(opt2));
+      const price = override?.price || 2900;
+
+      rows.push({
+        'Date (YYYY-MM-DD)': day.dateStr,
+        'Day': day.dayShort,
+        'Option 1 Meal Name': opt1,
+        'Option 1 Swallow? (YES/NO)': opt1Swallow ? 'YES' : 'NO',
+        'Option 2 Meal Name': opt2,
+        'Option 2 Swallow? (YES/NO)': opt2Swallow ? 'YES' : 'NO',
+        'Is Holiday? (YES/NO)': isHoliday ? 'YES' : 'NO',
+        'Holiday Reason': holidayReason,
+        'Price (NGN)': price,
+      });
+    });
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  // Column widths
   worksheet['!cols'] = [
     { wch: 18 }, // Date
-    { wch: 45 }, // Main Food
-    { wch: 20 }, // Category
-    { wch: 25 }, // Base
-    { wch: 45 }, // Ingredients
+    { wch: 8 },  // Day
+    { wch: 45 }, // Option 1 Meal Name
+    { wch: 28 }, // Option 1 Swallow?
+    { wch: 45 }, // Option 2 Meal Name
+    { wch: 28 }, // Option 2 Swallow?
+    { wch: 22 }, // Is Holiday?
+    { wch: 30 }, // Holiday Reason
+    { wch: 14 }, // Price
   ];
 
   const workbook = XLSX.utils.book_new();
@@ -120,7 +170,7 @@ export function downloadMealExcelTemplate(format: 'xlsx' | 'csv' = 'xlsx'): void
 
 /**
  * Parses an uploaded Excel or CSV file Buffer/ArrayBuffer into StructuredMeal items
- * and automatically distributes them across the application.
+ * with dual options, swallow flags, and holiday indications, and applies them worldwide.
  */
 export async function parseAndApplyMealSpreadsheet(file: File): Promise<MealImportResult> {
   const errors: string[] = [];
@@ -160,42 +210,49 @@ export async function parseAndApplyMealSpreadsheet(file: File): Promise<MealImpo
     };
   }
 
-  const dayNames: ('Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday')[] = [
-    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
-  ];
-
-  const newMealsMap: Record<string, StructuredMeal> = {};
   const importedList: StructuredMeal[] = [];
 
   rawRows.forEach((row, index) => {
-    // Look up columns case-insensitively
     let rawDate: any = '';
-    let rawFoodTitle: string = '';
-    let rawCategory: string = '';
-    let rawBase: string = '';
-    let rawIngredients: string = '';
+    let rawOpt1: string = '';
+    let rawOpt1Swallow: any = '';
+    let rawOpt2: string = '';
+    let rawOpt2Swallow: any = '';
+    let rawIsHoliday: any = '';
+    let rawHolidayReason: string = '';
+    let rawPrice: any = '';
+    let legacyFood: string = '';
 
     Object.keys(row).forEach((col) => {
       const lower = col.toLowerCase().trim();
-      if (lower.includes('date')) rawDate = row[col];
-      else if (lower.includes('main food') || lower.includes('food') || lower.includes('meal') || lower.includes('title')) rawFoodTitle = String(row[col]).trim();
-      else if (lower.includes('category')) rawCategory = String(row[col]).trim();
-      else if (lower.includes('base')) rawBase = String(row[col]).trim();
-      else if (lower.includes('ingredient')) rawIngredients = String(row[col]).trim();
+      if (lower.includes('date')) {
+        rawDate = row[col];
+      } else if (lower.includes('option 1 swallow') || lower.includes('opt 1 swallow') || lower.includes('option1 swallow') || lower.includes('option 1 is swallow')) {
+        rawOpt1Swallow = row[col];
+      } else if (lower.includes('option 2 swallow') || lower.includes('opt 2 swallow') || lower.includes('option2 swallow') || lower.includes('option 2 is swallow')) {
+        rawOpt2Swallow = row[col];
+      } else if (lower.includes('option 1') || lower.includes('opt 1') || lower.includes('option1')) {
+        rawOpt1 = String(row[col]).trim();
+      } else if (lower.includes('option 2') || lower.includes('opt 2') || lower.includes('option2')) {
+        rawOpt2 = String(row[col]).trim();
+      } else if (lower.includes('holiday reason') || lower.includes('holiday name')) {
+        rawHolidayReason = String(row[col]).trim();
+      } else if (lower.includes('holiday')) {
+        rawIsHoliday = row[col];
+      } else if (lower.includes('price') || lower.includes('fee') || lower.includes('cost')) {
+        rawPrice = row[col];
+      } else if (lower.includes('main food') || lower.includes('food') || lower.includes('meal')) {
+        legacyFood = String(row[col]).trim();
+      }
     });
 
-    if (!rawDate && !rawFoodTitle) {
+    if (!rawDate && !rawOpt1 && !rawOpt2 && !legacyFood) {
       return; // Skip empty row
     }
 
     const dateStr = normalizeExcelDate(rawDate);
     if (!dateStr) {
       errors.push(`Row ${index + 2}: Invalid date "${rawDate}". Expected YYYY-MM-DD.`);
-      return;
-    }
-
-    if (!rawFoodTitle) {
-      errors.push(`Row ${index + 2} (${dateStr}): Missing Food Title.`);
       return;
     }
 
@@ -208,46 +265,52 @@ export async function parseAndApplyMealSpreadsheet(file: File): Promise<MealImpo
       return;
     }
 
-    const dayName = dayNames[dayOfWeek];
+    // Determine Holiday status
+    const isHolidayExplicit = parseSpreadsheetBoolean(rawIsHoliday);
+    const isHolidayFromReason = Boolean(rawHolidayReason && rawHolidayReason.toLowerCase() !== 'no');
+    const isHoliday = isHolidayExplicit || isHolidayFromReason;
+    const holidayName = isHoliday ? (rawHolidayReason || 'Holiday (No Service)') : undefined;
 
-    // Determine category matching MealCategory union
-    let category: MealCategory = 'Rice';
-    const lowerTitle = rawFoodTitle.toLowerCase();
-    const lowerCat = rawCategory.toLowerCase();
+    // Determine Option 1 and Option 2
+    let opt1 = rawOpt1 || legacyFood;
+    let opt2 = rawOpt2;
 
-    if (lowerCat.includes('swallow') || lowerTitle.includes('swallow') || lowerTitle.includes('egusi') || lowerTitle.includes('efo') || lowerTitle.includes('ogbono') || lowerTitle.includes('semo') || lowerTitle.includes('eba') || lowerTitle.includes('fufu')) {
-      category = 'Swallow';
-    } else if (lowerCat.includes('bean') || lowerTitle.includes('aganyin') || lowerTitle.includes('beans') || lowerTitle.includes('moi moi')) {
-      category = 'Beans / Moi Moi';
-    } else if (lowerCat.includes('pasta') || lowerCat.includes('spag') || lowerTitle.includes('spaghetti') || lowerTitle.includes('pasta')) {
-      category = 'Pasta';
-    } else if (lowerCat.includes('yam') || lowerTitle.includes('yam') || lowerTitle.includes('porridge') || lowerTitle.includes('boli')) {
-      category = 'Yam';
-    } else if (lowerCat.includes('plantain') || lowerTitle.includes('plantain')) {
-      category = 'Plantain';
-    } else if (lowerCat.includes('soup') || lowerTitle.includes('soup')) {
-      category = 'Rice + Soup';
-    } else if (lowerTitle.includes('beans') && lowerTitle.includes('rice')) {
-      category = 'Rice & Beans';
+    // Fallbacks if one option is missing and not a holiday
+    if (!opt1 && !isHoliday) {
+      const canonical = CANONICAL_DATES_MAP[dateStr];
+      opt1 = canonical?.option1 || 'Chef Special Lunch';
+    }
+    if (!opt2 && !isHoliday) {
+      const canonical = CANONICAL_DATES_MAP[dateStr];
+      opt2 = canonical?.option2 || opt1;
     }
 
-    // Default swallow options if swallow
-    const swallowOptions: SwallowType[] | undefined = category === 'Swallow' ? ['Eba', 'Semo', 'Fufu'] : undefined;
+    // Determine swallow flags
+    const opt1IsSwallow = rawOpt1Swallow !== ''
+      ? parseSpreadsheetBoolean(rawOpt1Swallow)
+      : isMealTitleSwallow(opt1);
 
-    // Use parseStructuredMeal or create structured meal
-    const structured: StructuredMeal = {
-      id: `meal-${dateStr}`,
+    const opt2IsSwallow = rawOpt2Swallow !== ''
+      ? parseSpreadsheetBoolean(rawOpt2Swallow)
+      : isMealTitleSwallow(opt2);
+
+    // Determine price
+    const priceNum = typeof rawPrice === 'number' ? rawPrice : Number(String(rawPrice).replace(/[^\d.]/g, ''));
+    const finalPrice = priceNum > 0 ? priceNum : 2900;
+
+    // Apply update to canonical, local state, and broadcast
+    const meal = updateCanonicalOptionsForDate(
       dateStr,
-      day: dayName as any,
-      mealName: rawFoodTitle,
-      mealCategory: category,
-      baseIngredient: rawBase || rawFoodTitle,
-      swallowOptions,
-      ingredients: rawIngredients ? rawIngredients.split(',').map((s) => s.trim()) : undefined,
-    };
+      opt1 || 'Holiday',
+      opt2 || 'Holiday',
+      isHoliday,
+      holidayName,
+      finalPrice,
+      opt1IsSwallow,
+      opt2IsSwallow
+    );
 
-    newMealsMap[dateStr] = structured;
-    importedList.push(structured);
+    importedList.push(meal);
   });
 
   if (importedList.length === 0) {
@@ -258,9 +321,6 @@ export async function parseAndApplyMealSpreadsheet(file: File): Promise<MealImpo
       errors: errors.length > 0 ? errors : ['No valid workday meal rows were processed from spreadsheet.'],
     };
   }
-
-  // Apply batch update: updates memory, localStorage, server, and broadcasts real-time everywhere
-  batchUpdateMeals(newMealsMap);
 
   return {
     success: true,

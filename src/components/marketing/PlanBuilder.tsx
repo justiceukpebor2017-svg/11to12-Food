@@ -23,6 +23,7 @@ import {
   CanonicalWeekMenu,
   CanonicalDayMenu,
   parseStructuredMeal,
+  isMealTitleSwallow,
 } from '../../data/menuRotation';
 import { MealOption } from '../../types';
 import { LAUNCH_CONFIG, isDateBeforeLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
@@ -540,7 +541,9 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     if (dayMenu.isHoliday) return;
     const targetOptionName = optionId === 'opt-1' ? dayMenu.option1 : dayMenu.option2;
     const targetParsed = parseStructuredMeal(targetOptionName, dayMenu.dayFull, dayMenu.dateStr);
-    const isSwallowMeal = isFridayOrSwallowMeal(targetParsed);
+    const isSwallowMeal = optionId === 'opt-1'
+      ? (dayMenu.option1IsSwallow !== undefined ? Boolean(dayMenu.option1IsSwallow) : (targetParsed.mealCategory === 'Swallow' || isMealTitleSwallow(targetOptionName)))
+      : (dayMenu.option2IsSwallow !== undefined ? Boolean(dayMenu.option2IsSwallow) : (targetParsed.mealCategory === 'Swallow' || isMealTitleSwallow(targetOptionName)));
 
     const currentlySelected = selectedDaysMap[dayMenu.dateStr];
 
@@ -1027,25 +1030,20 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   key={week.weekNumber}
                   type="button"
                   onClick={() => setCurrentWeekIndex(idx)}
-                  className={`px-3.5 sm:px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer shrink-0 flex flex-col items-center gap-0.5 border ${
+                  className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs font-black transition cursor-pointer shrink-0 flex items-center gap-1.5 border ${
                     isCurrent
                       ? 'bg-black text-white border-black shadow-md scale-[1.02]'
                       : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
                   }`}
                 >
-                  <div className="flex items-center space-x-1.5">
-                    <span>Week {week.weekNumber}</span>
-                    {weekSelectedCount > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                        isCurrent ? 'bg-[#FF4C00] text-white' : 'bg-[#FF4C00]/10 text-[#FF4C00]'
-                      }`}>
-                        {weekSelectedCount}/{deliverableDaysCount}
-                      </span>
-                    )}
-                  </div>
-                  <span className={`text-[10px] font-medium ${isCurrent ? 'text-zinc-300' : 'text-zinc-400'}`}>
-                    {week.dateRange}
-                  </span>
+                  <span className="font-black text-xs sm:text-sm tracking-tight">{week.dateRange}</span>
+                  {weekSelectedCount > 0 && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      isCurrent ? 'bg-[#FF4C00] text-white' : 'bg-[#FF4C00]/10 text-[#FF4C00]'
+                    }`}>
+                      {weekSelectedCount}/{deliverableDaysCount}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -1103,7 +1101,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 </div>
               </div>
 
-              {/* Active Week Header & Quick Selection Action Bar */}
+              {/* Active Period Header & Quick Selection Action Bar */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-zinc-150">
                 <div className="flex items-center space-x-3">
                   <div className="w-11 h-11 rounded-2xl bg-[#FF4C00]/10 flex items-center justify-center text-[#FF4C00] shrink-0">
@@ -1111,12 +1109,9 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   </div>
                   <div>
                     <div className="flex items-center space-x-2">
-                      <h3 className="text-lg sm:text-xl font-black text-black">
-                        {activeWeek.title}
+                      <h3 className="text-lg sm:text-xl font-black text-black tracking-tight">
+                        {activeWeek.dateRange}
                       </h3>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#FF4C00]/10 text-[#FF4C00]">
-                        Week {activeWeek.weekNumber} of 8
-                      </span>
                     </div>
                     <p className="text-xs text-zinc-500 font-medium mt-0.5">
                       Select Option 1 or Option 2 for each workday delivery
@@ -1130,7 +1125,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                     onClick={selectAllThisWeek}
                     className="text-xs font-bold text-[#FF4C00] hover:text-[#E04300] hover:underline cursor-pointer px-2 py-1"
                   >
-                    Select This Week
+                    Select This Period
                   </button>
                   <span className="text-zinc-300 hidden sm:inline">•</span>
                   <button
@@ -1138,7 +1133,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                     onClick={selectAll8Weeks}
                     className="text-xs font-bold text-zinc-700 hover:text-black cursor-pointer px-2 py-1"
                   >
-                    Select All 8 Weeks
+                    Select All 40 Days
                   </button>
                   <span className="text-zinc-300 hidden sm:inline">•</span>
                   <button
@@ -1153,7 +1148,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                       type="button"
                       onClick={prevWeek}
                       className="p-2 rounded-xl border border-zinc-200 text-zinc-700 hover:bg-zinc-100 transition cursor-pointer"
-                      title="Previous Week"
+                      title="Previous Period"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
@@ -1161,7 +1156,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                       type="button"
                       onClick={nextWeek}
                       className="p-2 rounded-xl border border-zinc-200 text-zinc-700 hover:bg-zinc-100 transition cursor-pointer"
-                      title="Next Week"
+                      title="Next Period"
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>
@@ -1179,10 +1174,19 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   const isHoliday = override?.isHoliday !== undefined ? Boolean(override.isHoliday || override.isNoDelivery) : Boolean(canonical?.isHoliday ?? rawDay.isHoliday);
                   const holidayName = override?.holidayName || canonical?.holidayName || rawDay.holidayName;
 
+                  const opt1IsSwallow = override?.option1IsSwallow !== undefined
+                    ? Boolean(override.option1IsSwallow)
+                    : (canonical?.option1IsSwallow !== undefined ? Boolean(canonical.option1IsSwallow) : isMealTitleSwallow(opt1Name));
+                  const opt2IsSwallow = override?.option2IsSwallow !== undefined
+                    ? Boolean(override.option2IsSwallow)
+                    : (canonical?.option2IsSwallow !== undefined ? Boolean(canonical.option2IsSwallow) : isMealTitleSwallow(opt2Name));
+
                   const dayMenu: CanonicalDayMenu = {
                     ...rawDay,
                     option1: opt1Name,
                     option2: opt2Name,
+                    option1IsSwallow: opt1IsSwallow,
+                    option2IsSwallow: opt2IsSwallow,
                     isHoliday,
                     holidayName,
                   };
@@ -1192,11 +1196,8 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   const selectedOptionId = selectedItem?.selectedMealOption?.id || selectedItem?.meal?.selectedOptionId || (selectedItem ? 'opt-1' : null);
                   const selectedSwallow = selectedItem?.selectedSwallow || 'Semo';
 
-                  const opt1Parsed = parseStructuredMeal(dayMenu.option1, dayMenu.dayFull, dayMenu.dateStr);
-                  const opt2Parsed = parseStructuredMeal(dayMenu.option2, dayMenu.dayFull, dayMenu.dateStr);
-
-                  const isOpt1Swallow = opt1Parsed.mealCategory === 'Swallow' || isFridayOrSwallowMeal(opt1Parsed);
-                  const isOpt2Swallow = opt2Parsed.mealCategory === 'Swallow' || isFridayOrSwallowMeal(opt2Parsed);
+                  const isOpt1Swallow = Boolean(dayMenu.option1IsSwallow || isMealTitleSwallow(dayMenu.option1));
+                  const isOpt2Swallow = Boolean(dayMenu.option2IsSwallow || isMealTitleSwallow(dayMenu.option2));
 
                   return (
                     <div
@@ -1278,9 +1279,11 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                                 }`}>
                                   Option 1
                                 </span>
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded">
-                                  {opt1Parsed.mealCategory}
-                                </span>
+                                {isOpt1Swallow && (
+                                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                                    🍲 Swallow
+                                  </span>
+                                )}
                               </div>
 
                               <h5 className="text-sm sm:text-base font-black text-zinc-950 leading-snug">
@@ -1360,9 +1363,11 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                                 }`}>
                                   Option 2
                                 </span>
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded">
-                                  {opt2Parsed.mealCategory}
-                                </span>
+                                {isOpt2Swallow && (
+                                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                                    🍲 Swallow
+                                  </span>
+                                )}
                               </div>
 
                               <h5 className="text-sm sm:text-base font-black text-zinc-950 leading-snug">
