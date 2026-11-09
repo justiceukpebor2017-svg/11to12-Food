@@ -174,18 +174,28 @@ export function calculateTieredOrderTotal(
   const rate = settings.tier21PlusPrice || 3000;
   const baseFoodTotal = daysCount * rate;
 
-  // Special rule: Only if a user selects exactly 23 days, the fee is ₦66,000 (meaning a discount of ₦3,000)
-  const discountNGN = daysCount === 23 ? 3000 : 0;
-  const total = baseFoodTotal - discountNGN;
+  // Special rule: Only if a user selects exactly 23 days, the fee is ₦70,000
+  if (daysCount === 23) {
+    return {
+      totalNGN: 70000,
+      foodTotalNGN: 70000,
+      deliveryTotalNGN: 0,
+      currentTierDailyRate: rate,
+      tierLabel: '21+ Days Best Value (₦3,000/day)',
+      isEligible: true,
+      minDays,
+      discountNGN: 0,
+    };
+  }
 
   return {
-    totalNGN: total,
+    totalNGN: baseFoodTotal,
     foodTotalNGN: baseFoodTotal,
     deliveryTotalNGN: 0,
     currentTierDailyRate: rate,
     tierLabel: '21+ Days Best Value (₦3,000/day)',
     isEligible: true,
     minDays,
-    discountNGN,
+    discountNGN: 0,
   };
 }

@@ -123,7 +123,7 @@ export interface OrderSummary {
 // 6 to 10 days: ₦3,600 / day
 // 11 to 15 days: ₦3,400 / day
 // 16 to 20 days: ₦3,200 / day
-// 21+ days: ₦3,000 / day (23 days special fee: ₦66,000 with ₦3,000 discount)
+// 21+ days: ₦3,000 / day (23 days special fee: ₦70,000)
 export function calculateOrderSummary(selectedDays: SelectedLunchDay[]): OrderSummary {
   const validDays = selectedDays.filter((d) => !d.meal.isHoliday && !d.meal.isNoDelivery);
   const totalDays = validDays.length;
