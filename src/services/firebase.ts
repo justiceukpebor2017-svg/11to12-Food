@@ -29,7 +29,14 @@ import {
   setLogLevel,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { CustomerRecord, WaitlistLead, ActiveSessionRecord } from '../types';
+import {
+  CustomerRecord,
+  WaitlistLead,
+  ActiveSessionRecord,
+  CorporateAccount,
+  CorporateEmployeeRecord,
+  MenuShowcaseItem,
+} from '../types';
 import {
   recordCustomerAsDeleted,
   isCustomerRecordedAsDeleted,
@@ -980,5 +987,369 @@ export async function releaseSessionInFirestore(userId: string, activeSessionId:
   }
 }
 
+// --------------------------------------------------------------------------
+// Corporate Meal Subscription ("Your Boss Will Pay") Firestore Operations
+// --------------------------------------------------------------------------
 
+const LOCAL_CORP_ACCOUNTS_KEY = '11to12_corporate_accounts_v1';
+const LOCAL_CORP_EMPLOYEES_KEY = '11to12_corporate_employees_v1';
 
+export function getLocalCorporateAccounts(): CorporateAccount[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LOCAL_CORP_ACCOUNTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getLocalCorporateEmployees(): CorporateEmployeeRecord[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LOCAL_CORP_EMPLOYEES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function cacheCorporateAccountLocally(account: CorporateAccount) {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getLocalCorporateAccounts().filter((a) => a.id !== account.id);
+    localStorage.setItem(LOCAL_CORP_ACCOUNTS_KEY, JSON.stringify([account, ...current]));
+  } catch {}
+}
+
+function cacheCorporateEmployeeLocally(emp: CorporateEmployeeRecord) {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getLocalCorporateEmployees().filter((e) => e.id !== emp.id);
+    localStorage.setItem(LOCAL_CORP_EMPLOYEES_KEY, JSON.stringify([emp, ...current]));
+  } catch {}
+}
+
+export async function saveCorporateAccountToFirestore(account: CorporateAccount): Promise<void> {
+  cacheCorporateAccountLocally(account);
+  try {
+    const clean = sanitizeForFirestore(account);
+    await setDoc(doc(db, 'corporateAccounts', account.id), clean, { merge: true });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.WRITE, `corporateAccounts/${account.id}`);
+  }
+}
+
+export async function getCorporateAccountByInviteCode(inviteCode: string): Promise<CorporateAccount | null> {
+  const cleanCode = inviteCode.trim().toUpperCase();
+  if (!cleanCode) return null;
+
+  try {
+    const q = query(collection(db, 'corporateAccounts'), where('inviteCode', '==', cleanCode));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const account = snap.docs[0].data() as CorporateAccount;
+      cacheCorporateAccountLocally(account);
+      return account;
+    }
+  } catch (e) {
+    handleFirestoreError(e, OperationType.GET, 'corporateAccounts');
+  }
+
+  return getLocalCorporateAccounts().find((a) => a.inviteCode.toUpperCase() === cleanCode) || null;
+}
+
+export async function getCorporateAccountByAccessCodeOrEmail(identifier: string): Promise<CorporateAccount | null> {
+  const clean = identifier.trim();
+  if (!clean) return null;
+  const upper = clean.toUpperCase();
+  const lower = clean.toLowerCase();
+
+  try {
+    const snap = await getDocs(collection(db, 'corporateAccounts'));
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data() as CorporateAccount;
+      if (
+        data.accessCode?.toUpperCase() === upper ||
+        data.inviteCode?.toUpperCase() === upper ||
+        data.adminEmail?.toLowerCase() === lower
+      ) {
+        cacheCorporateAccountLocally(data);
+        return data;
+      }
+    }
+  } catch (e) {
+    handleFirestoreError(e, OperationType.GET, 'corporateAccounts');
+  }
+
+  return (
+    getLocalCorporateAccounts().find(
+      (a) =>
+        a.accessCode?.toUpperCase() === upper ||
+        a.inviteCode?.toUpperCase() === upper ||
+        a.adminEmail?.toLowerCase() === lower
+    ) || null
+  );
+}
+
+export function subscribeToCorporateAccount(
+  corporateId: string,
+  callback: (account: CorporateAccount | null) => void
+): () => void {
+  return onSnapshot(
+    doc(db, 'corporateAccounts', corporateId),
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as CorporateAccount;
+        cacheCorporateAccountLocally(data);
+        callback(data);
+      }
+    },
+    (err) => {
+      console.warn('[Firebase subscribeToCorporateAccount notice]:', err);
+    }
+  );
+}
+
+export async function saveCorporateEmployeeToFirestore(employee: CorporateEmployeeRecord): Promise<void> {
+  cacheCorporateEmployeeLocally(employee);
+  try {
+    const clean = sanitizeForFirestore(employee);
+    await setDoc(doc(db, 'corporateEmployees', employee.id), clean, { merge: true });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.WRITE, `corporateEmployees/${employee.id}`);
+  }
+}
+
+export function subscribeToCorporateEmployees(
+  corporateId: string,
+  callback: (employees: CorporateEmployeeRecord[]) => void
+): () => void {
+  const q = query(collection(db, 'corporateEmployees'), where('corporateId', '==', corporateId));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const list: CorporateEmployeeRecord[] = snapshot.docs.map((d) => ({
+        ...(d.data() as CorporateEmployeeRecord),
+        id: d.id,
+      }));
+      list.forEach(cacheCorporateEmployeeLocally);
+      callback(list.sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || '')));
+    },
+    (err) => {
+      console.warn('[Firebase subscribeToCorporateEmployees notice]:', err);
+      const localList = getLocalCorporateEmployees().filter((e) => e.corporateId === corporateId);
+      callback(localList);
+    }
+  );
+}
+
+export function subscribeToAllCorporateAccounts(
+  callback: (accounts: CorporateAccount[]) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'corporateAccounts'),
+    (snapshot) => {
+      const list: CorporateAccount[] = snapshot.docs.map((d) => ({
+        ...(d.data() as CorporateAccount),
+        id: d.id,
+      }));
+      list.forEach(cacheCorporateAccountLocally);
+      callback(list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')));
+    },
+    (err) => {
+      console.warn('[Firebase subscribeToAllCorporateAccounts notice]:', err);
+      callback(getLocalCorporateAccounts());
+    }
+  );
+}
+
+export function subscribeToAllCorporateEmployees(
+  callback: (employees: CorporateEmployeeRecord[]) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'corporateEmployees'),
+    (snapshot) => {
+      const list: CorporateEmployeeRecord[] = snapshot.docs.map((d) => ({
+        ...(d.data() as CorporateEmployeeRecord),
+        id: d.id,
+      }));
+      list.forEach(cacheCorporateEmployeeLocally);
+      callback(list.sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || '')));
+    },
+    (err) => {
+      console.warn('[Firebase subscribeToAllCorporateEmployees notice]:', err);
+      callback(getLocalCorporateEmployees());
+    }
+  );
+}
+
+export async function confirmCorporateAccountAndOrder(account: CorporateAccount): Promise<CorporateAccount> {
+  const confirmedAt = new Date().toISOString();
+  const updatedAccount: CorporateAccount = {
+    ...account,
+    paymentStatus: 'Confirmed',
+    confirmedAt,
+  };
+  await saveCorporateAccountToFirestore(updatedAccount);
+
+  // Confirm any matching corporate order in /orders collection
+  try {
+    const q = query(collection(db, 'orders'), where('memberCode', '==', account.inviteCode));
+    const snap = await getDocs(q);
+    for (const orderDoc of snap.docs) {
+      await setDoc(
+        doc(db, 'orders', orderDoc.id),
+        { paymentStatus: 'Confirmed', confirmedAt },
+        { merge: true }
+      );
+    }
+  } catch (err) {
+    console.warn('[Firebase confirmCorporateAccountAndOrder orders notice]:', err);
+  }
+
+  return updatedAccount;
+}
+
+export async function claimCorporateEmployeeSlotAndSave(
+  corporateAccount: CorporateAccount,
+  employeeRecord: CorporateEmployeeRecord,
+  customerRecord: CustomerRecord
+): Promise<{ updatedAccount: CorporateAccount; usedSlots: number }> {
+  let latestAccount = corporateAccount;
+  let liveEmployeesCount = 0;
+
+  try {
+    const acctSnap = await getDoc(doc(db, 'corporateAccounts', corporateAccount.id));
+    if (acctSnap.exists()) {
+      latestAccount = { ...(acctSnap.data() as CorporateAccount), id: acctSnap.id };
+    }
+
+    const empSnap = await getDocs(
+      query(collection(db, 'corporateEmployees'), where('corporateId', '==', corporateAccount.id))
+    );
+    liveEmployeesCount = empSnap.size;
+  } catch (err) {
+    console.warn('[Firebase claimCorporateEmployeeSlotAndSave check notice]:', err);
+    liveEmployeesCount = getLocalCorporateEmployees().filter(
+      (e) => e.corporateId === corporateAccount.id
+    ).length;
+  }
+
+  if (latestAccount.paymentStatus !== 'Confirmed') {
+    const err = new Error('CORP_PENDING_CONFIRMATION');
+    throw err;
+  }
+
+  const effectiveUsedSlots = Math.max(latestAccount.usedSlots || 0, liveEmployeesCount);
+  if (effectiveUsedSlots >= latestAccount.totalEmployees) {
+    const err = new Error('CORP_SLOTS_FULL');
+    throw err;
+  }
+
+  const nextUsedSlots = effectiveUsedSlots + 1;
+  const nextUsedCredits = Math.min(
+    latestAccount.totalMealCredits,
+    (latestAccount.usedMealCredits || 0) + (employeeRecord.selectedDays?.length || 0)
+  );
+
+  await saveCorporateEmployeeToFirestore(employeeRecord);
+
+  const updatedAccount: CorporateAccount = {
+    ...latestAccount,
+    usedSlots: nextUsedSlots,
+    usedMealCredits: nextUsedCredits,
+  };
+  await saveCorporateAccountToFirestore(updatedAccount);
+  await saveCustomerToFirestore(customerRecord);
+
+  return { updatedAccount, usedSlots: nextUsedSlots };
+}
+
+// --------------------------------------------------------------------------
+// Homepage Menu Showcase ("See what is on the menu") Firestore Operations
+// --------------------------------------------------------------------------
+
+const LOCAL_MENU_SHOWCASE_KEY = '11to12_menu_showcase_items_v1';
+
+export function getLocalMenuShowcaseMap(): Record<string, MenuShowcaseItem> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(LOCAL_MENU_SHOWCASE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalMenuShowcaseMap(map: Record<string, MenuShowcaseItem>) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(LOCAL_MENU_SHOWCASE_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+export async function saveMenuShowcaseItemToFirestore(item: MenuShowcaseItem): Promise<void> {
+  const current = getLocalMenuShowcaseMap();
+  const nextItem: MenuShowcaseItem = {
+    ...item,
+    updatedAt: new Date().toISOString(),
+  };
+  current[item.id] = nextItem;
+  saveLocalMenuShowcaseMap(current);
+  window.dispatchEvent(new CustomEvent('11to12_menu_showcase_updated'));
+
+  try {
+    const clean = sanitizeForFirestore(nextItem);
+    await setDoc(doc(db, 'menuShowcase', item.id), clean, { merge: true });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.WRITE, `menuShowcase/${item.id}`);
+  }
+}
+
+export async function deleteMenuShowcaseItemFromFirestore(itemId: string): Promise<void> {
+  const current = getLocalMenuShowcaseMap();
+  delete current[itemId];
+  saveLocalMenuShowcaseMap(current);
+  window.dispatchEvent(new CustomEvent('11to12_menu_showcase_updated'));
+
+  try {
+    await deleteDoc(doc(db, 'menuShowcase', itemId));
+  } catch (e) {
+    handleFirestoreError(e, OperationType.DELETE, `menuShowcase/${itemId}`);
+  }
+}
+
+export function subscribeToMenuShowcase(
+  callback: (itemsMap: Record<string, MenuShowcaseItem>) => void
+): () => void {
+  const unsub = onSnapshot(
+    collection(db, 'menuShowcase'),
+    (snapshot) => {
+      const remoteMap: Record<string, MenuShowcaseItem> = {};
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data() as MenuShowcaseItem;
+        remoteMap[docSnap.id] = {
+          ...data,
+          id: docSnap.id,
+        };
+      });
+      saveLocalMenuShowcaseMap(remoteMap);
+      callback(remoteMap);
+    },
+    (err) => {
+      console.warn('[Firebase subscribeToMenuShowcase notice]:', err);
+      callback(getLocalMenuShowcaseMap());
+    }
+  );
+
+  const handleLocalEvent = () => {
+    callback(getLocalMenuShowcaseMap());
+  };
+  window.addEventListener('11to12_menu_showcase_updated', handleLocalEvent);
+
+  return () => {
+    unsub();
+    window.removeEventListener('11to12_menu_showcase_updated', handleLocalEvent);
+  };
+}

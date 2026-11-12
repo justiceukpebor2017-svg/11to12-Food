@@ -29,36 +29,44 @@ export const TestimonialsColumn = (props: {
 
                 return (
                   <div
-                    className="p-5 sm:p-7 rounded-3xl border border-zinc-200 bg-white shadow-md shadow-orange-500/5 max-w-full sm:max-w-sm w-full text-left transition hover:border-[#FF4C00]/40 flex flex-col justify-between overflow-hidden"
+                    className={`p-5 sm:p-7 rounded-3xl border shadow-md max-w-full sm:max-w-sm w-full text-left transition flex flex-col justify-between overflow-hidden ${
+                      i % 3 === 1
+                        ? 'bg-gradient-to-br from-[#FF4C00] via-[#FF5E14] to-[#FF8533] text-white border-orange-500'
+                        : i % 3 === 2
+                        ? 'bg-gradient-to-br from-[#FFF4ED] to-[#FFE9DA] text-[#1A1A1A] border-orange-200 hover:border-[#FF4C00]'
+                        : 'bg-zinc-200 text-[#1A1A1A] border-zinc-300 hover:border-[#FF4C00]'
+                    }`}
                     key={`${index}-${i}-${item.id}`}
                   >
                     <div className="min-w-0">
                       {/* Star Rating & Quote Accent */}
                       <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-1 text-[#FF4C00]">
+                        <div className={`flex items-center space-x-1 ${i % 3 === 1 ? 'text-white' : 'text-[#FF4C00]'}`}>
                           {[...Array(item.rating || 5)].map((_, sIdx) => (
-                            <Star key={sIdx} className="w-3.5 h-3.5 fill-[#FF4C00]" />
+                            <Star key={sIdx} className={`w-3.5 h-3.5 ${i % 3 === 1 ? 'fill-white' : 'fill-[#FF4C00]'}`} />
                           ))}
                         </div>
-                        <Quote className="w-4 h-4 text-zinc-300 shrink-0" />
+                        <Quote className={`w-4 h-4 shrink-0 ${i % 3 === 1 ? 'text-white/60' : 'text-zinc-400'}`} />
                       </div>
 
                       {/* Review Text */}
-                      <p className="text-zinc-700 text-xs sm:text-sm leading-relaxed font-normal break-words">
+                      <p className={`text-xs sm:text-sm leading-relaxed font-normal break-words ${i % 3 === 1 ? 'text-orange-50' : 'text-zinc-800'}`}>
                         "{item.text}"
                       </p>
                     </div>
 
-                    {/* Author Details - NO IMAGES PER USER SPECIFICATION */}
-                    <div className="flex items-center gap-3 mt-5 pt-4 border-t border-zinc-100 min-w-0">
-                      <div className="w-9 h-9 rounded-2xl bg-zinc-900 text-white font-black text-xs flex items-center justify-center tracking-wider shrink-0 border border-zinc-800">
+                    {/* Author Details */}
+                    <div className={`flex items-center gap-3 mt-5 pt-4 border-t min-w-0 ${i % 3 === 1 ? 'border-white/25' : 'border-zinc-300/80'}`}>
+                      <div className={`w-9 h-9 rounded-2xl font-black text-xs flex items-center justify-center tracking-wider shrink-0 border ${
+                        i % 3 === 1 ? 'bg-white text-[#FF4C00] border-white' : 'bg-[#FF4C00] text-white border-[#FF4C00]'
+                      }`}>
                         {initials || '11'}
                       </div>
                       <div className="flex flex-col min-w-0 flex-1">
-                        <div className="font-bold text-xs sm:text-sm text-zinc-900 tracking-tight leading-tight truncate">
+                        <div className={`font-bold text-xs sm:text-sm tracking-tight leading-tight truncate ${i % 3 === 1 ? 'text-white' : 'text-zinc-900'}`}>
                           {item.name}
                         </div>
-                        <div className="text-[11px] text-zinc-500 tracking-tight truncate font-medium">
+                        <div className={`text-[11px] tracking-tight truncate font-medium ${i % 3 === 1 ? 'text-orange-100' : 'text-zinc-600'}`}>
                           {item.role || '9–5 Subscriber'}
                         </div>
                       </div>
@@ -168,7 +176,7 @@ export const Testimonials = ({
   const thirdColumn = col3.length > 0 ? col3 : list;
 
   return (
-    <section id="testimonials-section" className="bg-[#FAF7F2] py-20 relative overflow-hidden font-['Poppins']">
+    <section id="testimonials-section" className="bg-gradient-to-b from-[#FFF4ED] via-[#FAF7F2] to-zinc-100 py-20 relative overflow-hidden font-['Poppins']">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10 relative">
         <div className="flex flex-col items-center justify-center max-w-2xl mx-auto text-center mb-12">
           <div className="flex justify-center">

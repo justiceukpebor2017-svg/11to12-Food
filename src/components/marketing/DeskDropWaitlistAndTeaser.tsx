@@ -155,88 +155,29 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
   };
 
   return (
-    <section id="reserve-desk" className="relative py-16 sm:py-24 bg-[#141414] text-white font-['Poppins']">
+    <section id="reserve-desk" className="relative py-16 sm:py-24 bg-zinc-100 text-[#1A1A1A] font-['Poppins']">
       <div id="watch-and-reserve" className="absolute -top-16 left-0" />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
-        
-        {/* Launch Countdown Banner: Clean & Minimal (Visible when launching date is active, removed when officially launched) */}
-        {LAUNCH_CONFIG.isEnabled ? (
-          <div className="text-center space-y-3">
-            <h3 className="text-2xl sm:text-3xl font-bold text-white">
-              Deliveries Begin {LAUNCH_CONFIG.displayDate}
-            </h3>
-            <div className="flex justify-center items-center gap-2 sm:gap-6 text-center pt-2 max-w-full">
-              <div>
-                <div className="text-xl sm:text-4xl font-bold text-[#FF4C00]">{String(countdown.days).padStart(2, '0')}</div>
-                <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Days</div>
-              </div>
-              <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
-              <div>
-                <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.hours).padStart(2, '0')}</div>
-                <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Hours</div>
-              </div>
-              <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
-              <div>
-                <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.minutes).padStart(2, '0')}</div>
-                <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Mins</div>
-              </div>
-              <span className="text-lg sm:text-xl text-zinc-600 font-light">:</span>
-              <div>
-                <div className="text-xl sm:text-4xl font-bold text-white">{String(countdown.seconds).padStart(2, '0')}</div>
-                <div className="text-[10px] sm:text-xs text-zinc-400 font-medium">Secs</div>
-              </div>
-            </div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 
-            {/* Free Pre-Launch Meal Callout */}
-            <div className="mt-6 max-w-xl mx-auto p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-orange-950/40 via-[#FF4C00]/15 to-orange-950/40 border border-[#FF4C00]/40 text-center shadow-lg">
-              <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#FF4C00] text-white text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-2">
-                <Gift className="w-3.5 h-3.5" />
-                <span>Pre-Launch Subscriber Perk</span>
-              </div>
-              <p className="text-sm sm:text-base font-bold text-white leading-snug">
-                If you select days and subscribe you get a <span className="text-[#FF4C00] font-black underline decoration-[#FF4C00]/60 underline-offset-4">free meal</span> before we launch!
-              </p>
-              <div className="mt-2.5 flex items-center justify-center space-x-2 text-xs sm:text-sm text-zinc-300 font-medium">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Meals get delivered <strong>every Friday</strong>.</span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              <span>Now Officially Live & Delivering Daily Across Lagos Offices</span>
-            </div>
-            <h3 className="text-2xl sm:text-3xl font-black text-white">
-              Fresh Nigerian Lunches Dropped Straight to Your Workstation
-            </h3>
-            <p className="text-xs sm:text-sm text-zinc-400 max-w-lg mx-auto">
-              Our kitchen delivers Monday through Friday between 11:00 AM and 12:00 PM. Choose your workdays below.
-            </p>
-          </div>
-        )}
-
-        {/* Reserve Your Desk Drop Form */}
-        <div id="reserve-form" className="bg-[#1F1F1F] rounded-3xl p-6 sm:p-10 border border-zinc-800 shadow-xl">
+        {/* Reserve Your Desk Drop Form — Warm Gray & Orange Card (No black background) */}
+        <div id="reserve-form" className="bg-zinc-200/80 rounded-3xl p-6 sm:p-10 border border-zinc-300 shadow-lg">
           <div className="text-center space-y-1 mb-8">
-            <h2 className="text-2xl sm:text-4xl font-bold text-white">
+            <h2 className="text-2xl sm:text-4xl font-black text-black">
               Reserve Your Desk Drop
             </h2>
-            <p className="text-sm sm:text-base text-zinc-400 font-normal">
+            <p className="text-sm sm:text-base text-zinc-700 font-medium">
               Deliveries activate {LAUNCH_CONFIG.displayShort}. Priority meal drop to your desk.
             </p>
           </div>
 
           {!isSubmitted ? (
             <form onSubmit={handleReserve} className="max-w-xl mx-auto space-y-4">
-              {/* Form Validation Alert */}
               {formError && (
-                <div className="p-4 rounded-2xl bg-red-950/60 border border-red-800/80 text-red-200 text-xs sm:text-sm space-y-2">
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm space-y-2">
                   <div className="flex items-start space-x-2">
-                    <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <p className="font-semibold text-white">{formError}</p>
+                      <p className="font-semibold text-rose-900">{formError}</p>
                     </div>
                   </div>
                 </div>
@@ -244,63 +185,63 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1">Full Name</label>
+                  <label className="block text-xs font-bold text-zinc-700 mb-1">Full Name</label>
                   <input
                     type="text"
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Your full name"
-                    className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
+                    className="w-full bg-white border border-zinc-300 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-black outline-none font-medium transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1">Email Address</label>
+                  <label className="block text-xs font-bold text-zinc-700 mb-1">Email Address</label>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => handleEmailChange(e.target.value)}
                     placeholder="Your work email"
-                    className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
+                    className="w-full bg-white border border-zinc-300 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-black outline-none font-medium transition"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1">Phone Number</label>
+                  <label className="block text-xs font-bold text-zinc-700 mb-1">Phone Number</label>
                   <input
                     type="tel"
                     required
                     value={phone}
                     onChange={(e) => handlePhoneChange(e.target.value)}
                     placeholder="Your phone number"
-                    className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
+                    className="w-full bg-white border border-zinc-300 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-black outline-none font-medium transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1">Workplace / Building</label>
+                  <label className="block text-xs font-bold text-zinc-700 mb-1">Workplace / Building</label>
                   <input
                     type="text"
                     required
                     value={workplace}
                     onChange={(e) => setWorkplace(e.target.value)}
                     placeholder="Your workplace or office"
-                    className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
+                    className="w-full bg-white border border-zinc-300 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-black outline-none font-medium transition"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-1">Delivery Address & Floor</label>
+                <label className="block text-xs font-bold text-zinc-700 mb-1">Delivery Address &amp; Floor</label>
                 <input
                   type="text"
                   required
                   value={addressFloor}
                   onChange={(e) => setAddressFloor(e.target.value)}
                   placeholder="Your office desk floor"
-                  className="w-full bg-[#141414] border border-zinc-700 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-white outline-none font-medium transition"
+                  className="w-full bg-white border border-zinc-300 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-black outline-none font-medium transition"
                 />
               </div>
 
@@ -308,7 +249,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-[#FF4C00] hover:bg-[#E04300] disabled:bg-zinc-700 text-white font-bold text-base py-4 rounded-xl shadow-lg transition active:scale-98 cursor-pointer flex items-center justify-center space-x-2"
+                  className="w-full bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] hover:from-[#E04300] hover:to-[#FF4C00] disabled:bg-zinc-400 text-white font-bold text-base py-4 rounded-xl shadow-lg transition active:scale-98 cursor-pointer flex items-center justify-center space-x-2"
                 >
                   {isSubmitting ? (
                     <>
@@ -323,45 +264,45 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
             </form>
           ) : (
             <div className="text-center py-6 space-y-5 max-w-lg mx-auto">
-              <div className="w-16 h-16 rounded-full bg-[#22C55E]/15 text-[#22C55E] flex items-center justify-center mx-auto shadow-inner">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-2xl sm:text-3xl font-black text-white">
+                <h3 className="text-2xl sm:text-3xl font-black text-black">
                   You're on the Waitlist, {fullName}!
                 </h3>
-                <p className="text-xs sm:text-sm text-zinc-300 mt-1">
+                <p className="text-xs sm:text-sm text-zinc-700 mt-1">
                   Deliveries activate {LAUNCH_CONFIG.displayShort} at {workplace || 'your office'}.
                 </p>
               </div>
 
-              {/* Unique Member Code Card */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-zinc-900 border border-zinc-700/80 shadow-xl text-left space-y-3 max-w-full overflow-hidden">
+              {/* Unique Member Code Card (Light Orange) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] border border-orange-200 shadow-sm text-left space-y-3 max-w-full overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center space-x-2">
                     <Ticket className="w-4 h-4 text-[#FF4C00] shrink-0" />
-                    <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
+                    <span className="text-[11px] font-bold text-zinc-700 uppercase tracking-wider">
                       Your Unique Member Code
                     </span>
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-2 py-0.5 rounded-full shrink-0">
-                    Active & Dispatched
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                    Active &amp; Dispatched
                   </span>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-black/60 rounded-xl border border-zinc-800">
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-white rounded-xl border border-orange-200">
                   <span className="font-mono text-xl sm:text-2xl font-black text-[#FF4C00] tracking-wider break-all">
                     {generatedMemberCode}
                   </span>
                   <button
                     type="button"
                     onClick={handleCopyCode}
-                    className="px-3.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-[#FF4C00] text-white text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shrink-0 ml-auto sm:ml-0"
+                    className="px-3.5 py-1.5 rounded-lg bg-[#FF4C00] hover:bg-[#E04300] text-white text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shrink-0 ml-auto sm:ml-0"
                   >
                     {copiedCode ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="text-emerald-300">Copied!</span>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Copied!</span>
                       </>
                     ) : (
                       <>
@@ -372,8 +313,8 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                   </button>
                 </div>
 
-                <p className="text-[11px] text-zinc-400 leading-relaxed break-words">
-                  💡 <strong className="text-zinc-200">Skip re-filling contact forms:</strong> When you pick your meals calendar and proceed to payment, insert this unique code to instantly auto-fill your contact details and desk drop location. A copy has also been sent to <strong className="text-zinc-300 break-all">{email}</strong>.
+                <p className="text-[11px] text-zinc-700 leading-relaxed break-words">
+                  <strong className="text-black">Skip re-filling contact forms:</strong> When you pick your meals calendar and proceed to payment, insert this unique code to instantly auto-fill your contact details and desk drop location. A copy has also been sent to <strong className="text-black break-all">{email}</strong>.
                 </p>
               </div>
 
@@ -381,7 +322,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                 <button
                   type="button"
                   onClick={scrollToPlanBuilder}
-                  className="w-full sm:w-auto bg-[#FF4C00] hover:bg-[#E04300] text-white px-7 py-3.5 rounded-full font-bold text-sm transition-all shadow-lg flex items-center justify-center space-x-2 cursor-pointer"
+                  className="w-full sm:w-auto bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] hover:from-[#E04300] hover:to-[#FF4C00] text-white px-7 py-3.5 rounded-full font-bold text-sm transition-all shadow-lg flex items-center justify-center space-x-2 cursor-pointer"
                 >
                   <span>Pick Your Meals Calendar</span>
                   <ArrowRight className="w-4 h-4" />
@@ -389,9 +330,9 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                 <button
                   type="button"
                   onClick={scrollToMenu}
-                  className="w-full sm:w-auto bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-6 py-3.5 rounded-full font-semibold text-xs transition cursor-pointer"
+                  className="w-full sm:w-auto bg-white border border-zinc-300 hover:bg-zinc-100 text-zinc-800 px-6 py-3.5 rounded-full font-semibold text-xs transition cursor-pointer"
                 >
-                  View 26-Week Menu
+                  View Menu
                 </button>
               </div>
             </div>

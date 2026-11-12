@@ -7,7 +7,10 @@ import {
   calculateMealPrice,
   OrderSummary,
   PER_DAY_FEE,
+  CorporateAccount,
+  OrderSubmission,
 } from '../../types';
+import { CorporateSubscriptionFlow } from './CorporateSubscriptionFlow';
 import {
   getPricingSettings,
   subscribePricingSettings,
@@ -26,21 +29,22 @@ import {
   isMealTitleSwallow,
 } from '../../data/menuRotation';
 import { MealOption } from '../../types';
-import { LAUNCH_CONFIG, isDateBeforeLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
+import { LAUNCH_CONFIG, isDateBeforeLaunch } from '../../config/launchConfig';
 import {
   ChevronLeft,
   ChevronRight,
   Check,
   AlertCircle,
-  Calendar as CalendarIcon,
-  Sparkles,
   X,
   ArrowRight,
+  ArrowLeft,
   CheckCircle2,
   Loader2,
   Utensils,
   Soup,
   Lock,
+  Building2,
+  CalendarDays,
 } from 'lucide-react';
 
 interface MealPopupState {
@@ -51,9 +55,19 @@ interface MealPopupState {
 
 interface PlanBuilderProps {
   onProceedToCheckout: (selectedDays: SelectedLunchDay[], summary: OrderSummary) => void;
+  onOpenEmployeeInvite?: (account: CorporateAccount) => void;
+  onCorporateOrderSubmitted?: (order: OrderSubmission) => void;
 }
 
-export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout }) => {
+export const PlanBuilder: React.FC<PlanBuilderProps> = ({
+  onProceedToCheckout,
+  onOpenEmployeeInvite,
+  onCorporateOrderSubmitted,
+}) => {
+  // Package selection gateway: null shows 3 cards; '5-days' | '23-days' opens calendar; 'corporate' opens Your Boss Will Pay
+  const [selectedPackage, setSelectedPackage] = useState<'5-days' | '23-days' | 'corporate' | null>(null);
+  const targetPackageDays = selectedPackage === '5-days' ? 5 : selectedPackage === '23-days' ? 23 : 0;
+  const targetPackagePrice = selectedPackage === '5-days' ? 20000 : selectedPackage === '23-days' ? 70000 : 0;
   // Mobile device viewport detection for mobile-specific Friday swallow popup
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -536,6 +550,52 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
     setCurrentWeekIndex((prev) => (prev < CANONICAL_8_WEEKS_MENU.length - 1 ? prev + 1 : 0));
   };
 
+  // Handle package selection from the 3-card overview
+  const handleChoosePackage = (pkg: '5-days' | '23-days' | 'corporate') => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    setValidationError(null);
+    setShowOrderBill(false);
+    setCalculatedSummary(null);
+    setIsRevealComplete(false);
+    setIsAnimationRunning(false);
+    setIsCalculating(false);
+
+    if (pkg === '5-days' || pkg === '23-days') {
+      const limit = pkg === '5-days' ? 5 : 23;
+      setSelectedDaysMap((prev) => {
+        const keys = Object.keys(prev).sort();
+        if (keys.length <= limit) return prev;
+        const trimmed: Record<string, SelectedLunchDay> = {};
+        keys.slice(0, limit).forEach((k) => {
+          trimmed[k] = prev[k];
+        });
+        return trimmed;
+      });
+      setSelectionHistory((prev) => prev.slice(-limit));
+    }
+
+    setSelectedPackage(pkg);
+  };
+
+  const handleGoBackToPlans = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    setShowOrderBill(false);
+    setCalculatedSummary(null);
+    setIsRevealComplete(false);
+    setIsAnimationRunning(false);
+    setIsCalculating(false);
+    setValidationError(null);
+    setSelectedPackage(null);
+    if (typeof window !== 'undefined') {
+      const el = document.getElementById('plan-builder') || document.getElementById('pricing');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   // Toggle or pick Option 1 / Option 2 for a canonical workday
   const handleSelectDayOption = (dayMenu: CanonicalDayMenu, optionId: 'opt-1' | 'opt-2') => {
     if (dayMenu.isHoliday) return;
@@ -555,11 +615,21 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         return copy;
       });
       setSelectionHistory((prev) => prev.filter((d) => d !== dayMenu.dateStr));
+      setValidationError(null);
       setActiveMealPopup({
         meal: currentlySelected.meal,
         action: 'removed',
         formattedDate: dayMenu.dateFormatted,
       });
+      return;
+    }
+
+    // Enforce selected package day limit when adding a new date
+    const activeCount = Object.keys(selectedDaysMap).length;
+    if (!currentlySelected && targetPackageDays > 0 && activeCount >= targetPackageDays) {
+      setValidationError(
+        `Your ${targetPackageDays}-day meal package is full (${targetPackageDays}/${targetPackageDays} days chosen). Deselect a day first to swap, or click Calculate Order.`
+      );
       return;
     }
 
@@ -642,31 +712,100 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   const selectAllThisWeek = () => {
     const currentWeek = CANONICAL_8_WEEKS_MENU[currentWeekIndex];
     if (!currentWeek) return;
+    const limit = targetPackageDays || 40;
+    const addedDates: string[] = [];
 
     setSelectedDaysMap((prev) => {
       const copy = { ...prev };
-      currentWeek.days.forEach((dayMenu) => {
-        if (dayMenu.isHoliday) return;
-        if (!copy[dayMenu.dateStr]) {
-          const parsed = parseStructuredMeal(dayMenu.option1, dayMenu.dayFull, dayMenu.dateStr);
+      let currentTotal = Object.keys(copy).length;
+
+      for (const dayMenu of currentWeek.days) {
+        if (currentTotal >= limit) break;
+        if (dayMenu.isHoliday || copy[dayMenu.dateStr]) continue;
+
+        const canonical = CANONICAL_DATES_MAP[dayMenu.dateStr];
+        const override = customMealOverrides[dayMenu.dateStr];
+        const opt1 = override?.mealOptions?.[0]?.name || (override as any)?.option1 || canonical?.option1 || dayMenu.option1;
+        const opt2 = override?.mealOptions?.[1]?.name || (override as any)?.option2 || canonical?.option2 || dayMenu.option2;
+
+        const parsed = parseStructuredMeal(opt1, dayMenu.dayFull, dayMenu.dateStr);
+        const isSwallow = isFridayOrSwallowMeal(parsed);
+        copy[dayMenu.dateStr] = {
+          dateStr: dayMenu.dateStr,
+          meal: {
+            ...parsed,
+            mealName: opt1,
+            hasDualOptions: true,
+            mealOptions: [
+              { id: 'opt-1', name: opt1, category: parsed.mealCategory, description: 'Option 1' },
+              {
+                id: 'opt-2',
+                name: opt2,
+                category: parseStructuredMeal(opt2, dayMenu.dayFull, dayMenu.dateStr).mealCategory,
+                description: 'Option 2',
+              },
+            ],
+            selectedOptionId: 'opt-1',
+          },
+          selectedMealOption: {
+            id: 'opt-1',
+            name: opt1,
+            category: parsed.mealCategory,
+            description: 'Option 1',
+          },
+          selectedSwallow: isSwallow ? 'Semo' : undefined,
+        };
+        addedDates.push(dayMenu.dateStr);
+        currentTotal += 1;
+      }
+      return copy;
+    });
+
+    if (addedDates.length > 0) {
+      setSelectionHistory((prev) => [...prev.filter((d) => !addedDates.includes(d)), ...addedDates].slice(-limit));
+    }
+    setValidationError(null);
+    setShowOrderBill(false);
+    setCalculatedSummary(null);
+    setIsRevealComplete(false);
+  };
+
+  const autoFillPackageDays = () => {
+    const limit = targetPackageDays || 23;
+    const filledDates: string[] = [];
+
+    setSelectedDaysMap((prev) => {
+      const copy = { ...prev };
+      let currentTotal = Object.keys(copy).length;
+
+      for (const week of CANONICAL_8_WEEKS_MENU) {
+        for (const dayMenu of week.days) {
+          if (currentTotal >= limit) break;
+          const canonical = CANONICAL_DATES_MAP[dayMenu.dateStr];
+          const override = customMealOverrides[dayMenu.dateStr];
+          const isHoliday =
+            override?.isHoliday !== undefined
+              ? Boolean(override.isHoliday || override.isNoDelivery)
+              : Boolean(canonical?.isHoliday ?? dayMenu.isHoliday);
+          if (isHoliday || copy[dayMenu.dateStr]) continue;
+
+          const opt1 = override?.mealOptions?.[0]?.name || (override as any)?.option1 || canonical?.option1 || dayMenu.option1;
+          const opt2 = override?.mealOptions?.[1]?.name || (override as any)?.option2 || canonical?.option2 || dayMenu.option2;
+
+          const parsed = parseStructuredMeal(opt1, dayMenu.dayFull, dayMenu.dateStr);
           const isSwallow = isFridayOrSwallowMeal(parsed);
           copy[dayMenu.dateStr] = {
             dateStr: dayMenu.dateStr,
             meal: {
               ...parsed,
-              mealName: dayMenu.option1,
+              mealName: opt1,
               hasDualOptions: true,
               mealOptions: [
-                {
-                  id: 'opt-1',
-                  name: dayMenu.option1,
-                  category: parsed.mealCategory,
-                  description: 'Option 1',
-                },
+                { id: 'opt-1', name: opt1, category: parsed.mealCategory, description: 'Option 1' },
                 {
                   id: 'opt-2',
-                  name: dayMenu.option2,
-                  category: parseStructuredMeal(dayMenu.option2, dayMenu.dayFull, dayMenu.dateStr).mealCategory,
+                  name: opt2,
+                  category: parseStructuredMeal(opt2, dayMenu.dayFull, dayMenu.dateStr).mealCategory,
                   description: 'Option 2',
                 },
               ],
@@ -674,77 +813,23 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             },
             selectedMealOption: {
               id: 'opt-1',
-              name: dayMenu.option1,
+              name: opt1,
               category: parsed.mealCategory,
               description: 'Option 1',
             },
             selectedSwallow: isSwallow ? 'Semo' : undefined,
           };
+          filledDates.push(dayMenu.dateStr);
+          currentTotal += 1;
         }
-      });
+        if (currentTotal >= limit) break;
+      }
       return copy;
     });
 
-    const weekDeliverableDates = currentWeek.days.filter((d) => !d.isHoliday).map((d) => d.dateStr);
-    setSelectionHistory((prev) => [...prev.filter((d) => !weekDeliverableDates.includes(d)), ...weekDeliverableDates]);
-    setValidationError(null);
-    setShowOrderBill(false);
-    setCalculatedSummary(null);
-    setIsRevealComplete(false);
-  };
-
-  const selectAll8Weeks = () => {
-    setSelectedDaysMap((prev) => {
-      const copy = { ...prev };
-      CANONICAL_8_WEEKS_MENU.forEach((week) => {
-        week.days.forEach((dayMenu) => {
-          if (dayMenu.isHoliday) return;
-          if (!copy[dayMenu.dateStr]) {
-            const parsed = parseStructuredMeal(dayMenu.option1, dayMenu.dayFull, dayMenu.dateStr);
-            const isSwallow = isFridayOrSwallowMeal(parsed);
-            copy[dayMenu.dateStr] = {
-              dateStr: dayMenu.dateStr,
-              meal: {
-                ...parsed,
-                mealName: dayMenu.option1,
-                hasDualOptions: true,
-                mealOptions: [
-                  {
-                    id: 'opt-1',
-                    name: dayMenu.option1,
-                    category: parsed.mealCategory,
-                    description: 'Option 1',
-                  },
-                  {
-                    id: 'opt-2',
-                    name: dayMenu.option2,
-                    category: parseStructuredMeal(dayMenu.option2, dayMenu.dayFull, dayMenu.dateStr).mealCategory,
-                    description: 'Option 2',
-                  },
-                ],
-                selectedOptionId: 'opt-1',
-              },
-              selectedMealOption: {
-                id: 'opt-1',
-                name: dayMenu.option1,
-                category: parsed.mealCategory,
-                description: 'Option 1',
-              },
-              selectedSwallow: isSwallow ? 'Semo' : undefined,
-            };
-          }
-        });
-      });
-      return copy;
-    });
-
-    const allDates: string[] = [];
-    CANONICAL_8_WEEKS_MENU.forEach((w) => {
-      w.days.forEach((d) => {
-        if (!d.isHoliday) allDates.push(d.dateStr);
-      });
-    });
-    setSelectionHistory(allDates);
+    if (filledDates.length > 0) {
+      setSelectionHistory((prev) => [...prev.filter((d) => !filledDates.includes(d)), ...filledDates].slice(-limit));
+    }
     setValidationError(null);
     setShowOrderBill(false);
     setCalculatedSummary(null);
@@ -816,20 +901,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   }, [selectedCount, pricingSettings]);
 
   const verticalProgressPercent = useMemo(() => {
+    const goal = targetPackageDays || 23;
     if (selectedCount <= 0) return 0;
-    if (selectedCount === 1) return 5;
-    if (selectedCount === 2) return 10;
-    if (selectedCount === 3) return 15;
-    if (selectedCount === 4) return 20;
-    if (selectedCount === 5) return 25; // 5 days reached: milestone unlocked!
-    if (selectedCount <= 10) return Math.min(50, 25 + ((selectedCount - 5) / 5) * 25);
-    if (selectedCount <= 15) return Math.min(75, 50 + ((selectedCount - 10) / 5) * 25);
-    if (selectedCount <= 20) return Math.min(90, 75 + ((selectedCount - 15) / 5) * 15);
-    return 100;
-  }, [selectedCount]);
+    return Math.min(100, Math.round((selectedCount / goal) * 100));
+  }, [selectedCount, targetPackageDays]);
 
   const handleQuickPayNow = () => {
-    if (selectedCount < 5) return;
+    const minReq = targetPackageDays || 5;
+    if (selectedCount < minReq) return;
     const summary = calculateOrderSummary(selectedDaysList);
     onProceedToCheckout(selectedDaysList, summary);
   };
@@ -837,9 +916,11 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   // Rule 5, 6, 7, 8, 9, 10, 11:
   // Calculate Order Button with dynamic downward animation from ~1.35x to actual Final Total
   const handleCalculateOrder = () => {
-    // Minimum Requirement: 5 days or more
-    if (selectedCount < 5) {
-      setValidationError('Minimum Requirement: 5 days or more. You must select at least 5 lunch days (₦20,000 package) to calculate your order and pay.');
+    const reqDays = targetPackageDays || 5;
+    if (selectedCount < reqDays) {
+      setValidationError(
+        `Please select ${reqDays - selectedCount} more ${reqDays - selectedCount === 1 ? 'day' : 'days'} to complete your ${reqDays}-day package (₦${(targetPackagePrice || 20000).toLocaleString()}).`
+      );
       setShowOrderBill(false);
       return;
     }
@@ -907,7 +988,8 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
   };
 
   return (
-    <section id="pricing" className="py-20 bg-[#FAF7F2] border-t border-zinc-200/80 relative">
+    <section id="pricing" className="py-20 bg-zinc-100 border-t border-zinc-200 relative">
+      <div id="menu" className="scroll-mt-24" />
       <div id="plan-builder" className="scroll-mt-24" />
       
       {/* 2-Second Floating Top Meal Preview Popup with Smooth Fade Out */}
@@ -962,12 +1044,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 </button>
               </div>
 
-              {/* Full Meal Title */}
               <h4 className="text-sm sm:text-base font-extrabold text-white leading-snug break-words">
                 {activeMealPopup.meal.mealName}
               </h4>
 
-              {/* Meal Composition Tags */}
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-300">
                 {activeMealPopup.meal.mealCategory && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/10 text-white/90">
@@ -984,7 +1064,6 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             </div>
           </div>
 
-          {/* 2-Second Visual Countdown Indicator Bar */}
           <div className="mt-3 w-full bg-white/10 h-0.5 rounded-full overflow-hidden">
             <div
               className={`h-full animate-shrink-width ${
@@ -1003,20 +1082,183 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
             Build Your Lunch Plan
           </h2>
           <p className="text-base sm:text-lg text-zinc-600 font-medium mt-2">
-            Choose the days you want lunch. Click any workday to select your meals.
+            {selectedPackage === null
+              ? 'Choose a meal package below to select your delivery days and daily meals.'
+              : selectedPackage === 'corporate'
+              ? 'Company meal subscriptions for teams of 2 to 500+ office employees.'
+              : `Select your ${targetPackageDays} delivery days and preferred daily meal options.`}
           </p>
-          
-          {/* Rules and Tiered Pricing Badge */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <span className="inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold bg-zinc-200/80 text-zinc-800">
-              Minimum Requirement: 5+ days (₦20,000 to activate)
-            </span>
-            <span className="inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold bg-[#FF4C00]/10 text-[#FF4C00] border border-[#FF4C00]/30">
-              <Sparkles className="w-3.5 h-3.5 mr-1" />
-              Tiered Value: Price per meal reduces the more days you add!
-            </span>
-          </div>
         </div>
+
+        {/* STAGE 1: 3-CARD PACKAGE SELECTOR (Calendar hidden until a package is clicked) */}
+        {selectedPackage === null && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+            {/* Card 1: 5 Days Meal Package (White + Light Orange surface) */}
+            <div
+              onClick={() => handleChoosePackage('5-days')}
+              className="group bg-gradient-to-br from-white via-[#FFF9F4] to-[#FFE7D6] border border-orange-200 hover:border-[#FF4C00] rounded-3xl p-7 sm:p-8 flex flex-col justify-between transition-all cursor-pointer shadow-sm hover:shadow-xl"
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="w-11 h-11 rounded-2xl bg-[#FF4C00]/15 text-[#FF4C00] flex items-center justify-center">
+                    <CalendarDays className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-bold text-zinc-600 tabular-nums">5 Workdays</span>
+                </div>
+
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black text-black leading-tight">
+                    5 Days Meal Package
+                  </h3>
+                  <div className="text-3xl sm:text-4xl font-black text-[#FF4C00] mt-2 tabular-nums">
+                    ₦20,000
+                  </div>
+                </div>
+
+                <p className="text-sm text-zinc-700 leading-relaxed">
+                  Select any five available days on the calendar and choose one meal for each date.
+                </p>
+              </div>
+
+              <div className="mt-8 pt-5 border-t border-orange-200/70">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleChoosePackage('5-days');
+                  }}
+                  className="w-full py-3.5 px-5 rounded-full bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] hover:from-[#E04300] hover:to-[#FF4C00] text-white font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap shadow-sm"
+                >
+                  <span>Select 5 Days Package</span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </button>
+              </div>
+            </div>
+
+            {/* Card 2: 23 Days Meal Package (Orange Gradient Hero Card) */}
+            <div
+              onClick={() => handleChoosePackage('23-days')}
+              className="group bg-gradient-to-br from-[#FF4C00] via-[#FF5E14] to-[#FF8533] text-white border-2 border-[#FF4C00] hover:border-orange-300 rounded-3xl p-7 sm:p-8 flex flex-col justify-between transition-all cursor-pointer shadow-lg hover:shadow-2xl"
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="w-11 h-11 rounded-2xl bg-white/20 text-white flex items-center justify-center backdrop-blur-xs">
+                    <Utensils className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-bold text-orange-100 tabular-nums">23 Workdays · Best Value</span>
+                </div>
+
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black text-white leading-tight">
+                    23 Days Meal Package
+                  </h3>
+                  <div className="text-3xl sm:text-4xl font-black text-white mt-2 tabular-nums">
+                    ₦70,000
+                  </div>
+                </div>
+
+                <p className="text-sm text-orange-50 leading-relaxed">
+                  Select any 23 available delivery days and choose your preferred meal for each date.
+                </p>
+              </div>
+
+              <div className="mt-8 pt-5 border-t border-white/25">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleChoosePackage('23-days');
+                  }}
+                  className="w-full py-3.5 px-5 rounded-full bg-white hover:bg-orange-50 text-[#FF4C00] font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap shadow-md"
+                >
+                  <span>Select 23 Days Package</span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </button>
+              </div>
+            </div>
+
+            {/* Card 3: Your Boss Will Pay (Gray Card — Zero Black) */}
+            <div
+              onClick={() => handleChoosePackage('corporate')}
+              className="group bg-zinc-200 text-[#1A1A1A] border border-zinc-300 hover:border-[#FF4C00] rounded-3xl p-7 sm:p-8 flex flex-col justify-between transition-all cursor-pointer shadow-lg hover:shadow-2xl"
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="w-11 h-11 rounded-2xl bg-white text-[#FF4C00] flex items-center justify-center shadow-2xs">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-bold text-[#FF4C00]">For Teams</span>
+                </div>
+
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black text-black leading-tight">
+                    Your Boss Will Pay
+                  </h3>
+                  <div className="text-lg sm:text-xl font-bold text-zinc-700 mt-2">
+                    Corporate Meal Subscription
+                  </div>
+                </div>
+
+                <p className="text-sm text-zinc-600 leading-relaxed">
+                  Companies purchase meal subscriptions for employees, generate a unique invite link, and track team meal picks effortlessly.
+                </p>
+              </div>
+
+              <div className="mt-8 pt-5 border-t border-zinc-300">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleChoosePackage('corporate');
+                  }}
+                  className="w-full py-3.5 px-5 rounded-full bg-white hover:bg-gradient-to-r hover:from-[#FF4C00] hover:to-[#FF6E24] text-[#1A1A1A] hover:text-white border border-zinc-300 hover:border-[#FF4C00] font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap shadow-2xs"
+                >
+                  <span>Explore Corporate Plan</span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STAGE 2A: CORPORATE SUBSCRIPTION FLOW (YOUR BOSS WILL PAY) */}
+        {selectedPackage === 'corporate' && (
+          <CorporateSubscriptionFlow
+            onBackToPackages={handleGoBackToPlans}
+            onOpenEmployeeInvite={(acct) => {
+              if (onOpenEmployeeInvite) onOpenEmployeeInvite(acct);
+            }}
+            onCorporateOrderSubmitted={onCorporateOrderSubmitted}
+          />
+        )}
+
+        {/* STAGE 2B: CALENDAR FOR 5-DAY OR 23-DAY MEAL PACKAGE */}
+        {(selectedPackage === '5-days' || selectedPackage === '23-days') && (
+          <>
+            {/* Top Package Bar with Prominent Go Back Action (Gray Card — Zero Black) */}
+            <div className="bg-zinc-200 text-[#1A1A1A] rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shadow-md border border-zinc-300">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                <button
+                  type="button"
+                  onClick={handleGoBackToPlans}
+                  className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-white hover:bg-[#FF4C00] text-black hover:text-white border border-zinc-300 text-xs font-extrabold transition cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Go Back</span>
+                </button>
+                <div>
+                  <h3 className="text-base sm:text-xl font-black text-black">
+                    {selectedPackage === '5-days' ? '5 Days Meal Package · ₦20,000' : '23 Days Meal Package · ₦70,000'}
+                  </h3>
+                  <p className="text-xs text-zinc-600 font-medium">
+                    Choose any {targetPackageDays} available dates or go back to select a different plan
+                  </p>
+                </div>
+              </div>
+              <div className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] text-white text-xs sm:text-sm font-black tabular-nums self-start sm:self-auto shrink-0">
+                {selectedCount} / {targetPackageDays} Days Selected
+              </div>
+            </div>
 
         {/* 8-Week Selection Tabs Bar */}
         <div className="mb-8">
@@ -1032,14 +1274,14 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   onClick={() => setCurrentWeekIndex(idx)}
                   className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs font-black transition cursor-pointer shrink-0 flex items-center gap-1.5 border ${
                     isCurrent
-                      ? 'bg-black text-white border-black shadow-md scale-[1.02]'
-                      : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                      ? 'bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] text-white border-[#FF4C00] shadow-md scale-[1.02]'
+                      : 'bg-white text-zinc-800 border-zinc-200 hover:border-orange-300 hover:bg-[#FFF4ED]'
                   }`}
                 >
                   <span className="font-black text-xs sm:text-sm tracking-tight">{week.dateRange}</span>
                   {weekSelectedCount > 0 && (
                     <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                      isCurrent ? 'bg-[#FF4C00] text-white' : 'bg-[#FF4C00]/10 text-[#FF4C00]'
+                      isCurrent ? 'bg-black/25 text-white' : 'bg-[#FF4C00]/15 text-[#FF4C00]'
                     }`}>
                       {weekSelectedCount}/{deliverableDaysCount}
                     </span>
@@ -1060,22 +1302,22 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
               <div id="mobile-calculate-order-btn" className="block md:hidden mb-4">
                 <div className="bg-[#FAF7F2] border border-zinc-200/90 rounded-2xl p-3.5 shadow-2xs">
                   <div className="flex items-center justify-between mb-2 px-0.5">
-                    <span className="text-xs font-black text-black">
-                      {selectedCount} lunch {selectedCount === 1 ? 'day' : 'days'} selected
+                    <span className="text-xs font-black text-black tabular-nums">
+                      {selectedCount} / {targetPackageDays} days selected
                     </span>
                     <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                      selectedCount < 5 ? 'text-amber-700' : 'text-emerald-700'
+                      selectedCount < targetPackageDays ? 'text-amber-700' : 'text-emerald-700'
                     }`}>
-                      {selectedCount < 5 ? `Min: 5 Days (${selectedCount}/5)` : 'Ready'}
+                      {selectedCount < targetPackageDays ? `Need ${targetPackageDays - selectedCount} More` : 'Ready'}
                     </span>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleCalculateOrder}
-                    disabled={isCalculating || isAnimationRunning || selectedCount < 5}
+                    disabled={isCalculating || isAnimationRunning || selectedCount < targetPackageDays}
                     className={`w-full py-3.5 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-sm active:scale-95 flex items-center justify-center space-x-2 ${
-                      selectedCount < 5
+                      selectedCount < targetPackageDays
                         ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
                         : 'bg-black hover:bg-zinc-800 text-white cursor-pointer shadow-md'
                     }`}
@@ -1087,7 +1329,11 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                       </>
                     ) : (
                       <>
-                        <span>{selectedCount < 5 ? `Select 5+ Days (${selectedCount}/5)` : 'Calculate Order'}</span>
+                        <span>
+                          {selectedCount < targetPackageDays
+                            ? `Select ${targetPackageDays} Days (${selectedCount}/${targetPackageDays})`
+                            : 'Calculate Order'}
+                        </span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
@@ -1130,10 +1376,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   <span className="text-zinc-300 hidden sm:inline">•</span>
                   <button
                     type="button"
-                    onClick={selectAll8Weeks}
+                    onClick={autoFillPackageDays}
                     className="text-xs font-bold text-zinc-700 hover:text-black cursor-pointer px-2 py-1"
                   >
-                    Select All 40 Days
+                    Auto-Fill {targetPackageDays} Days
                   </button>
                   <span className="text-zinc-300 hidden sm:inline">•</span>
                   <button
@@ -1204,15 +1450,15 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                       key={dayMenu.dateStr}
                       className={`border rounded-2xl p-4 sm:p-5 transition-all ${
                         isSelected
-                          ? 'bg-zinc-50/80 border-zinc-300 shadow-2xs'
-                          : 'bg-zinc-50/40 border-zinc-200/90 hover:border-zinc-300'
+                          ? 'bg-[#FFF4ED]/70 border-orange-300 shadow-2xs'
+                          : 'bg-zinc-100/75 border-zinc-200/90 hover:border-zinc-300'
                       }`}
                     >
                       {/* Day Header Row */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-3 border-b border-zinc-200/80">
                         <div className="flex items-center space-x-2.5">
                           <span className={`w-9 h-9 rounded-xl font-black text-xs flex items-center justify-center shrink-0 shadow-xs ${
-                            isSelected ? 'bg-[#FF4C00] text-white' : 'bg-black text-white'
+                            isSelected ? 'bg-gradient-to-br from-[#FF4C00] to-[#FF6E24] text-white' : 'bg-black text-white'
                           }`}>
                             {dayMenu.dayShort}
                           </span>
@@ -1266,8 +1512,8 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                             onClick={() => handleSelectDayOption(dayMenu, 'opt-1')}
                             className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between select-none ${
                               isSelected && selectedOptionId === 'opt-1'
-                                ? 'bg-white border-[#FF4C00] shadow-md ring-2 ring-[#FF4C00]/20'
-                                : 'bg-white border-zinc-200/90 hover:border-zinc-300 hover:bg-zinc-50/80 shadow-2xs'
+                                ? 'bg-gradient-to-br from-white to-[#FFF4ED] border-[#FF4C00] shadow-md ring-2 ring-[#FF4C00]/20'
+                                : 'bg-white border-zinc-200/90 hover:border-orange-300 hover:bg-[#FFF9F5] shadow-2xs'
                             }`}
                           >
                             <div>
@@ -1350,8 +1596,8 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                             onClick={() => handleSelectDayOption(dayMenu, 'opt-2')}
                             className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between select-none ${
                               isSelected && selectedOptionId === 'opt-2'
-                                ? 'bg-white border-[#FF4C00] shadow-md ring-2 ring-[#FF4C00]/20'
-                                : 'bg-white border-zinc-200/90 hover:border-zinc-300 hover:bg-zinc-50/80 shadow-2xs'
+                                ? 'bg-gradient-to-br from-white to-[#FFF4ED] border-[#FF4C00] shadow-md ring-2 ring-[#FF4C00]/20'
+                                : 'bg-white border-zinc-200/90 hover:border-orange-300 hover:bg-[#FFF9F5] shadow-2xs'
                             }`}
                           >
                             <div>
@@ -1438,11 +1684,11 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
 
         {/* Right Column: Interactive Price Vertical Line UI & Live Gauge */}
         <div className="lg:col-span-4 w-full">
-            <div className="bg-[#FAF7F2] border-2 border-zinc-200/90 rounded-3xl p-5 sm:p-6 flex flex-col justify-between shadow-xs sticky top-24">
+            <div className="bg-gradient-to-b from-[#FFF4ED] via-white to-zinc-50 border-2 border-orange-200 rounded-3xl p-5 sm:p-6 flex flex-col justify-between shadow-sm sticky top-24">
               <div>
                 {/* Selected Meal Name (No image on selection) */}
                 {activePreviewMeal && (
-                  <div className="mb-4 bg-white rounded-2xl border border-zinc-200/90 p-3.5 sm:p-4 shadow-2xs overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-top-2 text-left">
+                  <div className="mb-4 bg-white rounded-2xl border border-orange-200/80 p-3.5 sm:p-4 shadow-2xs overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-top-2 text-left">
                     <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-zinc-100">
                       <div className="flex items-center space-x-1.5">
                         <span className="w-2 h-2 rounded-full bg-[#FF4C00]" />
@@ -1476,114 +1722,71 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   </div>
                 )}
 
-                <div className="flex items-center justify-between pb-3 border-b border-zinc-200">
+                <div className="flex items-center justify-between pb-3 border-b border-orange-200/70">
                   <div className="flex items-center space-x-2">
                     <div className="w-2.5 h-2.5 rounded-full bg-[#FF4C00] animate-pulse" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-700">
-                      Live Price Meter
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-800">
+                      Package Progress
                     </span>
                   </div>
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      selectedCount >= 5
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full tabular-nums ${
+                      selectedCount >= targetPackageDays
                         ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-zinc-200 text-zinc-600'
+                        : 'bg-zinc-200 text-zinc-700'
                     }`}
                   >
-                    {selectedCount >= 5 ? '5+ Days Selected' : `Need ${5 - selectedCount} More`}
+                    {selectedCount >= targetPackageDays
+                      ? `${targetPackageDays} Days Ready`
+                      : `Need ${targetPackageDays - selectedCount} More`}
                   </span>
                 </div>
 
-                {/* Days Count Meter - No Prices Shown During Selection */}
+                {/* Days Count Meter */}
                 <div className="my-4 text-center">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#FF4C00] block">
                     Lunch Days Selected
                   </span>
-                  <div className="text-3xl sm:text-4xl font-black text-black tracking-tight mt-1">
-                    {selectedCount} {selectedCount === 1 ? 'Day' : 'Days'}
+                  <div className="text-3xl sm:text-4xl font-black text-black tracking-tight mt-1 tabular-nums">
+                    {selectedCount} / {targetPackageDays}
                   </div>
-                  <p className="text-[11px] text-zinc-500 font-medium mt-1">
-                    {selectedCount >= 5
-                      ? 'Ready! Click "Calculate Order" below to view pricing'
-                      : `Select at least 5 days (${selectedCount}/5)`}
+                  <p className="text-[11px] text-zinc-600 font-medium mt-1">
+                    {selectedCount >= targetPackageDays
+                      ? 'Ready! Click "Calculate Order" below to proceed'
+                      : `Select ${targetPackageDays - selectedCount} more ${targetPackageDays - selectedCount === 1 ? 'day' : 'days'}`}
                   </p>
                 </div>
 
-                {/* The Interactive Price Vertical Line UI */}
-                <div className="my-4 p-4 rounded-2xl bg-white border border-zinc-200/80 shadow-2xs">
-                  <div className="flex items-stretch justify-between gap-3 h-72 relative">
-                    {/* Vertical Rail with dynamic fill height */}
-                    <div className="w-4 bg-zinc-100 rounded-full relative overflow-hidden flex flex-col justify-end shrink-0 border border-zinc-200">
-                      <div
-                        className="w-full bg-gradient-to-t from-amber-500 via-[#FF4C00] to-orange-600 rounded-full transition-all duration-500 ease-out shadow-xs"
-                        style={{ height: `${verticalProgressPercent}%` }}
-                      />
-                    </div>
-
-                    {/* Milestone Checkpoints & Tier Labels */}
-                    <div className="flex-1 flex flex-col justify-between text-left py-0.5 select-none text-[11px]">
-                      {/* 21+ Days Tier */}
-                      <div className={`transition-colors ${selectedCount >= 21 ? 'text-[#FF4C00] font-bold' : 'text-zinc-500'}`}>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold">21+ Days</span>
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">₦3,000 / day</span>
-                        </div>
-                        <span className="text-[9px] text-zinc-400 block">Best Value Monthly Plan</span>
-                      </div>
-
-                      {/* 16-20 Days Tier */}
-                      <div className={`transition-colors ${selectedCount >= 16 && selectedCount <= 20 ? 'text-[#FF4C00] font-bold' : 'text-zinc-500'}`}>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold">16 – 20 Days</span>
-                          <span className="text-[10px] font-bold text-[#FF4C00] bg-orange-50 px-2 py-0.5 rounded border border-orange-200">₦3,200 / day</span>
-                        </div>
-                        <span className="text-[9px] text-zinc-400 block">4-Week Workday Tier</span>
-                      </div>
-
-                      {/* 11-15 Days Tier */}
-                      <div className={`transition-colors ${selectedCount >= 11 && selectedCount <= 15 ? 'text-[#FF4C00] font-bold' : 'text-zinc-500'}`}>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold">11 – 15 Days</span>
-                          <span className="text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">₦3,400 / day</span>
-                        </div>
-                        <span className="text-[9px] text-zinc-400 block">Corporate Smart Tier</span>
-                      </div>
-
-                      {/* 6-10 Days Tier */}
-                      <div className={`transition-colors ${selectedCount >= 6 && selectedCount <= 10 ? 'text-[#FF4C00] font-bold' : 'text-zinc-500'}`}>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold">6 – 10 Days</span>
-                          <span className="text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">₦3,600 / day</span>
-                        </div>
-                        <span className="text-[9px] text-zinc-400 block">Bi-Weekly Tier</span>
-                      </div>
-
-                      {/* Milestone: 5 Days Unlocks Calculation */}
-                      <div
-                        className={`p-2 rounded-xl border transition-all ${
-                          selectedCount >= 5
-                            ? 'bg-orange-50 border-[#FF4C00] text-[#FF4C00] font-bold shadow-2xs'
-                            : selectedCount > 0
-                            ? 'bg-zinc-50 border-zinc-200 text-zinc-700 font-semibold'
-                            : 'border-transparent text-zinc-400'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold flex items-center space-x-1">
-                            <span>5 Days</span>
-                            {selectedCount >= 5 && <Check className="w-3 h-3 text-[#FF4C00]" />}
-                          </span>
-                          <span className="text-[10px] font-mono font-bold bg-white px-2 py-0.5 rounded border border-orange-200 text-[#FF4C00]">
-                            ₦20,000 / ₦25,000 flat
-                          </span>
-                        </div>
-                        <span className="text-[9px] text-zinc-500 block">
-                          {selectedCount >= 5 ? '✓ Calculation Activated!' : 'Select at least 5 days to unlock'}
-                        </span>
-                      </div>
-                    </div>
+                {/* Progress Bar Indicator */}
+                <div className="my-4 p-4 rounded-2xl bg-white border border-orange-200/70 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-zinc-800">
+                      {selectedPackage === '5-days' ? '5 Days Meal Package' : '23 Days Meal Package'}
+                    </span>
+                    <span className="text-[#FF4C00] font-black tabular-nums">
+                      ₦{targetPackagePrice.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#FF4C00] to-[#FF7B33] rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${verticalProgressPercent}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-zinc-500 font-medium">
+                    <span>{verticalProgressPercent}% filled</span>
+                    <span>{selectedCount} of {targetPackageDays} workdays</span>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={handleGoBackToPlans}
+                  className="w-full py-2.5 px-4 rounded-xl border border-zinc-300 bg-white hover:bg-black hover:text-white hover:border-black text-zinc-700 text-xs font-bold transition flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Go Back &amp; Switch Plan</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1591,28 +1794,27 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
         </div>
       </div>
 
-        {/* Action Bar & Order Calculation Trigger (Only Show Prices When Calculate Order is Clicked) */}
-        <div className="mt-8 bg-white border border-zinc-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 max-w-full overflow-hidden">
+        {/* Action Bar & Order Calculation Trigger (Gray Card — Zero Black) */}
+        <div className="mt-8 bg-zinc-200 text-[#1A1A1A] border border-zinc-300 rounded-3xl p-5 sm:p-6 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-6 max-w-full overflow-hidden">
           
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xl sm:text-2xl font-black text-black">
-                {selectedCount} lunch {selectedCount === 1 ? 'day' : 'days'} selected
+              <span className="text-xl sm:text-2xl font-black text-black tabular-nums">
+                {selectedCount} / {targetPackageDays} lunch {selectedCount === 1 ? 'day' : 'days'} selected
               </span>
             </div>
 
-            {/* Helper status text - No premature prices */}
-            <div className="mt-1 text-xs text-zinc-500 font-medium break-words">
+            <div className="mt-1 text-xs text-zinc-600 font-medium break-words">
               {validationError ? (
                 <span className="text-rose-600 font-semibold flex items-center space-x-1">
                   <AlertCircle className="w-4 h-4 inline mr-1 shrink-0" />
                   {validationError}
                 </span>
               ) : selectedCount === 0 ? (
-                <span>Click any workday above to select lunch days (Minimum requirement: 5+ days).</span>
-              ) : selectedCount < 5 ? (
-                <span className="text-amber-700 font-semibold">
-                  ⚠️ Minimum Requirement: 5 days or more ({selectedCount}/5 days selected. Please select {5 - selectedCount} more to calculate your order).
+                <span>Click any workday above to select your {targetPackageDays} lunch days.</span>
+              ) : selectedCount < targetPackageDays ? (
+                <span className="text-[#FF4C00] font-semibold">
+                  Select {targetPackageDays - selectedCount} more {targetPackageDays - selectedCount === 1 ? 'day' : 'days'} to complete your {targetPackageDays}-day package.
                 </span>
               ) : (
                 <span
@@ -1622,21 +1824,30 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                   }}
                   className="text-emerald-700 font-semibold cursor-pointer"
                 >
-                  ✓ {selectedCount} days selected. Click "Calculate Order" <span className="md:hidden font-bold underline">above ↑</span><span className="hidden md:inline">below</span> to view pricing & proceed.
+                  All {targetPackageDays} days selected. Click &quot;Calculate Order&quot; <span className="md:hidden font-bold underline">above</span><span className="hidden md:inline">right</span> to view total &amp; pay.
                 </span>
               )}
             </div>
           </div>
 
-          {/* Action Button: Calculate Order (Desktop only - on mobile it was taken above 'Select workdays for your office desk drop') */}
-          <div className="hidden md:flex flex-col sm:flex-row items-center gap-3">
+          {/* Action Buttons: Go Back + Calculate Order */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <button
+              type="button"
+              onClick={handleGoBackToPlans}
+              className="w-full sm:w-auto px-5 py-3.5 rounded-full bg-white hover:bg-zinc-100 border border-zinc-300 text-zinc-900 font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Go Back</span>
+            </button>
+
             <button
               onClick={handleCalculateOrder}
-              disabled={isCalculating || isAnimationRunning || selectedCount < 5}
-              className={`w-full sm:w-auto px-8 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition shadow-sm active:scale-95 flex items-center justify-center space-x-2 ${
-                selectedCount < 5
+              disabled={isCalculating || isAnimationRunning || selectedCount < targetPackageDays}
+              className={`hidden md:flex w-full sm:w-auto px-8 py-4 rounded-full font-bold text-sm uppercase tracking-wider transition shadow-sm active:scale-95 items-center justify-center space-x-2 whitespace-nowrap ${
+                selectedCount < targetPackageDays
                   ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed'
-                  : 'bg-black hover:bg-zinc-800 text-white cursor-pointer shadow-md'
+                  : 'bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] hover:from-[#E04300] hover:to-[#FF4C00] text-white cursor-pointer shadow-lg shadow-orange-600/25'
               }`}
             >
               {isCalculating ? (
@@ -1646,7 +1857,11 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
                 </>
               ) : (
                 <>
-                  <span>{selectedCount < 5 ? `Select 5+ Days (${selectedCount}/5)` : 'Calculate Order'}</span>
+                  <span>
+                    {selectedCount < targetPackageDays
+                      ? `Select ${targetPackageDays} Days (${selectedCount}/${targetPackageDays})`
+                      : 'Calculate Order'}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -1654,8 +1869,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
           </div>
 
         </div>
+          </>
+        )}
 
-        {/* Calculated Order Bill Section / Price Reveal (Rules 3, 4, 6, 8, 9, 10, 11, 12, 13, 17) */}
+        {/* Calculated Order Bill Section / Price Reveal */}
         {showOrderBill && calculatedSummary && (
           <div
             ref={billSectionRef}
@@ -1899,50 +2116,66 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({ onProceedToCheckout })
       </div>
 
       {/* Mobile-Only Floating Calculate Order Bar: floats on screen bottom once a user clicks any date, removed when no date is selected */}
-      {selectedCount > 0 && !showOrderBill && (
+      {(selectedPackage === '5-days' || selectedPackage === '23-days') && selectedCount > 0 && !showOrderBill && (
         <aside
           aria-label="Mobile Calculate Order"
           className="fixed bottom-3 inset-x-3 z-40 md:hidden font-['Poppins'] animate-in fade-in slide-in-from-bottom-5 duration-300 select-none pointer-events-auto"
         >
-          <div className="bg-zinc-950/95 text-white backdrop-blur-md border border-zinc-800/90 rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-2.5 max-w-lg mx-auto">
+          <div className="bg-zinc-200/95 text-[#1A1A1A] backdrop-blur-md border border-zinc-300 rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-2 max-w-lg mx-auto">
             {/* Selected days count & status */}
             <div className="flex flex-col min-w-0 pr-1">
               <div className="flex items-center space-x-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#FF4C00] animate-pulse shrink-0" />
-                <span className="text-xs font-black text-white truncate">
-                  {selectedCount} lunch {selectedCount === 1 ? 'day' : 'days'}
+                <span className="text-xs font-black text-black truncate tabular-nums">
+                  {selectedCount} / {targetPackageDays} days
                 </span>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium pl-3.5 leading-tight mt-0.5">
-                {selectedCount < 5
-                  ? `Select ${5 - selectedCount} more (Min: 5)`
+              <span className="text-[10px] text-zinc-600 font-medium pl-3.5 leading-tight mt-0.5">
+                {selectedCount < targetPackageDays
+                  ? `Select ${targetPackageDays - selectedCount} more`
                   : 'Ready to calculate bill'}
               </span>
             </div>
 
-            {/* Calculate Order Action Button */}
-            <button
-              type="button"
-              onClick={handleCalculateOrder}
-              disabled={isCalculating || isAnimationRunning || selectedCount < 5}
-              className={`py-2.5 px-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition active:scale-95 flex items-center justify-center space-x-1.5 shrink-0 ${
-                selectedCount < 5
-                  ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/60'
-                  : 'bg-[#FF4C00] hover:bg-[#E04300] text-white cursor-pointer shadow-lg shadow-orange-600/30'
-              }`}
-            >
-              {isCalculating ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Calculating...</span>
-                </>
-              ) : (
-                <>
-                  <span>{selectedCount < 5 ? `${selectedCount}/5 Days` : 'Calculate Order'}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleGoBackToPlans}
+                className="py-2.5 px-2.5 rounded-xl bg-white hover:bg-zinc-100 border border-zinc-300 text-zinc-900 font-bold text-xs flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                title="Go back and select a different plan"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
+
+              {/* Calculate Order Action Button */}
+              <button
+                type="button"
+                onClick={handleCalculateOrder}
+                disabled={isCalculating || isAnimationRunning || selectedCount < targetPackageDays}
+                className={`py-2.5 px-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition active:scale-95 flex items-center justify-center space-x-1.5 shrink-0 whitespace-nowrap ${
+                  selectedCount < targetPackageDays
+                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/60'
+                    : 'bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] hover:from-[#E04300] hover:to-[#FF4C00] text-white cursor-pointer shadow-lg shadow-orange-600/30'
+                }`}
+              >
+                {isCalculating ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Calculating...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>
+                      {selectedCount < targetPackageDays
+                        ? `${selectedCount}/${targetPackageDays} Days`
+                        : 'Calculate Order'}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </aside>
       )}

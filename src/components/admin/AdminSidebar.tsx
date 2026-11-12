@@ -10,6 +10,8 @@ import {
   LogOut,
   ShieldCheck,
   Plus,
+  Image,
+  Building2,
 } from 'lucide-react';
 
 export type AdminTab =
@@ -17,7 +19,9 @@ export type AdminTab =
   | 'waitlist'
   | 'pending-payments'
   | 'customers'
+  | 'companies'
   | 'meal-schedule'
+  | 'menu-showcase'
   | 'settings';
 
 interface AdminSidebarProps {
@@ -69,9 +73,19 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       badgeColor: 'bg-emerald-950 text-emerald-400 border border-emerald-800/60',
     },
     {
+      id: 'companies' as AdminTab,
+      label: 'Companies',
+      icon: Building2,
+    },
+    {
       id: 'meal-schedule' as AdminTab,
       label: 'Meal Schedule',
       icon: CalendarDays,
+    },
+    {
+      id: 'menu-showcase' as AdminTab,
+      label: 'Menu Images',
+      icon: Image,
     },
     {
       id: 'settings' as AdminTab,

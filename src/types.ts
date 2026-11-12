@@ -253,6 +253,7 @@ export interface CustomerRecord {
   mustChangePassword?: boolean;
   passwordLastChangedAt?: string;
   isTrial?: boolean;
+  corporateId?: string;
 }
 
 export interface UserProfile {
@@ -410,4 +411,63 @@ export interface ActiveSessionRecord {
   yieldRequested?: boolean;
   yieldRequestedBy?: string;
   yieldRequestedByToken?: string;
+}
+
+export interface CorporateAccount {
+  id: string;
+  companyName: string;
+  adminName: string;
+  adminEmail: string;
+  adminPhone: string;
+  officeAddress: string;
+  secondAddress?: string;
+  deliveryArea?: string;
+  totalEmployees: number;
+  usedSlots?: number;
+  mealDaysPerEmployee: number;
+  pricePerEmployeeNGN: number;
+  totalPackageNGN: number;
+  totalMealCredits: number;
+  usedMealCredits: number;
+  inviteCode: string;
+  accessCode: string;
+  paymentStatus: 'Pending Verification' | 'Confirmed';
+  paymentProofUrl?: string;
+  confirmedAt?: string;
+  deliveryStatus: 'Scheduled' | 'Preparing' | 'Out for Delivery' | 'Delivered';
+  createdAt: string;
+}
+
+export interface CorporateEmployeeRecord {
+  id: string;
+  corporateId: string;
+  inviteCode: string;
+  companyName: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  department?: string;
+  deskLocation: string;
+  secondAddress?: string;
+  selectedDays: SelectedLunchDay[];
+  mealDaysAllocated: number;
+  hasSelectedMeals: boolean;
+  registeredAt: string;
+  updatedAt: string;
+}
+
+export type MenuShowcaseCategory = 'main-meals' | 'soups' | 'protein' | 'swallow' | 'drinks';
+
+export type MainMealSubGroup = 'Rice' | 'Yam' | 'Beans' | 'Plantain' | 'Pasta';
+
+export interface MenuShowcaseItem {
+  id: string;
+  category: MenuShowcaseCategory;
+  subGroup?: MainMealSubGroup;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+  sortOrder: number;
+  isCustom?: boolean;
+  updatedAt?: string;
 }

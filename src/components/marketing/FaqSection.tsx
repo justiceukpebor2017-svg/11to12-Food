@@ -40,7 +40,7 @@ export const FaqSection: React.FC = () => {
   };
 
   return (
-    <section id="faq" className="py-20 sm:py-24 bg-white text-[#1A1A1A] font-['Poppins']">
+    <section id="faq" className="py-20 sm:py-24 bg-zinc-100 text-[#1A1A1A] font-['Poppins'] border-t border-zinc-200">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="text-center max-w-xl mx-auto mb-14 space-y-2">
@@ -58,7 +58,11 @@ export const FaqSection: React.FC = () => {
             return (
               <div
                 key={idx}
-                className="border border-zinc-200/80 rounded-2xl overflow-hidden transition-all bg-[#FAF7F2]/40"
+                className={`border rounded-2xl overflow-hidden transition-all ${
+                  isOpen
+                    ? 'bg-gradient-to-br from-[#FFF4ED] to-white border-orange-300 shadow-sm'
+                    : 'bg-white border-zinc-200 hover:border-zinc-300'
+                }`}
               >
                 <button
                   onClick={() => toggle(idx)}
@@ -69,7 +73,7 @@ export const FaqSection: React.FC = () => {
                   </span>
                   <div
                     className={`w-7 h-7 rounded-full flex items-center justify-center transition-transform shrink-0 ${
-                      isOpen ? 'bg-[#FF4C00] text-white rotate-180' : 'bg-zinc-200 text-zinc-600'
+                      isOpen ? 'bg-gradient-to-br from-[#FF4C00] to-[#FF7629] text-white rotate-180' : 'bg-zinc-900 text-white'
                     }`}
                   >
                     <ChevronDown className="w-4 h-4" />
@@ -77,7 +81,7 @@ export const FaqSection: React.FC = () => {
                 </button>
 
                 {isOpen && (
-                  <div className="px-5 pb-5 sm:px-6 sm:pb-6 text-zinc-600 text-sm sm:text-base leading-relaxed border-t border-zinc-100 pt-3">
+                  <div className="px-5 pb-5 sm:px-6 sm:pb-6 text-zinc-700 text-sm sm:text-base leading-relaxed border-t border-orange-200/60 pt-3">
                     {faq.a}
                   </div>
                 )}

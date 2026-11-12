@@ -18,7 +18,9 @@ import { AdminDashboardTab } from '../components/admin/tabs/AdminDashboardTab';
 import { AdminWaitlistTab } from '../components/admin/tabs/AdminWaitlistTab';
 import { AdminPendingPaymentsTab } from '../components/admin/tabs/AdminPendingPaymentsTab';
 import { AdminCustomersTab } from '../components/admin/tabs/AdminCustomersTab';
+import { AdminCompaniesTab } from '../components/admin/tabs/AdminCompaniesTab';
 import { AdminMealScheduleTab } from '../components/admin/tabs/AdminMealScheduleTab';
+import { AdminMenuShowcaseTab } from '../components/admin/tabs/AdminMenuShowcaseTab';
 import { AdminSettingsTab } from '../components/admin/tabs/AdminSettingsTab';
 import { Menu, X, Bell, Trash2, Rocket, Plus } from 'lucide-react';
 import { LAUNCH_CONFIG } from '../config/launchConfig';
@@ -423,6 +425,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           />
         )}
 
+        {/* 4b. Companies Tab */}
+        {activeTab === 'companies' && (
+          <AdminCompaniesTab />
+        )}
+
         {/* 5. Meal Schedule Tab */}
         {activeTab === 'meal-schedule' && (
           <AdminMealScheduleTab
@@ -435,7 +442,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           />
         )}
 
-        {/* 6. Settings Tab */}
+        {/* 6. Homepage Menu Images Tab */}
+        {activeTab === 'menu-showcase' && (
+          <AdminMenuShowcaseTab />
+        )}
+
+        {/* 7. Settings Tab */}
         {activeTab === 'settings' && (
           <AdminSettingsTab
             launchSettings={launchSettings}

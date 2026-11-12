@@ -18,6 +18,8 @@ import {
   TestimonialItem,
   LaunchSettings,
   ActiveSessionRecord,
+  CorporateAccount,
+  CorporateEmployeeRecord,
 } from './types';
 import {
   INITIAL_MENU_ITEMS,
@@ -34,6 +36,7 @@ import { Header } from './components/Header';
 import { HeroMapSection } from './components/marketing/HeroMapSection';
 import { HeroTypewriter } from './components/marketing/HeroTypewriter';
 import { DeskDropWaitlistAndTeaser } from './components/marketing/DeskDropWaitlistAndTeaser';
+import { MenuShowcaseSection } from './components/marketing/MenuShowcaseSection';
 import { WhatsAppCommunityBanner } from './components/marketing/WhatsAppCommunityBanner';
 import { ProcessGrid } from './components/marketing/ProcessGrid';
 import { PlanBuilder } from './components/marketing/PlanBuilder';
@@ -42,6 +45,7 @@ import { FaqSection } from './components/marketing/FaqSection';
 import { Footer } from './components/Footer';
 import { CookieConsentBanner } from './components/common/CookieConsentBanner';
 import { CheckoutModal } from './components/marketing/CheckoutModal';
+import { EmployeeInviteModal } from './components/marketing/EmployeeInviteModal';
 import { LocationVerificationModal } from './components/marketing/LocationVerificationModal';
 import { SubscriberAuthModal } from './components/subscriber/SubscriberAuthModal';
 import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
@@ -91,6 +95,8 @@ import {
   confirmOrderInFirestore,
   logoutSubscriberAccount,
   updateCustomerPasswordInFirestore,
+  getCorporateAccountByInviteCode,
+  confirmCorporateAccountAndOrder,
 } from './services/firebase';
 import { isOrderPendingVerification, recordOrderAsConfirmed, getConfirmedOrderIds } from './utils/finance';
 import { getLaunchSettings, updateLaunchConfig, subscribeLaunchConfig } from './config/launchConfig';
@@ -126,6 +132,24 @@ export default function App() {
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('morning');
   const [showSubscriberAuthModal, setShowSubscriberAuthModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(true);
+  const [activeInviteCorporate, setActiveInviteCorporate] = useState<CorporateAccount | null>(null);
+
+  // Detect corporate employee invitation link (?corp=INVITE_CODE) on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const corpCode = params.get('corp');
+    if (corpCode && corpCode.trim()) {
+      getCorporateAccountByInviteCode(corpCode.trim())
+        .then((account) => {
+          if (account) {
+            setActiveInviteCorporate(account);
+            setShowLocationModal(false);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
   
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
   const [, setMenuSyncVersion] = useState(0);
@@ -1553,6 +1577,20 @@ export default function App() {
 
     if (!order) return;
 
+    // If this order is a Corporate Package order, activate the corporate account & invite link instead of creating a fake individual customer row
+    if (order.id.startsWith('CORP-ORD-') || (order.memberCode && order.memberCode.toUpperCase().startsWith('CORP-'))) {
+      if (order.memberCode) {
+        getCorporateAccountByInviteCode(order.memberCode)
+          .then((acct) => {
+            if (acct) {
+              return confirmCorporateAccountAndOrder(acct);
+            }
+          })
+          .catch(() => {});
+      }
+      return;
+    }
+
     // 3. Locate customer by orderRef, email, or memberCode
     const custIdx = customers.findIndex(
       (c) =>
@@ -1909,10 +1947,20 @@ export default function App() {
               <HeroTypewriter />
             </div>
 
-            {/* 3. Build Your Lunch Plan */}
-            <PlanBuilder key={planBuilderKey} onProceedToCheckout={handleProceedToCheckout} />
+            {/* 3. How It Works (Moved above Build Your Lunch Plan) */}
+            <ProcessGrid />
 
-            {/* 4. Deliveries Begin / Reserve Your Desk Drop Section */}
+            {/* 4. Build Your Lunch Plan (3-Card Package Selector + Calendar + Corporate) */}
+            <PlanBuilder
+              key={planBuilderKey}
+              onProceedToCheckout={handleProceedToCheckout}
+              onOpenEmployeeInvite={(acct) => setActiveInviteCorporate(acct)}
+              onCorporateOrderSubmitted={(corpOrder) => {
+                setSubmittedOrders((prev) => [corpOrder, ...prev.filter((o) => o.id !== corpOrder.id)]);
+              }}
+            />
+
+            {/* 5. Reserve Your Desk Drop Section */}
             <DeskDropWaitlistAndTeaser
               waitlistCount={waitlistCount}
               confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
@@ -1928,11 +1976,11 @@ export default function App() {
               }}
             />
 
+            {/* 5b. See What Is On The Menu Showcase Section */}
+            <MenuShowcaseSection />
+
             {/* WhatsApp Community Full Bleed Banner */}
             <WhatsAppCommunityBanner />
-
-            {/* 5. Escape Your Lunch Rut (Process Grid) */}
-            <ProcessGrid />
 
             {/* 6. What 9–5ers Think of the Idea (Testimonials) */}
             <Testimonials
@@ -1941,7 +1989,7 @@ export default function App() {
               subtitle="The smartest way to plan weekday meals ahead. No more 11 AM lunch arguments, scramble for dispatch riders, or daily payment stress."
             />
 
-            {/* 8. FAQ Section */}
+            {/* 7. FAQ Section */}
             <FaqSection />
 
             {/* Payout & Registration Modal */}
@@ -1953,6 +2001,25 @@ export default function App() {
               onOrderSubmitted={handleOrderSubmitted}
               waitlistLeads={waitlistLeads}
               customers={customers}
+            />
+
+            {/* Corporate Employee Invitation & Onboarding Modal */}
+            <EmployeeInviteModal
+              isOpen={Boolean(activeInviteCorporate)}
+              corporateAccount={activeInviteCorporate}
+              onClose={() => setActiveInviteCorporate(null)}
+              onEmployeeSubmitted={(_employee: CorporateEmployeeRecord, customer: CustomerRecord) => {
+                setCustomers((prev) => {
+                  const cleanEmail = (customer.email || '').trim().toLowerCase();
+                  const filtered = prev.filter((c) => !c.email || c.email.trim().toLowerCase() !== cleanEmail);
+                  const next = [customer, ...filtered];
+                  try {
+                    localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(next));
+                  } catch {}
+                  return next;
+                });
+                liveSync.registerCustomer(customer).catch(() => {});
+              }}
             />
 
             {/* Pop-up question on website load: Lagos Island location check */}

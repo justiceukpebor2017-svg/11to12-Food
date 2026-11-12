@@ -56,6 +56,20 @@ service cloud.firestore {
     match /meals/{dateStr} {
       allow read, write: if true;
     }
+
+    // 12. Corporate Meal Subscription Accounts (Your Boss Will Pay)
+    match /corporateAccounts/{companyId} {
+      allow read, write: if true;
+    }
+
+    // 13. Corporate Employees onboarded via Invite Link
+    match /corporateEmployees/{employeeId} {
+      allow read, write: if true;
+    }
+
+    // 14. Homepage Menu Showcase Items & Admin Uploaded Images
+    match /menuShowcase/{itemId} {
+      allow read, write: if true;
+    }
   }
 }
-

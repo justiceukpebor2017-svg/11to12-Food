@@ -42,7 +42,9 @@
         "mustChangePassword": { "type": "boolean" },
         "paymentStatus": { "type": "string", "maxLength": 50 },
         "isTrial": { "type": "boolean" },
-        "isPasswordSet": { "type": "boolean" }
+        "isPasswordSet": { "type": "boolean" },
+        "corporateId": { "type": "string", "maxLength": 128 },
+        "secondAddress": { "type": "string", "maxLength": 200 }
       },
       "required": ["id", "name", "email", "phone"]
     },
@@ -111,6 +113,72 @@
         "updatedAt": { "type": "string", "maxLength": 60 }
       },
       "required": ["dateStr", "mealName"]
+    },
+    "CorporateAccount": {
+      "title": "CorporateAccount",
+      "description": "Company meal subscription account created via Your Boss Will Pay",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "companyName": { "type": "string", "maxLength": 140 },
+        "adminName": { "type": "string", "maxLength": 120 },
+        "adminEmail": { "type": "string", "maxLength": 160 },
+        "adminPhone": { "type": "string", "maxLength": 30 },
+        "officeAddress": { "type": "string", "maxLength": 200 },
+        "secondAddress": { "type": "string", "maxLength": 200 },
+        "totalEmployees": { "type": "number" },
+        "usedSlots": { "type": "number" },
+        "mealDaysPerEmployee": { "type": "number" },
+        "pricePerEmployeeNGN": { "type": "number" },
+        "totalPackageNGN": { "type": "number" },
+        "totalMealCredits": { "type": "number" },
+        "usedMealCredits": { "type": "number" },
+        "inviteCode": { "type": "string", "maxLength": 64 },
+        "accessCode": { "type": "string", "maxLength": 64 },
+        "paymentStatus": { "type": "string", "maxLength": 40 },
+        "paymentProofUrl": { "type": "string", "maxLength": 250000 },
+        "confirmedAt": { "type": "string", "maxLength": 60 },
+        "deliveryStatus": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "maxLength": 60 }
+      },
+      "required": ["id", "companyName", "adminEmail", "totalEmployees", "mealDaysPerEmployee", "inviteCode"]
+    },
+    "CorporateEmployee": {
+      "title": "CorporateEmployee",
+      "description": "Employee registered through a company invitation link",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "corporateId": { "type": "string", "maxLength": 128 },
+        "inviteCode": { "type": "string", "maxLength": 64 },
+        "companyName": { "type": "string", "maxLength": 140 },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "deskLocation": { "type": "string", "maxLength": 200 },
+        "secondAddress": { "type": "string", "maxLength": 200 },
+        "mealDaysAllocated": { "type": "number" },
+        "hasSelectedMeals": { "type": "boolean" },
+        "registeredAt": { "type": "string", "maxLength": 60 }
+      },
+      "required": ["id", "corporateId", "inviteCode", "fullName", "email"]
+    },
+    "MenuShowcaseItem": {
+      "title": "MenuShowcaseItem",
+      "description": "Homepage menu showcase card across Main Meals, Soups, Protein, Swallow, and Drinks with admin-managed images",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 40 },
+        "subGroup": { "type": "string", "maxLength": 40 },
+        "name": { "type": "string", "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 240 },
+        "imageUrl": { "type": "string", "maxLength": 250000 },
+        "sortOrder": { "type": "number" },
+        "isCustom": { "type": "boolean" },
+        "updatedAt": { "type": "string", "maxLength": 60 }
+      },
+      "required": ["id", "category", "name"]
     }
   },
   "firestore": {
@@ -137,6 +205,18 @@
     "/meals/{dateStr}": {
       "schema": { "$ref": "#/entities/Meal" },
       "description": "Collection of daily scheduled meal dishes, pricing, and custom food images synced in real time across all devices"
+    },
+    "/corporateAccounts/{companyId}": {
+      "schema": { "$ref": "#/entities/CorporateAccount" },
+      "description": "Collection of corporate meal subscription accounts and invite codes"
+    },
+    "/corporateEmployees/{employeeId}": {
+      "schema": { "$ref": "#/entities/CorporateEmployee" },
+      "description": "Collection of employees onboarded via corporate invite links"
+    },
+    "/menuShowcase/{itemId}": {
+      "schema": { "$ref": "#/entities/MenuShowcaseItem" },
+      "description": "Collection of homepage menu showcase items and admin-uploaded food images"
     }
   }
 }
