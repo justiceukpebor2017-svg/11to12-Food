@@ -429,7 +429,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         {activeTab === 'companies' && (
           <AdminCompaniesTab
             customers={customers}
+            submittedOrders={submittedOrders}
             onDeleteCustomer={onDeleteCustomer}
+            onDeleteOrder={onDeleteOrder}
           />
         )}
 

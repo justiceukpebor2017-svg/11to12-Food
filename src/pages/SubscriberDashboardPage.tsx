@@ -15,6 +15,7 @@ import { CustomerMyPlanTab } from '../components/subscriber/tabs/CustomerMyPlanT
 import { CustomerWalletTab } from '../components/subscriber/tabs/CustomerWalletTab';
 import { CustomerAccountTab } from '../components/subscriber/tabs/CustomerAccountTab';
 import { AddExtraDaysModal } from '../components/subscriber/tabs/AddExtraDaysModal';
+import { LagosIslandAddressCheckModal } from '../components/common/LagosIslandAddressCheckModal';
 import { checkWatCutoffStatus } from '../utils/timeCutoff';
 import {
   Home,
@@ -77,11 +78,38 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [editPrimaryAddress, setEditPrimaryAddress] = useState(userProfile.address || '');
   const [editSecondAddress, setEditSecondAddress] = useState(userProfile.secondAddress || '');
+  const [hasConfirmedLagosIsland, setHasConfirmedLagosIsland] = useState(false);
+  const [showLagosCheckModal, setShowLagosCheckModal] = useState(false);
+  const pendingAddressInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setEditPrimaryAddress(userProfile.address || '');
     setEditSecondAddress(userProfile.secondAddress || '');
   }, [userProfile.address, userProfile.secondAddress]);
+
+  useEffect(() => {
+    if (isAddressModalOpen) {
+      setHasConfirmedLagosIsland(false);
+      setShowLagosCheckModal(false);
+    }
+  }, [isAddressModalOpen]);
+
+  const handleAddressFieldFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (!hasConfirmedLagosIsland) {
+      const target = e.currentTarget;
+      target.blur();
+      pendingAddressInputRef.current = target;
+      setShowLagosCheckModal(true);
+    }
+  };
+
+  const confirmLagosCheckAndFocusAddress = () => {
+    setHasConfirmedLagosIsland(true);
+    setShowLagosCheckModal(false);
+    setTimeout(() => {
+      pendingAddressInputRef.current?.focus();
+    }, 60);
+  };
 
   // Live Notification state
   const [liveNotification, setLiveNotification] = useState<{
@@ -511,6 +539,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
                   type="text"
                   required
                   value={editPrimaryAddress}
+                  onFocus={handleAddressFieldFocus}
                   onChange={(e) => setEditPrimaryAddress(e.target.value)}
                   placeholder="e.g. Landmark Towers, Floor 4, Suite 402"
                   className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
@@ -524,6 +553,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
                 <input
                   type="text"
                   value={editSecondAddress}
+                  onFocus={handleAddressFieldFocus}
                   onChange={(e) => setEditSecondAddress(e.target.value)}
                   placeholder="e.g. Alternate floor or reception"
                   className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
@@ -550,6 +580,12 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
         </div>
       )}
 
+      <LagosIslandAddressCheckModal
+        isOpen={showLagosCheckModal}
+        onConfirmYes={confirmLagosCheckAndFocusAddress}
+        onIgnoreOutsideZone={confirmLagosCheckAndFocusAddress}
+        onClose={() => setShowLagosCheckModal(false)}
+      />
     </div>
   );
 };

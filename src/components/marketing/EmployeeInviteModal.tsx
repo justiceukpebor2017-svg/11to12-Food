@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   CorporateAccount,
   CorporateEmployeeRecord,
@@ -25,6 +25,7 @@ import {
   isEmailAlreadyRegisteredInFirestore,
 } from '../../services/firebase';
 import { DEFAULT_SUBSCRIBER_PASSWORD } from '../../utils/credentialUtils';
+import { LagosIslandAddressCheckModal } from '../common/LagosIslandAddressCheckModal';
 import {
   X,
   Building2,
@@ -78,6 +79,26 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdEmployee, setCreatedEmployee] = useState<CorporateEmployeeRecord | null>(null);
+  const [hasConfirmedLagosIsland, setHasConfirmedLagosIsland] = useState(false);
+  const [showLagosCheckModal, setShowLagosCheckModal] = useState(false);
+  const pendingAddressInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAddressFieldFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (!hasConfirmedLagosIsland) {
+      const target = e.currentTarget;
+      target.blur();
+      pendingAddressInputRef.current = target;
+      setShowLagosCheckModal(true);
+    }
+  };
+
+  const confirmLagosCheckAndFocusAddress = () => {
+    setHasConfirmedLagosIsland(true);
+    setShowLagosCheckModal(false);
+    setTimeout(() => {
+      pendingAddressInputRef.current?.focus();
+    }, 60);
+  };
 
   useEffect(() => {
     const unsub = subscribeMenuChanges(() => setMenuVersion((v) => v + 1));
@@ -91,6 +112,8 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
     setCreatedEmployee(null);
     setSelectedDaysMap({});
     setFormError(null);
+    setHasConfirmedLagosIsland(false);
+    setShowLagosCheckModal(false);
     if (corporateAccount) {
       setDeskLocation(corporateAccount.officeAddress || '');
       setSecondAddress(corporateAccount.secondAddress || '');
@@ -857,6 +880,7 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
                         type="text"
                         required
                         value={deskLocation}
+                        onFocus={handleAddressFieldFocus}
                         onChange={(e) => setDeskLocation(e.target.value)}
                         placeholder="Street, Building, Floor & Desk Number"
                         className="w-full px-4 py-3 rounded-xl border border-zinc-300 focus:border-[#FF4C00] outline-none text-sm"
@@ -869,6 +893,7 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
                       <input
                         type="text"
                         value={secondAddress}
+                        onFocus={handleAddressFieldFocus}
                         onChange={(e) => setSecondAddress(e.target.value)}
                         placeholder="Optional backup office or alternate desk wing"
                         className="w-full px-4 py-3 rounded-xl border border-zinc-300 focus:border-[#FF4C00] outline-none text-sm"
@@ -976,6 +1001,13 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
           )}
         </div>
       </div>
+
+      <LagosIslandAddressCheckModal
+        isOpen={showLagosCheckModal}
+        onConfirmYes={confirmLagosCheckAndFocusAddress}
+        onIgnoreOutsideZone={confirmLagosCheckAndFocusAddress}
+        onClose={() => setShowLagosCheckModal(false)}
+      />
     </div>
   );
 };

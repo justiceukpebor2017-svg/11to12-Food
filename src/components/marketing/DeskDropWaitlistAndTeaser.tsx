@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Utensils, Users, Sparkles, CheckCircle, Copy, Check, Ticket, ArrowRight, AlertTriangle, Loader2, Gift } from 'lucide-react';
 import { WaitlistLead, CustomerRecord } from '../../types';
 import { LAUNCH_CONFIG, getTimeUntilLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
 import { isEmailAlreadyRegisteredInFirestore } from '../../services/firebase';
+import { LagosIslandAddressCheckModal } from '../common/LagosIslandAddressCheckModal';
 
 interface DeskDropWaitlistAndTeaserProps {
   waitlistCount?: number;
@@ -39,6 +40,26 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
   const [existingLeadMatch, setExistingLeadMatch] = useState<WaitlistLead | null>(null);
   const [generatedMemberCode, setGeneratedMemberCode] = useState<string>('');
   const [copiedCode, setCopiedCode] = useState(false);
+  const [hasConfirmedLagosIsland, setHasConfirmedLagosIsland] = useState(false);
+  const [showLagosCheckModal, setShowLagosCheckModal] = useState(false);
+  const pendingAddressInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAddressFieldFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (!hasConfirmedLagosIsland) {
+      const target = e.currentTarget;
+      target.blur();
+      pendingAddressInputRef.current = target;
+      setShowLagosCheckModal(true);
+    }
+  };
+
+  const confirmLagosCheckAndFocusAddress = () => {
+    setHasConfirmedLagosIsland(true);
+    setShowLagosCheckModal(false);
+    setTimeout(() => {
+      pendingAddressInputRef.current?.focus();
+    }, 60);
+  };
 
   // Dynamic countdown anchored directly to LAUNCH_CONFIG
   const [countdown, setCountdown] = useState(getTimeUntilLaunch());
@@ -261,6 +282,7 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                   type="text"
                   required
                   value={addressFloor}
+                  onFocus={handleAddressFieldFocus}
                   onChange={(e) => setAddressFloor(e.target.value)}
                   placeholder="Your office desk floor"
                   className="w-full bg-white border border-zinc-300 focus:border-[#FF4C00] rounded-xl px-4 py-3 text-sm text-black outline-none font-medium transition"
@@ -362,6 +384,13 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
         </div>
 
       </div>
+
+      <LagosIslandAddressCheckModal
+        isOpen={showLagosCheckModal}
+        onConfirmYes={confirmLagosCheckAndFocusAddress}
+        onIgnoreOutsideZone={confirmLagosCheckAndFocusAddress}
+        onClose={() => setShowLagosCheckModal(false)}
+      />
     </section>
   );
 };

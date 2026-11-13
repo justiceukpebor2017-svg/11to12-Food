@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, MapPin, Calendar, CreditCard, Utensils, ArrowRight, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { WaitlistLead, CustomerRecord } from '../../types';
 import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
 import { isEmailAlreadyRegisteredInFirestore } from '../../services/firebase';
+import { LagosIslandAddressCheckModal } from '../common/LagosIslandAddressCheckModal';
 
 interface LocationVerificationModalProps {
   isOpen: boolean;
@@ -56,11 +57,32 @@ export const LocationVerificationModal: React.FC<LocationVerificationModalProps>
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [hasConfirmedLagosIsland, setHasConfirmedLagosIsland] = useState(false);
+  const [showLagosCheckModal, setShowLagosCheckModal] = useState(false);
+  const pendingAddressInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!isOpen) return null;
 
+  const handleAddressFieldFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (!hasConfirmedLagosIsland) {
+      const target = e.currentTarget;
+      target.blur();
+      pendingAddressInputRef.current = target;
+      setShowLagosCheckModal(true);
+    }
+  };
+
+  const confirmLagosCheckAndFocusAddress = () => {
+    setHasConfirmedLagosIsland(true);
+    setShowLagosCheckModal(false);
+    setTimeout(() => {
+      pendingAddressInputRef.current?.focus();
+    }, 60);
+  };
+
   // After the question: proceed to 3-step card guide
   const handleYes = () => {
+    setHasConfirmedLagosIsland(true);
     setStep('steps-guide');
   };
 
@@ -69,6 +91,7 @@ export const LocationVerificationModal: React.FC<LocationVerificationModalProps>
   };
 
   const handleIgnore = () => {
+    setHasConfirmedLagosIsland(false);
     setStep('steps-guide');
   };
 
@@ -459,6 +482,7 @@ export const LocationVerificationModal: React.FC<LocationVerificationModalProps>
                   <input
                     type="text"
                     value={addressFloor}
+                    onFocus={handleAddressFieldFocus}
                     onChange={(e) => setAddressFloor(e.target.value)}
                     placeholder="e.g. 6th Floor, Victoria Island, Lagos"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-xs font-medium focus:outline-none focus:border-[#FF4C00] bg-zinc-50 focus:bg-white transition"
@@ -499,6 +523,13 @@ export const LocationVerificationModal: React.FC<LocationVerificationModalProps>
           </div>
         )}
       </div>
+
+      <LagosIslandAddressCheckModal
+        isOpen={showLagosCheckModal}
+        onConfirmYes={confirmLagosCheckAndFocusAddress}
+        onIgnoreOutsideZone={confirmLagosCheckAndFocusAddress}
+        onClose={() => setShowLagosCheckModal(false)}
+      />
     </div>
   );
 };

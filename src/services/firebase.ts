@@ -1468,6 +1468,109 @@ export async function removeEmployeeFromCorporateByCustomer(
   }
 }
 
+/**
+ * Completely deletes a registered corporate account and all linked employee records,
+ * linked customer records/sessions, and corporate pending/confirmed orders from Firestore & localStorage.
+ */
+export async function deleteCorporateAccountAndLinkedData(
+  account: CorporateAccount
+): Promise<{
+  deletedEmployeeIds: string[];
+  deletedEmployeeEmails: string[];
+  deletedCustomerIds: string[];
+  deletedOrderIds: string[];
+}> {
+  const deletedEmployeeIds = new Set<string>();
+  const deletedEmployeeEmails = new Set<string>();
+  const deletedCustomerIds = new Set<string>();
+  const deletedOrderIds = new Set<string>();
+
+  // 1. Clean localStorage corporate caches first so stale snapshots never resurrect
+  if (typeof window !== 'undefined') {
+    try {
+      const remainingAccounts = getLocalCorporateAccounts().filter((a) => a.id !== account.id);
+      localStorage.setItem(LOCAL_CORP_ACCOUNTS_KEY, JSON.stringify(remainingAccounts));
+
+      const localEmps = getLocalCorporateEmployees();
+      localEmps
+        .filter((e) => e.corporateId === account.id)
+        .forEach((e) => {
+          deletedEmployeeIds.add(e.id);
+          if (e.email) deletedEmployeeEmails.add(e.email.trim().toLowerCase());
+        });
+      const remainingEmps = localEmps.filter((e) => e.corporateId !== account.id);
+      localStorage.setItem(LOCAL_CORP_EMPLOYEES_KEY, JSON.stringify(remainingEmps));
+    } catch {}
+  }
+
+  // 2. Delete all corporateEmployees under this company
+  try {
+    const empSnap = await getDocs(
+      query(collection(db, 'corporateEmployees'), where('corporateId', '==', account.id))
+    );
+    for (const d of empSnap.docs) {
+      const empData = d.data() as CorporateEmployeeRecord;
+      const cleanEmail = (empData.email || '').trim().toLowerCase();
+      deletedEmployeeIds.add(d.id);
+      if (cleanEmail) deletedEmployeeEmails.add(cleanEmail);
+      recordCustomerAsDeleted(d.id, cleanEmail);
+      await deleteDoc(doc(db, 'corporateEmployees', d.id));
+    }
+  } catch (e) {
+    handleFirestoreError(e, OperationType.DELETE, `corporateEmployees?corporateId=${account.id}`);
+  }
+
+  // 3. Delete any linked CustomerRecord documents & sessions tied to this company
+  try {
+    const custSnap = await getDocs(
+      query(collection(db, 'customers'), where('corporateId', '==', account.id))
+    );
+    for (const d of custSnap.docs) {
+      const custData = d.data() as CustomerRecord;
+      const cleanEmail = (custData.email || '').trim().toLowerCase();
+      deletedCustomerIds.add(d.id);
+      if (cleanEmail) deletedEmployeeEmails.add(cleanEmail);
+      await deleteCustomerFromFirestore(d.id, cleanEmail).catch(() => {});
+    }
+  } catch (e) {
+    handleFirestoreError(e, OperationType.DELETE, `customers?corporateId=${account.id}`);
+  }
+
+  // Ensure any employees whose customerId didn't query back by corporateId are also purged
+  for (const empEmail of deletedEmployeeEmails) {
+    await deleteCustomerFromFirestore('', empEmail).catch(() => {});
+  }
+
+  // 4. Delete corporate orders matching inviteCode from Firestore /orders
+  if (account.inviteCode) {
+    try {
+      const ordSnap = await getDocs(
+        query(collection(db, 'orders'), where('memberCode', '==', account.inviteCode))
+      );
+      for (const ordDoc of ordSnap.docs) {
+        deletedOrderIds.add(ordDoc.id);
+        await deleteDoc(doc(db, 'orders', ordDoc.id));
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `orders?memberCode=${account.inviteCode}`);
+    }
+  }
+
+  // 5. Delete the corporateAccounts document itself
+  try {
+    await deleteDoc(doc(db, 'corporateAccounts', account.id));
+  } catch (e) {
+    handleFirestoreError(e, OperationType.DELETE, `corporateAccounts/${account.id}`);
+  }
+
+  return {
+    deletedEmployeeIds: Array.from(deletedEmployeeIds),
+    deletedEmployeeEmails: Array.from(deletedEmployeeEmails),
+    deletedCustomerIds: Array.from(deletedCustomerIds),
+    deletedOrderIds: Array.from(deletedOrderIds),
+  };
+}
+
 // --------------------------------------------------------------------------
 // Homepage Menu Showcase ("See what is on the menu") Firestore Operations
 // --------------------------------------------------------------------------

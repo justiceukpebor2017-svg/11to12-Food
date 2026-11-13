@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   CorporateAccount,
   CorporateEmployeeRecord,
@@ -15,6 +15,7 @@ import {
   saveOrderToFirestore,
 } from '../../services/firebase';
 import { CANONICAL_8_WEEKS_MENU } from '../../data/menuRotation';
+import { LagosIslandAddressCheckModal } from '../common/LagosIslandAddressCheckModal';
 import {
   ArrowLeft,
   ArrowRight,
@@ -214,6 +215,27 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
       unsubEmps();
     };
   }, [activeCorporate?.id, isDemoMode]);
+
+  const [hasConfirmedLagosIsland, setHasConfirmedLagosIsland] = useState(false);
+  const [showLagosCheckModal, setShowLagosCheckModal] = useState(false);
+  const pendingAddressInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAddressFieldFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (!hasConfirmedLagosIsland) {
+      const target = e.currentTarget;
+      target.blur();
+      pendingAddressInputRef.current = target;
+      setShowLagosCheckModal(true);
+    }
+  };
+
+  const confirmLagosCheckAndFocusAddress = () => {
+    setHasConfirmedLagosIsland(true);
+    setShowLagosCheckModal(false);
+    setTimeout(() => {
+      pendingAddressInputRef.current?.focus();
+    }, 60);
+  };
 
   const perEmployeePricing = useMemo(() => {
     return calculateTieredOrderTotal(mealDaysPerEmployee);
@@ -899,6 +921,7 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
                     type="text"
                     required
                     value={officeAddress}
+                    onFocus={handleAddressFieldFocus}
                     onChange={(e) => setOfficeAddress(e.target.value)}
                     placeholder="Street, Building & Reception/Floor"
                     className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-300 focus:border-[#FF4C00] outline-none text-sm"
@@ -911,6 +934,7 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
                   <input
                     type="text"
                     value={secondAddress}
+                    onFocus={handleAddressFieldFocus}
                     onChange={(e) => setSecondAddress(e.target.value)}
                     placeholder="Annex building or alternate floor"
                     className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-300 focus:border-[#FF4C00] outline-none text-sm"
@@ -1435,6 +1459,13 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
           </div>
         </div>
       )}
+
+      <LagosIslandAddressCheckModal
+        isOpen={showLagosCheckModal}
+        onConfirmYes={confirmLagosCheckAndFocusAddress}
+        onIgnoreOutsideZone={confirmLagosCheckAndFocusAddress}
+        onClose={() => setShowLagosCheckModal(false)}
+      />
     </div>
   );
 };

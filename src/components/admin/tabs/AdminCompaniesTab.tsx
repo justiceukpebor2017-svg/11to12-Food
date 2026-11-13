@@ -3,6 +3,7 @@ import {
   CorporateAccount,
   CorporateEmployeeRecord,
   CustomerRecord,
+  OrderSubmission,
 } from '../../../types';
 import {
   subscribeToAllCorporateAccounts,
@@ -10,6 +11,7 @@ import {
   confirmCorporateAccountAndOrder,
   saveCorporateAccountToFirestore,
   deleteCorporateEmployeeAndFreeSlot,
+  deleteCorporateAccountAndLinkedData,
 } from '../../../services/firebase';
 import {
   Building2,
@@ -35,12 +37,16 @@ import {
 
 interface AdminCompaniesTabProps {
   customers?: CustomerRecord[];
+  submittedOrders?: OrderSubmission[];
   onDeleteCustomer?: (customerId: string, customerEmail?: string) => Promise<void> | void;
+  onDeleteOrder?: (orderId: string) => Promise<void> | void;
 }
 
 export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
   customers = [],
+  submittedOrders = [],
   onDeleteCustomer,
+  onDeleteOrder,
 }) => {
   const [accounts, setAccounts] = useState<CorporateAccount[]>([]);
   const [employees, setEmployees] = useState<CorporateEmployeeRecord[]>([]);
@@ -51,6 +57,8 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
   const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
   const [employeeToDelete, setEmployeeToDelete] = useState<CorporateEmployeeRecord | null>(null);
   const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
+  const [companyToDelete, setCompanyToDelete] = useState<CorporateAccount | null>(null);
+  const [isDeletingCompany, setIsDeletingCompany] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -165,6 +173,79 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
     }
   };
 
+  const handleConfirmDeleteCompany = async () => {
+    if (!companyToDelete) return;
+    setIsDeletingCompany(true);
+    try {
+      const targetCompany = companyToDelete;
+      const companyEmps = employeesByCompany.get(targetCompany.id) || [];
+
+      const result = await deleteCorporateAccountAndLinkedData(targetCompany);
+
+      // Clean local React states immediately
+      setAccounts((prev) => prev.filter((a) => a.id !== targetCompany.id));
+      setEmployees((prev) => prev.filter((e) => e.corporateId !== targetCompany.id));
+      if (selectedCompanyId === targetCompany.id) {
+        setSelectedCompanyId(null);
+      }
+
+      // Sync removal of all linked company customers in App.tsx (and log out any active employee session)
+      const deletedEmailSet = new Set<string>(
+        [
+          ...result.deletedEmployeeEmails,
+          ...companyEmps.map((e) => (e.email || '').trim().toLowerCase()),
+        ].filter(Boolean)
+      );
+
+      if (onDeleteCustomer) {
+        const linkedCustomers = customers.filter(
+          (c) =>
+            c.corporateId === targetCompany.id ||
+            (c.email && deletedEmailSet.has(c.email.trim().toLowerCase()))
+        );
+        for (const cust of linkedCustomers) {
+          await onDeleteCustomer(cust.id, cust.email);
+        }
+        for (const emp of companyEmps) {
+          const alreadyDeleted = linkedCustomers.some(
+            (c) =>
+              c.id === emp.id ||
+              (c.email && emp.email && c.email.trim().toLowerCase() === emp.email.trim().toLowerCase())
+          );
+          if (!alreadyDeleted) {
+            await onDeleteCustomer(emp.id, emp.email);
+          }
+        }
+      }
+
+      // Sync removal of matching corporate orders in App.tsx state & liveSync
+      if (onDeleteOrder) {
+        const orderIdsToRemove = new Set<string>(result.deletedOrderIds);
+        submittedOrders.forEach((ord) => {
+          if (
+            (targetCompany.inviteCode && ord.memberCode === targetCompany.inviteCode) ||
+            (ord.id.startsWith('CORP-ORD-') &&
+              ord.company.trim().toLowerCase() === targetCompany.companyName.trim().toLowerCase() &&
+              ord.email.trim().toLowerCase() === targetCompany.adminEmail.trim().toLowerCase())
+          ) {
+            orderIdsToRemove.add(ord.id);
+          }
+        });
+        for (const ordId of orderIdsToRemove) {
+          await onDeleteOrder(ordId);
+        }
+      }
+
+      setActionNotice(
+        `Deleted company "${targetCompany.companyName}" along with ${companyEmps.length} registered employee account${companyEmps.length === 1 ? '' : 's'}.`
+      );
+      setTimeout(() => setActionNotice(null), 5000);
+      setCompanyToDelete(null);
+    } finally {
+      setIsDeletingCompany(false);
+    }
+  };
+
   const pendingCount = accounts.filter((a) => a.paymentStatus === 'Pending Verification').length;
   const totalCompanyStaffCount = employees.length;
 
@@ -237,6 +318,14 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
                 </a>
               </>
             )}
+            <button
+              type="button"
+              onClick={() => setCompanyToDelete(selectedCompany)}
+              className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Company</span>
+            </button>
           </div>
         </div>
 
@@ -474,6 +563,55 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
             </div>
           </div>
         )}
+        {/* Confirm Delete Company Modal */}
+        {companyToDelete && (
+          <div className="fixed inset-0 z-[155] bg-zinc-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white border border-zinc-200 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-base font-black text-black">
+                    Delete Registered Company?
+                  </h4>
+                  <p className="text-xs text-zinc-600 leading-relaxed">
+                    Are you sure you want to delete <strong>{companyToDelete.companyName}</strong> ({companyToDelete.inviteCode})? This permanently deletes the company account, its{' '}
+                    <strong>{(employeesByCompany.get(companyToDelete.id) || []).length} registered employee account(s)</strong>, and its invite link.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeletingCompany}
+                  onClick={() => setCompanyToDelete(null)}
+                  className="px-4 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingCompany}
+                  onClick={handleConfirmDeleteCompany}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                >
+                  {isDeletingCompany ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Yes, Delete Company</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -634,13 +772,24 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
                     )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCompanyId(acct.id)}
-                    className="text-xs font-bold text-[#FF4C00] hover:underline cursor-pointer"
-                  >
-                    View {companyEmps.length} Employees →
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCompanyToDelete(acct)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs transition cursor-pointer"
+                      title="Delete registered company"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Company</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCompanyId(acct.id)}
+                      className="text-xs font-bold text-[#FF4C00] hover:underline cursor-pointer"
+                    >
+                      View {companyEmps.length} Employees →
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -673,6 +822,63 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
               alt="Company payment proof"
               className="w-full max-h-[70vh] object-contain rounded-2xl border border-zinc-200"
             />
+          </div>
+        </div>
+      )}
+
+      {actionNotice && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{actionNotice}</span>
+        </div>
+      )}
+
+      {/* Confirm Delete Company Modal */}
+      {companyToDelete && (
+        <div className="fixed inset-0 z-[155] bg-zinc-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-base font-black text-black">
+                  Delete Registered Company?
+                </h4>
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  Are you sure you want to delete <strong>{companyToDelete.companyName}</strong> ({companyToDelete.inviteCode})? This permanently deletes the company account, its{' '}
+                  <strong>{(employeesByCompany.get(companyToDelete.id) || []).length} registered employee account(s)</strong>, and its invite link.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingCompany}
+                onClick={() => setCompanyToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingCompany}
+                onClick={handleConfirmDeleteCompany}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                {isDeletingCompany ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Yes, Delete Company</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SelectedLunchDay, OrderSummary, OrderSubmission, WaitlistLead, CustomerRecord } from '../../types';
 import { X, Copy, Check, ShieldCheck, MapPin, Building, Phone, Mail, User, CheckCircle2, MessageSquare, FileText, Download, Ticket, AlertCircle, Sparkles } from 'lucide-react';
 import { InvoiceSlipModal } from './InvoiceSlipModal';
@@ -6,6 +6,7 @@ import { downloadInvoiceDocument } from '../../utils/invoiceDownload';
 import { CONTACT_CONFIG } from '../../config/contactConfig';
 import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
 import { saveOrderToFirestore, isEmailAlreadyRegisteredInFirestore } from '../../services/firebase';
+import { LagosIslandAddressCheckModal } from '../common/LagosIslandAddressCheckModal';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -48,6 +49,35 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   // Generated Order reference for the invoice slip
   const [createdOrder, setCreatedOrder] = useState<OrderSubmission | null>(null);
+
+  // Lagos Island address check popup state
+  const [hasConfirmedLagosIsland, setHasConfirmedLagosIsland] = useState(false);
+  const [showLagosCheckModal, setShowLagosCheckModal] = useState(false);
+  const pendingAddressInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setHasConfirmedLagosIsland(false);
+      setShowLagosCheckModal(false);
+    }
+  }, [isOpen]);
+
+  const handleAddressFieldFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (!hasConfirmedLagosIsland) {
+      const target = e.currentTarget;
+      target.blur();
+      pendingAddressInputRef.current = target;
+      setShowLagosCheckModal(true);
+    }
+  };
+
+  const confirmLagosCheckAndFocusAddress = () => {
+    setHasConfirmedLagosIsland(true);
+    setShowLagosCheckModal(false);
+    setTimeout(() => {
+      pendingAddressInputRef.current?.focus();
+    }, 60);
+  };
 
   const handleApplyMemberCode = () => {
     const cleanCode = memberCodeInput.trim().toUpperCase();
@@ -575,6 +605,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       type="text"
                       required
                       value={officeAddress}
+                      onFocus={handleAddressFieldFocus}
                       onChange={(e) => setOfficeAddress(e.target.value)}
                       className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
                       placeholder="Primary workstation desk & floor"
@@ -589,6 +620,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <input
                     type="text"
                     value={secondAddress}
+                    onFocus={handleAddressFieldFocus}
                     onChange={(e) => setSecondAddress(e.target.value)}
                     className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-medium text-black focus:outline-none focus:border-[#FF4C00]"
                     placeholder="Alternate floor or secondary reception"
@@ -660,6 +692,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           order={createdOrder || currentPreviewOrder}
         />
       )}
+
+      {/* Re-ask Lagos Island popup when focusing delivery address fields */}
+      <LagosIslandAddressCheckModal
+        isOpen={showLagosCheckModal}
+        onConfirmYes={confirmLagosCheckAndFocusAddress}
+        onIgnoreOutsideZone={confirmLagosCheckAndFocusAddress}
+        onClose={() => setShowLagosCheckModal(false)}
+      />
     </>
   );
 };

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { UserProfile } from '../../../types';
+import { LagosIslandAddressCheckModal } from '../../common/LagosIslandAddressCheckModal';
 import {
   User,
   MapPin,
@@ -44,6 +45,26 @@ export const CustomerAccountTab: React.FC<CustomerAccountTabProps> = ({
 
   // Status Notices
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const [hasConfirmedLagosIsland, setHasConfirmedLagosIsland] = useState(false);
+  const [showLagosCheckModal, setShowLagosCheckModal] = useState(false);
+  const pendingAddressInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAddressFieldFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (!hasConfirmedLagosIsland) {
+      const target = e.currentTarget;
+      target.blur();
+      pendingAddressInputRef.current = target;
+      setShowLagosCheckModal(true);
+    }
+  };
+
+  const confirmLagosCheckAndFocusAddress = () => {
+    setHasConfirmedLagosIsland(true);
+    setShowLagosCheckModal(false);
+    setTimeout(() => {
+      pendingAddressInputRef.current?.focus();
+    }, 60);
+  };
 
   const showSaved = (msg: string) => {
     setSavedNotice(msg);
@@ -202,6 +223,7 @@ export const CustomerAccountTab: React.FC<CustomerAccountTabProps> = ({
                 type="text"
                 required
                 value={address}
+                onFocus={handleAddressFieldFocus}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="e.g. Landmark Towers, Floor 4, Suite 402"
                 className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
@@ -215,6 +237,7 @@ export const CustomerAccountTab: React.FC<CustomerAccountTabProps> = ({
               <input
                 type="text"
                 value={secondAddress}
+                onFocus={handleAddressFieldFocus}
                 onChange={(e) => setSecondAddress(e.target.value)}
                 placeholder="e.g. Alternate reception or colleague's desk"
                 className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00]"
@@ -302,6 +325,13 @@ export const CustomerAccountTab: React.FC<CustomerAccountTabProps> = ({
           <span>Active Session</span>
         </div>
       </div>
+
+      <LagosIslandAddressCheckModal
+        isOpen={showLagosCheckModal}
+        onConfirmYes={confirmLagosCheckAndFocusAddress}
+        onIgnoreOutsideZone={confirmLagosCheckAndFocusAddress}
+        onClose={() => setShowLagosCheckModal(false)}
+      />
 
     </div>
   );
