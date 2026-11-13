@@ -527,7 +527,9 @@ export function mergeMenuShowcaseItems(
     }
   });
 
-  return Array.from(mergedMap.values()).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+  return Array.from(mergedMap.values())
+    .filter((item) => !item.isDeleted)
+    .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
 }
 
 /**

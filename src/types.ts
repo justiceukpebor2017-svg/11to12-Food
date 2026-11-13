@@ -469,5 +469,6 @@ export interface MenuShowcaseItem {
   imageUrl?: string;
   sortOrder: number;
   isCustom?: boolean;
+  isDeleted?: boolean;
   updatedAt?: string;
 }

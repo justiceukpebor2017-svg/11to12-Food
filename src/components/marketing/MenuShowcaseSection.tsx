@@ -208,11 +208,6 @@ const MenuShowcaseCard: React.FC<MenuShowcaseCardProps> = ({
             <h4 className={`text-sm sm:text-base font-bold leading-snug ${theme.cardTitle}`}>
               {item.name}
             </h4>
-            {item.description && (
-              <p className={`text-xs leading-relaxed line-clamp-2 ${theme.cardDesc}`}>
-                {item.description}
-              </p>
-            )}
           </div>
         </div>
       </article>
@@ -256,11 +251,6 @@ const MenuShowcaseCard: React.FC<MenuShowcaseCardProps> = ({
           <h4 className={`text-sm sm:text-base font-bold leading-snug ${theme.cardTitle}`}>
             {item.name}
           </h4>
-          {item.description && (
-            <p className={`text-xs leading-relaxed line-clamp-2 ${theme.cardDesc}`}>
-              {item.description}
-            </p>
-          )}
         </div>
       </div>
     </article>

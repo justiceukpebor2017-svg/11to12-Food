@@ -1,9 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Camera,
   CheckCircle2,
   ImagePlus,
   Link2,
+  Loader2,
   Plus,
   Search,
   Trash2,
@@ -16,6 +20,7 @@ import {
   MenuShowcaseItem,
 } from '../../../types';
 import {
+  DEFAULT_MENU_SHOWCASE_ITEMS,
   MAIN_MEAL_SUBGROUPS,
   MENU_SHOWCASE_CATEGORIES,
   compressMenuShowcaseImageFile,
@@ -25,6 +30,7 @@ import {
   deleteMenuShowcaseItemFromFirestore,
   getLocalMenuShowcaseMap,
   saveMenuShowcaseItemToFirestore,
+  saveMenuShowcaseOrderBatchToFirestore,
   subscribeToMenuShowcase,
 } from '../../../services/firebase';
 
@@ -40,14 +46,16 @@ export const AdminMenuShowcaseTab: React.FC = () => {
   const [urlDrafts, setUrlDrafts] = useState<Record<string, string>>({});
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editNameDraft, setEditNameDraft] = useState('');
-  const [editDescDraft, setEditDescDraft] = useState('');
 
   // Add custom item state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newDesc, setNewDesc] = useState('');
   const [newSubGroup, setNewSubGroup] = useState<MainMealSubGroup>('Rice');
   const [newImageUrl, setNewImageUrl] = useState('');
+
+  // Delete confirmation state
+  const [itemToDelete, setItemToDelete] = useState<MenuShowcaseItem | null>(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
 
   useEffect(() => {
     const unsub = subscribeToMenuShowcase((remoteMap) => {
@@ -65,23 +73,26 @@ export const AdminMenuShowcaseTab: React.FC = () => {
     }, 4000);
   };
 
-  const categoryItems = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+  // Unfiltered scope items (by category + subgroup) used for reliable Up/Down ordering
+  const scopeItems = useMemo(() => {
     return allItems.filter((item) => {
       if (item.category !== selectedCategory) return false;
       if (selectedCategory === 'main-meals' && selectedSubGroup !== 'all' && item.subGroup !== selectedSubGroup) {
         return false;
       }
-      if (q) {
-        return (
-          item.name.toLowerCase().includes(q) ||
-          (item.description || '').toLowerCase().includes(q) ||
-          (item.subGroup || '').toLowerCase().includes(q)
-        );
-      }
       return true;
     });
-  }, [allItems, selectedCategory, selectedSubGroup, searchQuery]);
+  }, [allItems, selectedCategory, selectedSubGroup]);
+
+  const categoryItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return scopeItems;
+    return scopeItems.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        (item.subGroup || '').toLowerCase().includes(q)
+    );
+  }, [scopeItems, searchQuery]);
 
   const stats = useMemo(() => {
     const total = allItems.length;
@@ -144,7 +155,6 @@ export const AdminMenuShowcaseTab: React.FC = () => {
   const handleStartEditDetails = (item: MenuShowcaseItem) => {
     setEditingItemId(item.id);
     setEditNameDraft(item.name);
-    setEditDescDraft(item.description || '');
   };
 
   const handleSaveDetails = async (item: MenuShowcaseItem) => {
@@ -155,10 +165,58 @@ export const AdminMenuShowcaseTab: React.FC = () => {
       await saveMenuShowcaseItemToFirestore({
         ...item,
         name: cleanName,
-        description: editDescDraft.trim(),
       });
       setEditingItemId(null);
       showToast(`Updated "${cleanName}" on the homepage menu.`);
+    } finally {
+      setBusyItemId(null);
+    }
+  };
+
+  const handleMoveItem = async (item: MenuShowcaseItem, direction: 'up' | 'down') => {
+    const currentIndex = scopeItems.findIndex((i) => i.id === item.id);
+    if (currentIndex === -1) return;
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= scopeItems.length) return;
+
+    setBusyItemId(item.id);
+    try {
+      // Build strictly increasing sortOrder slots from current scope positions
+      const slots: number[] = [];
+      scopeItems.forEach((it, i) => {
+        const raw = typeof it.sortOrder === 'number' ? it.sortOrder : (i + 1) * 10;
+        const val = i > 0 && raw <= slots[i - 1] ? slots[i - 1] + 1 : raw;
+        slots.push(val);
+      });
+
+      const reordered = [...scopeItems];
+      const [moved] = reordered.splice(currentIndex, 1);
+      reordered.splice(targetIndex, 0, moved);
+
+      const changedItems: MenuShowcaseItem[] = [];
+      reordered.forEach((it, idx) => {
+        const nextSortOrder = slots[idx];
+        if (it.sortOrder !== nextSortOrder) {
+          changedItems.push({
+            ...it,
+            sortOrder: nextSortOrder,
+          });
+        }
+      });
+
+      if (changedItems.length > 0) {
+        setOverridesMap((prev) => {
+          const next = { ...prev };
+          changedItems.forEach((updated) => {
+            next[updated.id] = updated;
+          });
+          return next;
+        });
+        await saveMenuShowcaseOrderBatchToFirestore(changedItems);
+        showToast(
+          `Moved "${item.name}" ${direction === 'up' ? 'up' : 'down'} to position #${targetIndex + 1}.`
+        );
+      }
     } finally {
       setBusyItemId(null);
     }
@@ -168,20 +226,21 @@ export const AdminMenuShowcaseTab: React.FC = () => {
     e.preventDefault();
     const cleanName = newName.trim();
     if (!cleanName) return;
+    const maxSortInCat = allItems
+      .filter((i) => i.category === selectedCategory)
+      .reduce((max, i) => Math.max(max, i.sortOrder ?? 0), 0);
     const newId = `custom-${selectedCategory}-${Date.now()}`;
     const newItem: MenuShowcaseItem = {
       id: newId,
       category: selectedCategory,
       subGroup: selectedCategory === 'main-meals' ? newSubGroup : undefined,
       name: cleanName,
-      description: newDesc.trim() || undefined,
       imageUrl: newImageUrl.trim() || undefined,
-      sortOrder: 900 + allItems.length,
+      sortOrder: maxSortInCat + 10,
       isCustom: true,
     };
     await saveMenuShowcaseItemToFirestore(newItem);
     setNewName('');
-    setNewDesc('');
     setNewImageUrl('');
     setIsAddOpen(false);
     showToast(`Added "${cleanName}" to homepage menu.`);
@@ -196,9 +255,33 @@ export const AdminMenuShowcaseTab: React.FC = () => {
     }
   };
 
-  const handleDeleteCustomItem = async (item: MenuShowcaseItem) => {
-    await deleteMenuShowcaseItemFromFirestore(item.id);
-    showToast(`Removed custom item "${item.name}".`);
+  const handleConfirmDeleteItem = async () => {
+    if (!itemToDelete) return;
+    setIsDeletingItem(true);
+    try {
+      const target = itemToDelete;
+      const isBuiltIn = DEFAULT_MENU_SHOWCASE_ITEMS.some((d) => d.id === target.id);
+      await deleteMenuShowcaseItemFromFirestore(target, isBuiltIn);
+
+      setOverridesMap((prev) => {
+        const next = { ...prev };
+        if (isBuiltIn) {
+          next[target.id] = {
+            ...target,
+            imageUrl: '',
+            isDeleted: true,
+          };
+        } else {
+          delete next[target.id];
+        }
+        return next;
+      });
+
+      setItemToDelete(null);
+      showToast(`Deleted "${target.name}" from the homepage menu showcase.`);
+    } finally {
+      setIsDeletingItem(false);
+    }
   };
 
   return (
@@ -271,7 +354,7 @@ export const AdminMenuShowcaseTab: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-bold text-zinc-600 mb-1">Item Name</label>
               <input
@@ -300,17 +383,6 @@ export const AdminMenuShowcaseTab: React.FC = () => {
                 </select>
               </div>
             )}
-
-            <div>
-              <label className="block text-[11px] font-bold text-zinc-600 mb-1">Short Description</label>
-              <input
-                type="text"
-                value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)}
-                placeholder="Optional short appetizing description"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-xs outline-none focus:border-[#FF4C00]"
-              />
-            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
@@ -427,6 +499,10 @@ export const AdminMenuShowcaseTab: React.FC = () => {
           const isBusy = busyItemId === item.id;
           const isEditing = editingItemId === item.id;
           const hasPhoto = Boolean(item.imageUrl && item.imageUrl.trim());
+          const scopeIndex = scopeItems.findIndex((s) => s.id === item.id);
+          const isFirst = scopeIndex <= 0;
+          const isLast = scopeIndex === -1 || scopeIndex >= scopeItems.length - 1;
+          const isSearching = Boolean(searchQuery.trim());
 
           return (
             <div
@@ -447,10 +523,10 @@ export const AdminMenuShowcaseTab: React.FC = () => {
                       type="button"
                       onClick={() => handleClearImage(item)}
                       disabled={isBusy}
-                      title="Remove photo"
-                      className="absolute top-2.5 right-2.5 p-2 rounded-xl bg-black/70 hover:bg-red-600 text-white transition cursor-pointer"
+                      title="Remove photo only"
+                      className="absolute top-2.5 right-2.5 p-1.5 rounded-xl bg-white/90 hover:bg-rose-600 text-zinc-700 hover:text-white border border-zinc-200 shadow-xs transition cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </>
                 ) : (
@@ -473,13 +549,6 @@ export const AdminMenuShowcaseTab: React.FC = () => {
                       onChange={(e) => setEditNameDraft(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs font-bold outline-none focus:border-[#FF4C00]"
                     />
-                    <textarea
-                      rows={2}
-                      value={editDescDraft}
-                      onChange={(e) => setEditDescDraft(e.target.value)}
-                      placeholder="Short description..."
-                      className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs outline-none focus:border-[#FF4C00]"
-                    />
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -501,12 +570,17 @@ export const AdminMenuShowcaseTab: React.FC = () => {
                 ) : (
                   <div className="space-y-1">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        {item.subGroup && (
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4C00]">
-                            {item.subGroup}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-600 text-[10px] font-extrabold tabular-nums">
+                            #{scopeIndex + 1}
                           </span>
-                        )}
+                          {item.subGroup && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4C00]">
+                              {item.subGroup}
+                            </span>
+                          )}
+                        </div>
                         <h4 className="text-sm font-extrabold text-zinc-900 leading-snug">
                           {item.name}
                         </h4>
@@ -514,27 +588,43 @@ export const AdminMenuShowcaseTab: React.FC = () => {
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
+                          onClick={() => handleMoveItem(item, 'up')}
+                          disabled={isBusy || isFirst || isSearching}
+                          title={isSearching ? 'Clear search to reorder' : 'Move up in listing'}
+                          aria-label={`Move ${item.name} up`}
+                          className="p-1.5 rounded-xl bg-zinc-100 hover:bg-orange-50 hover:text-[#FF4C00] hover:border-orange-200 text-zinc-700 border border-zinc-200 transition cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveItem(item, 'down')}
+                          disabled={isBusy || isLast || isSearching}
+                          title={isSearching ? 'Clear search to reorder' : 'Move down in listing'}
+                          aria-label={`Move ${item.name} down`}
+                          className="p-1.5 rounded-xl bg-zinc-100 hover:bg-orange-50 hover:text-[#FF4C00] hover:border-orange-200 text-zinc-700 border border-zinc-200 transition cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleStartEditDetails(item)}
                           className="text-[11px] font-bold text-zinc-500 hover:text-black px-2 py-1 rounded-lg hover:bg-zinc-100 cursor-pointer"
                         >
                           Edit
                         </button>
-                        {item.isCustom && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCustomItem(item)}
-                            className="text-[11px] font-bold text-red-500 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 cursor-pointer"
-                          >
-                            Delete
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setItemToDelete(item)}
+                          disabled={isBusy}
+                          title={`Delete ${item.name} from Menu Showcase`}
+                          aria-label={`Delete ${item.name}`}
+                          className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
-                    {item.description && (
-                      <p className="text-xs text-zinc-500 leading-relaxed line-clamp-2">
-                        {item.description}
-                      </p>
-                    )}
                   </div>
                 )}
 
@@ -590,6 +680,59 @@ export const AdminMenuShowcaseTab: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Confirm Delete Menu Showcase Item Modal */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-[155] bg-zinc-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-base font-black text-zinc-900">
+                  Delete Meal from Menu Showcase?
+                </h4>
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  Are you sure you want to remove <strong>{itemToDelete.name}</strong> from the homepage menu showcase? Visitors will no longer see it listed under{' '}
+                  <strong>
+                    {MENU_SHOWCASE_CATEGORIES.find((c) => c.id === itemToDelete.category)?.title}
+                  </strong>
+                  .
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingItem}
+                onClick={() => setItemToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingItem}
+                onClick={handleConfirmDeleteItem}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                {isDeletingItem ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Yes, Delete Meal</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

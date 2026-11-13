@@ -25,6 +25,7 @@ import {
   orderBy,
   where,
   getDocFromServer,
+  writeBatch,
   Firestore,
   setLogLevel,
 } from 'firebase/firestore';
@@ -1612,8 +1613,64 @@ export async function saveMenuShowcaseItemToFirestore(item: MenuShowcaseItem): P
   }
 }
 
-export async function deleteMenuShowcaseItemFromFirestore(itemId: string): Promise<void> {
+export async function saveMenuShowcaseOrderBatchToFirestore(
+  items: MenuShowcaseItem[]
+): Promise<void> {
+  if (!items || items.length === 0) return;
+
+  const now = new Date().toISOString();
   const current = getLocalMenuShowcaseMap();
+  const updatedItems = items.map((item) => {
+    const next: MenuShowcaseItem = {
+      ...item,
+      updatedAt: now,
+    };
+    current[item.id] = next;
+    return next;
+  });
+
+  saveLocalMenuShowcaseMap(current);
+  window.dispatchEvent(new CustomEvent('11to12_menu_showcase_updated'));
+
+  try {
+    const batch = writeBatch(db);
+    updatedItems.forEach((item) => {
+      const clean = sanitizeForFirestore(item);
+      batch.set(doc(db, 'menuShowcase', item.id), clean, { merge: true });
+    });
+    await batch.commit();
+  } catch (e) {
+    handleFirestoreError(e, OperationType.WRITE, 'menuShowcase');
+  }
+}
+
+export async function deleteMenuShowcaseItemFromFirestore(
+  itemOrId: string | MenuShowcaseItem,
+  isDefaultBuiltIn = false
+): Promise<void> {
+  const itemId = typeof itemOrId === 'string' ? itemOrId : itemOrId.id;
+  const current = getLocalMenuShowcaseMap();
+
+  if (isDefaultBuiltIn && typeof itemOrId !== 'string') {
+    const tombstone: MenuShowcaseItem = {
+      ...itemOrId,
+      imageUrl: '',
+      isDeleted: true,
+      updatedAt: new Date().toISOString(),
+    };
+    current[itemId] = tombstone;
+    saveLocalMenuShowcaseMap(current);
+    window.dispatchEvent(new CustomEvent('11to12_menu_showcase_updated'));
+
+    try {
+      const clean = sanitizeForFirestore(tombstone);
+      await setDoc(doc(db, 'menuShowcase', itemId), clean, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `menuShowcase/${itemId}`);
+    }
+    return;
+  }
+
   delete current[itemId];
   saveLocalMenuShowcaseMap(current);
   window.dispatchEvent(new CustomEvent('11to12_menu_showcase_updated'));
