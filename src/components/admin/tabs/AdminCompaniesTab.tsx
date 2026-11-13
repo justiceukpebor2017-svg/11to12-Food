@@ -2,12 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   CorporateAccount,
   CorporateEmployeeRecord,
+  CustomerRecord,
 } from '../../../types';
 import {
   subscribeToAllCorporateAccounts,
   subscribeToAllCorporateEmployees,
   confirmCorporateAccountAndOrder,
   saveCorporateAccountToFirestore,
+  deleteCorporateEmployeeAndFreeSlot,
 } from '../../../services/firebase';
 import {
   Building2,
@@ -27,9 +29,19 @@ import {
   Utensils,
   Loader2,
   Image as ImageIcon,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 
-export const AdminCompaniesTab: React.FC = () => {
+interface AdminCompaniesTabProps {
+  customers?: CustomerRecord[];
+  onDeleteCustomer?: (customerId: string, customerEmail?: string) => Promise<void> | void;
+}
+
+export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
+  customers = [],
+  onDeleteCustomer,
+}) => {
   const [accounts, setAccounts] = useState<CorporateAccount[]>([]);
   const [employees, setEmployees] = useState<CorporateEmployeeRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,6 +49,9 @@ export const AdminCompaniesTab: React.FC = () => {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
+  const [employeeToDelete, setEmployeeToDelete] = useState<CorporateEmployeeRecord | null>(null);
+  const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubAccts = subscribeToAllCorporateAccounts((list) => setAccounts(list));
@@ -114,12 +129,48 @@ export const AdminCompaniesTab: React.FC = () => {
     });
   };
 
+  const handleConfirmDeleteEmployee = async () => {
+    if (!selectedCompany || !employeeToDelete) return;
+    setIsDeletingEmployee(true);
+    try {
+      const targetEmp = employeeToDelete;
+      const updatedAcct = await deleteCorporateEmployeeAndFreeSlot(selectedCompany, targetEmp);
+
+      // Update local state immediately so slot counts reflect availability without waiting for snapshot
+      setEmployees((prev) => prev.filter((e) => e.id !== targetEmp.id));
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === updatedAcct.id ? updatedAcct : a))
+      );
+
+      // Also remove corresponding CustomerRecord & purge sessions via parent handler
+      const cleanEmpEmail = (targetEmp.email || '').trim().toLowerCase();
+      const matchedCust = customers.find(
+        (c) =>
+          (cleanEmpEmail && (c.email || '').trim().toLowerCase() === cleanEmpEmail) ||
+          (c.corporateId === selectedCompany.id &&
+            c.fullName.trim().toLowerCase() === targetEmp.fullName.trim().toLowerCase())
+      );
+      if (onDeleteCustomer) {
+        await onDeleteCustomer(matchedCust?.id || targetEmp.id, targetEmp.email);
+      }
+
+      const slotsLeft = Math.max(0, updatedAcct.totalEmployees - updatedAcct.usedSlots);
+      setActionNotice(
+        `Removed ${targetEmp.fullName} from ${selectedCompany.companyName}. 1 employee slot restored (${slotsLeft} of ${updatedAcct.totalEmployees} slots available).`
+      );
+      setTimeout(() => setActionNotice(null), 5000);
+      setEmployeeToDelete(null);
+    } finally {
+      setIsDeletingEmployee(false);
+    }
+  };
+
   const pendingCount = accounts.filter((a) => a.paymentStatus === 'Pending Verification').length;
   const totalCompanyStaffCount = employees.length;
 
   // COMPANY DETAIL VIEW WITH FULL EMPLOYEE ROSTER
   if (selectedCompany) {
-    const usedSlots = Math.max(selectedCompany.usedSlots || 0, selectedCompanyEmployees.length);
+    const usedSlots = selectedCompanyEmployees.length;
     const remainingSlots = Math.max(0, selectedCompany.totalEmployees - usedSlots);
     const inviteUrl = getInviteUrl(selectedCompany.inviteCode);
     const waShareUrl = `https://wa.me/${selectedCompany.adminPhone.replace(/\D/g, '').replace(/^0/, '234')}?text=${encodeURIComponent(
@@ -300,13 +351,24 @@ export const AdminCompaniesTab: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <div className="text-left sm:text-right text-xs">
-                      <div className="font-bold text-emerald-700 tabular-nums">
-                        {emp.selectedDays.length} / {emp.mealDaysAllocated} Meals Picked
+                    <div className="flex flex-col sm:items-end gap-2">
+                      <div className="text-left sm:text-right text-xs">
+                        <div className="font-bold text-emerald-700 tabular-nums">
+                          {emp.selectedDays.length} / {emp.mealDaysAllocated} Meals Picked
+                        </div>
+                        <div className="text-[11px] text-zinc-500">
+                          Joined {new Date(emp.registeredAt).toLocaleDateString()}
+                        </div>
                       </div>
-                      <div className="text-[11px] text-zinc-500">
-                        Joined {new Date(emp.registeredAt).toLocaleDateString()}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEmployeeToDelete(emp)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-[11px] transition cursor-pointer"
+                        title="Delete customer and restore 1 company slot"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete &amp; Free Slot</span>
+                      </button>
                     </div>
                   </div>
 
@@ -354,7 +416,64 @@ export const AdminCompaniesTab: React.FC = () => {
               ))}
             </div>
           )}
+          {actionNotice && (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{actionNotice}</span>
+            </div>
+          )}
         </div>
+
+        {/* Confirm Delete Employee Modal (White/Gray/Orange styling — zero black cards) */}
+        {employeeToDelete && (
+          <div className="fixed inset-0 z-[150] bg-zinc-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white border border-zinc-200 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-base font-black text-black">
+                    Delete Company Employee &amp; Free Slot?
+                  </h4>
+                  <p className="text-xs text-zinc-600 leading-relaxed">
+                    Removing <strong>{employeeToDelete.fullName}</strong> ({employeeToDelete.email}) deletes their meal schedule and subscriber login from{' '}
+                    <strong>{selectedCompany.companyName}</strong>, and immediately frees{' '}
+                    <strong>1 slot</strong> so another staff member can use the company invite link.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeletingEmployee}
+                  onClick={() => setEmployeeToDelete(null)}
+                  className="px-4 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingEmployee}
+                  onClick={handleConfirmDeleteEmployee}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                >
+                  {isDeletingEmployee ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete &amp; Restore Slot</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -424,7 +543,7 @@ export const AdminCompaniesTab: React.FC = () => {
         <div className="space-y-4">
           {filteredAccounts.map((acct) => {
             const companyEmps = employeesByCompany.get(acct.id) || [];
-            const usedSlots = Math.max(acct.usedSlots || 0, companyEmps.length);
+            const usedSlots = companyEmps.length;
             const isConfirmed = acct.paymentStatus === 'Confirmed';
 
             return (

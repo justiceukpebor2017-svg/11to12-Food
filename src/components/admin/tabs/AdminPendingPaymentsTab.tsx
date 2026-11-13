@@ -4,6 +4,7 @@ import {
   CustomerRecord,
 } from '../../../types';
 import {
+  DEFAULT_SUBSCRIBER_PASSWORD,
   formatCredentialEmailMessage,
   formatCredentialWhatsAppMessage,
 } from '../../../utils/credentialUtils';
@@ -87,7 +88,7 @@ export const AdminPendingPaymentsTab: React.FC<AdminPendingPaymentsTabProps> = (
       );
 
       const isExistingAddOn = Boolean(order.isTopUp || (matchedCustomer && matchedCustomer.orderRef !== order.id));
-      const generatedPass = matchedCustomer?.defaultPassword || matchedCustomer?.password || 'DeskDrop#842';
+      const generatedPass = matchedCustomer?.defaultPassword || matchedCustomer?.password || DEFAULT_SUBSCRIBER_PASSWORD;
 
       setSuccessConfirmation({
         customerName: order.fullName,

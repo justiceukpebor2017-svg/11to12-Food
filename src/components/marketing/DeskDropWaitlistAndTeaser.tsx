@@ -3,6 +3,7 @@ import { CheckCircle2, Utensils, Users, Sparkles, CheckCircle, Copy, Check, Tick
 import { WaitlistLead, CustomerRecord } from '../../types';
 import { LAUNCH_CONFIG, getTimeUntilLaunch, subscribeLaunchConfig } from '../../config/launchConfig';
 import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
+import { isEmailAlreadyRegisteredInFirestore } from '../../services/firebase';
 
 interface DeskDropWaitlistAndTeaserProps {
   waitlistCount?: number;
@@ -90,6 +91,16 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
       return;
     }
 
+    // Client-side strict email uniqueness check across waitlist & existing customers
+    const emailTakenLocally =
+      existingWaitlist.some((l) => normalizeEmail(l.email) === cleanEmail) ||
+      existingCustomers.some((c) => normalizeEmail(c.email) === cleanEmail);
+    if (emailTakenLocally) {
+      setDuplicateFieldError('email');
+      setFormError(`This email address (${cleanEmail}) is already registered in our system.`);
+      return;
+    }
+
     // Generate unique readable member code (e.g. DD-84920)
     const code = `DD-${Math.floor(10000 + Math.random() * 90000)}`;
 
@@ -105,6 +116,17 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
     setIsSubmitting(true);
 
     try {
+      const remoteDup = await isEmailAlreadyRegisteredInFirestore(cleanEmail, {
+        includeWaitlist: true,
+        includeOrders: true,
+      });
+      if (remoteDup.exists) {
+        setDuplicateFieldError('email');
+        setFormError(remoteDup.reason || `This email address (${cleanEmail}) is already registered.`);
+        setIsSubmitting(false);
+        return;
+      }
+
       if (onJoinWaitlist) {
         const result = await onJoinWaitlist(newLeadData);
         if (!result.success) {

@@ -1,16 +1,13 @@
 // Credential & Default Password Generator for 11 to 12 Desk Drop
 
+export const DEFAULT_SUBSCRIBER_PASSWORD = 'eat@11to12';
+
 /**
- * Generates a clean, readable default password for new or existing subscribers.
- * E.g. DeskDrop#842, ElevenToTwelve@519, HotLunch!347
+ * Returns the standard default password for every new subscriber.
+ * Users sign in with this default password and set their own personal password on first login.
  */
 export function generateDefaultPassword(): string {
-  const words = ['DeskDrop', 'ElevenToTwelve', 'HotLunch', 'LagosChow', 'OfficeMeal', 'FreshFood', 'JollofTime'];
-  const symbols = ['#', '!', '@', '$'];
-  const randomWord = words[Math.floor(Math.random() * words.length)];
-  const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
-  const randomNum = Math.floor(100 + Math.random() * 900);
-  return `${randomWord}${randomSymbol}${randomNum}`;
+  return DEFAULT_SUBSCRIBER_PASSWORD;
 }
 
 export interface CredentialMessageParams {

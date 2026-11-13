@@ -102,9 +102,9 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       // Only prompt if account is genuinely on initial temporary/default password
       const p = (pass || '').trim().toLowerCase();
       const defP = (cust.defaultPassword || '').trim().toLowerCase();
-      const knownDefaults = ['11to12desk', '11to12lagos', '11to12', 'welcome123', 'password', '123456', 'deskdrop2026', 'deskdrop'];
+      const knownDefaults = ['eat@11to12', '11to12desk', '11to12lagos', '11to12', 'welcome123', 'password', '123456', 'deskdrop2026', 'deskdrop'];
 
-      if (cust.mustChangePassword || cust.isDefaultPassword) {
+      if (cust.mustChangePassword || cust.isDefaultPassword || p === 'eat@11to12') {
         if (defP && p === defP) return true;
         if (knownDefaults.includes(p)) return true;
         if (cust.defaultPassword && pass.trim() === cust.defaultPassword.trim()) return true;
@@ -489,7 +489,9 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
             </button>
 
             <div className="pt-2 text-center text-xs text-zinc-500">
-              New subscriber? Use the default password sent to you on WhatsApp by 11 to 12.
+              New subscriber? Sign in with your registered email and default password{' '}
+              <span className="font-mono font-bold text-zinc-800">eat@11to12</span>{' '}
+              to set your personal password.
             </div>
           </form>
         )}

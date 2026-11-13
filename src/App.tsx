@@ -97,6 +97,7 @@ import {
   updateCustomerPasswordInFirestore,
   getCorporateAccountByInviteCode,
   confirmCorporateAccountAndOrder,
+  removeEmployeeFromCorporateByCustomer,
 } from './services/firebase';
 import { isOrderPendingVerification, recordOrderAsConfirmed, getConfirmedOrderIds } from './utils/finance';
 import { getLaunchSettings, updateLaunchConfig, subscribeLaunchConfig } from './config/launchConfig';
@@ -1885,9 +1886,10 @@ export default function App() {
       return next;
     });
 
-    // 4. Terminate active sessions across all devices and server
+    // 4. Terminate active sessions across all devices and server, and release any corporate slot
     await terminateCustomerSession(customerId, cleanEmail).catch(() => {});
     await liveSync.deleteCustomer(customerId, cleanEmail).catch(() => {});
+    await removeEmployeeFromCorporateByCustomer(customerId, cleanEmail).catch(() => {});
     await deleteCustomerFromFirestore(customerId, cleanEmail).catch(() => {});
 
     // 5. If currently active user in this browser is this subscriber, log them off immediately!
@@ -2021,6 +2023,7 @@ export default function App() {
             <EmployeeInviteModal
               isOpen={Boolean(activeInviteCorporate)}
               corporateAccount={activeInviteCorporate}
+              existingCustomers={customers}
               onClose={() => setActiveInviteCorporate(null)}
               onEmployeeSubmitted={(_employee: CorporateEmployeeRecord, customer: CustomerRecord) => {
                 setCustomers((prev) => {

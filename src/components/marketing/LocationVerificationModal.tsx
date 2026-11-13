@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, MapPin, Calendar, CreditCard, Utensils, ArrowRight, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { WaitlistLead, CustomerRecord } from '../../types';
 import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
+import { isEmailAlreadyRegisteredInFirestore } from '../../services/firebase';
 
 interface LocationVerificationModalProps {
   isOpen: boolean;
@@ -137,6 +138,16 @@ export const LocationVerificationModal: React.FC<LocationVerificationModalProps>
     setIsSubmitting(true);
 
     try {
+      const remoteDup = await isEmailAlreadyRegisteredInFirestore(cleanEmail, {
+        includeWaitlist: true,
+        includeOrders: true,
+      });
+      if (remoteDup.exists) {
+        setIsSubmitting(false);
+        setFormError(remoteDup.reason || 'This email address is already registered on our list.');
+        return;
+      }
+
       if (onJoinWaitlist) {
         const res = await onJoinWaitlist(leadData);
         if (!res.success) {

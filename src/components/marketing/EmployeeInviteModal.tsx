@@ -22,7 +22,9 @@ import {
   claimCorporateEmployeeSlotAndSave,
   subscribeToCorporateAccount,
   subscribeToCorporateEmployees,
+  isEmailAlreadyRegisteredInFirestore,
 } from '../../services/firebase';
+import { DEFAULT_SUBSCRIBER_PASSWORD } from '../../utils/credentialUtils';
 import {
   X,
   Building2,
@@ -42,6 +44,7 @@ interface EmployeeInviteModalProps {
   isOpen: boolean;
   onClose: () => void;
   corporateAccount: CorporateAccount | null;
+  existingCustomers?: CustomerRecord[];
   onEmployeeSubmitted?: (employee: CorporateEmployeeRecord, customer: CustomerRecord) => void;
 }
 
@@ -49,6 +52,7 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
   isOpen,
   onClose,
   corporateAccount,
+  existingCustomers = [],
   onEmployeeSubmitted,
 }) => {
   const [step, setStep] = useState<'meals' | 'details' | 'confirmed'>('meals');
@@ -290,13 +294,40 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
     e.preventDefault();
     setFormError(null);
 
-    if (!fullName.trim() || !phone.trim() || !email.trim() || !deskLocation.trim()) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!fullName.trim() || !phone.trim() || !cleanEmail || !deskLocation.trim()) {
       setFormError('Please enter your Full Name, Phone Number, Email, and Delivery Option 1.');
+      return;
+    }
+
+    // Strict email uniqueness validation: never allow already-used email addresses
+    const alreadyInCompany = liveEmployees.some(
+      (emp) => (emp.email || '').trim().toLowerCase() === cleanEmail
+    );
+    const alreadyInCustomers = existingCustomers.some(
+      (c) => (c.email || '').trim().toLowerCase() === cleanEmail
+    );
+    if (alreadyInCompany || alreadyInCustomers) {
+      setFormError(
+        `This email address (${cleanEmail}) has already been used to register on 11:12 Food. Please use a different unique email address.`
+      );
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const firestoreDuplicate = await isEmailAlreadyRegisteredInFirestore(cleanEmail, {
+        includeOrders: true,
+      });
+      if (firestoreDuplicate.exists) {
+        setFormError(
+          firestoreDuplicate.reason ||
+            `This email address (${cleanEmail}) is already registered. Please use a unique email address.`
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
       const nowIso = new Date().toISOString();
       const employeeId = `emp-${activeAccount.id}-${Date.now()}`;
       const customerId = `corp-cust-${Date.now()}`;
@@ -307,7 +338,7 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
         inviteCode: activeAccount.inviteCode,
         companyName: activeAccount.companyName,
         fullName: fullName.trim(),
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         phone: phone.trim(),
         department: department.trim() || 'Staff Member',
         deskLocation: deskLocation.trim(),
@@ -344,7 +375,11 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
         memberCode: activeAccount.inviteCode,
         createdAt: nowIso,
         confirmedAt: nowIso,
-        isPasswordSet: false,
+        isPasswordSet: true,
+        defaultPassword: DEFAULT_SUBSCRIBER_PASSWORD,
+        password: DEFAULT_SUBSCRIBER_PASSWORD,
+        isDefaultPassword: true,
+        mustChangePassword: true,
       };
 
       const result = await claimCorporateEmployeeSlotAndSave(
@@ -908,6 +943,25 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
                         {createdEmployee.selectedDays.length} Deliveries · Paid by Employer
                       </span>
                     </div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] border border-orange-200 text-left text-xs space-y-1.5">
+                    <div className="font-black text-[#FF4C00] uppercase tracking-wider text-[10px]">
+                      Your Dashboard Login Credentials
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-600">Login Email:</span>
+                      <span className="font-bold text-black">{createdEmployee.email}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-600">Default Password:</span>
+                      <span className="font-mono font-black text-[#FF4C00]">
+                        {DEFAULT_SUBSCRIBER_PASSWORD}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-700 pt-1">
+                      Sign in anytime via Log In using this email and default password{' '}
+                      <strong>{DEFAULT_SUBSCRIBER_PASSWORD}</strong> to set your own personal password.
+                    </p>
                   </div>
                   <button
                     type="button"

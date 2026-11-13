@@ -427,7 +427,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
         {/* 4b. Companies Tab */}
         {activeTab === 'companies' && (
-          <AdminCompaniesTab />
+          <AdminCompaniesTab
+            customers={customers}
+            onDeleteCustomer={onDeleteCustomer}
+          />
         )}
 
         {/* 5. Meal Schedule Tab */}

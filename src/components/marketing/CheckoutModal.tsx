@@ -5,7 +5,7 @@ import { InvoiceSlipModal } from './InvoiceSlipModal';
 import { downloadInvoiceDocument } from '../../utils/invoiceDownload';
 import { CONTACT_CONFIG } from '../../config/contactConfig';
 import { getStandardPhoneKey, normalizeEmail } from '../../utils/phoneUtils';
-import { saveOrderToFirestore } from '../../services/firebase';
+import { saveOrderToFirestore, isEmailAlreadyRegisteredInFirestore } from '../../services/firebase';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -164,6 +164,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
 
     setIsSubmitting(true);
+
+    // Live cross-device Firestore uniqueness check so no already-used email is accepted
+    try {
+      const remoteDup = await isEmailAlreadyRegisteredInFirestore(cleanEmail, {
+        includeOrders: true,
+      });
+      if (remoteDup.exists) {
+        setCheckoutError(
+          remoteDup.reason ||
+            `This email (${cleanEmail}) is already registered in 11 to 12. Each account requires a unique email address.`
+        );
+        setIsSubmitting(false);
+        return;
+      }
+    } catch {
+      // Fall through only if offline and local checks already passed
+    }
 
     const submission: OrderSubmission = {
       id: currentPreviewOrder.id,

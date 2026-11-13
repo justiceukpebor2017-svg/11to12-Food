@@ -2,10 +2,12 @@ import React, { useState, useMemo } from 'react';
 import { CustomerRecord, SelectedLunchDay, SwallowType, calculateOrderSummary } from '../../../types';
 import { exportToCsv } from '../../../utils/csvExport';
 import {
+  DEFAULT_SUBSCRIBER_PASSWORD,
   generateDefaultPassword,
   formatCredentialEmailMessage,
   formatCredentialWhatsAppMessage,
 } from '../../../utils/credentialUtils';
+import { isEmailAlreadyRegisteredInFirestore } from '../../../services/firebase';
 import { getStructuredMealForDate } from '../../../data/menuRotation';
 import { LAUNCH_CONFIG, isDateBeforeLaunch } from '../../../config/launchConfig';
 import {
@@ -67,11 +69,18 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'individual' | 'company'>('all');
   const [internalSelectedCustomer, setInternalSelectedCustomer] = useState<CustomerRecord | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<CustomerRecord | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [resendNotice, setResendNotice] = useState<string | null>(null);
+
+  const isCompanyCustomer = (cust: CustomerRecord): boolean =>
+    Boolean(cust.corporateId) ||
+    Boolean(cust.memberCode && cust.memberCode.trim().toUpperCase().startsWith('CORP-')) ||
+    Boolean(cust.planName && cust.planName.trim().toLowerCase().startsWith('corporate:'));
 
   // Edit form state in Profile Drawer
   const [editFullName, setEditFullName] = useState('');
@@ -122,13 +131,19 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
     return live || selectedRef;
   }, [customers, selectedRef]);
 
-  // Filter customers by search and payment status
+  // Filter customers by search, payment status, and signup source (Individual vs Company)
   const filteredCustomers = useMemo(() => {
     let list = customers;
     if (statusFilter === 'paid') {
       list = list.filter((c) => c.paymentStatus === 'Paid');
     } else if (statusFilter === 'pending') {
       list = list.filter((c) => c.paymentStatus === 'Pending Verification');
+    }
+
+    if (sourceFilter === 'individual') {
+      list = list.filter((c) => !isCompanyCustomer(c));
+    } else if (sourceFilter === 'company') {
+      list = list.filter((c) => isCompanyCustomer(c));
     }
 
     const q = searchQuery.trim().toLowerCase();
@@ -142,10 +157,12 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
         (c.officeAddress && c.officeAddress.toLowerCase().includes(q)) ||
         (c.secondAddress && c.secondAddress.toLowerCase().includes(q))
     );
-  }, [customers, searchQuery, statusFilter]);
+  }, [customers, searchQuery, statusFilter, sourceFilter]);
 
   const paidCount = useMemo(() => customers.filter((c) => c.paymentStatus === 'Paid').length, [customers]);
   const pendingCount = useMemo(() => customers.filter((c) => c.paymentStatus === 'Pending Verification').length, [customers]);
+  const individualCount = useMemo(() => customers.filter((c) => !isCompanyCustomer(c)).length, [customers]);
+  const companyCount = useMemo(() => customers.filter((c) => isCompanyCustomer(c)).length, [customers]);
 
   // Open profile
   const handleOpenProfile = (cust: CustomerRecord) => {
@@ -160,6 +177,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
     setEditPrimaryAddress(cust.officeAddress);
     setEditSecondAddress(cust.secondAddress || '');
     setEditStatus(cust.status === 'Paused' ? 'Paused' : 'Active');
+    setProfileError(null);
     setIsEditing(false);
   };
 
@@ -175,10 +193,20 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
   // Save edits
   const handleSaveCustomerEdits = () => {
     if (!activeCustomer || !onUpdateCustomer) return;
+    setProfileError(null);
+    const cleanUpdatedEmail = editEmail.trim().toLowerCase();
+    const emailConflict = customers.some(
+      (c) => c.id !== activeCustomer.id && (c.email || '').trim().toLowerCase() === cleanUpdatedEmail
+    );
+    if (emailConflict) {
+      setProfileError(`Cannot update email: ${cleanUpdatedEmail} is already used by another customer.`);
+      return;
+    }
+
     const updated: CustomerRecord = {
       ...activeCustomer,
       fullName: editFullName.trim(),
-      email: editEmail.trim(),
+      email: cleanUpdatedEmail || activeCustomer.email,
       phone: editPhone.trim(),
       officeAddress: editPrimaryAddress.trim(),
       secondAddress: editSecondAddress.trim() || undefined,
@@ -199,9 +227,10 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
   const handleDownloadCsv = () => {
     const headers = [
       'Customer Name',
+      'Customer Type',
       'Email',
       'Phone',
-      'Company',
+      'Company / Workplace',
       'Account Status',
       'Payment Status',
       'Total Days',
@@ -213,6 +242,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
 
     const rows = filteredCustomers.map((c) => [
       c.fullName,
+      isCompanyCustomer(c) ? 'Company Employee' : 'Individual Self-Signup',
       c.email,
       c.phone,
       c.company || 'Corporate Client',
@@ -221,7 +251,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
       c.totalDays,
       c.officeAddress,
       c.secondAddress || '—',
-      c.password || c.defaultPassword || '—',
+      c.password || c.defaultPassword || DEFAULT_SUBSCRIBER_PASSWORD,
       c.finalTotalNGN || 0,
     ]);
 
@@ -340,7 +370,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
   };
 
   // Submit Add Customer Form
-  const handleSaveNewCustomer = (e: React.FormEvent) => {
+  const handleSaveNewCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -353,6 +383,25 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
     }
     if (!cleanEmail || !cleanEmail.includes('@')) {
       setFormError('Please enter a valid customer email address.');
+      setModalTab('details');
+      return;
+    }
+
+    // Reject already-used email addresses (local + Firestore check)
+    const emailUsedLocally = customers.some(
+      (c) => (c.email || '').trim().toLowerCase() === cleanEmail
+    );
+    if (emailUsedLocally) {
+      setFormError(`This email address (${cleanEmail}) is already registered to an existing customer. Please use a unique email address.`);
+      setModalTab('details');
+      return;
+    }
+
+    const remoteDup = await isEmailAlreadyRegisteredInFirestore(cleanEmail, {
+      includeOrders: true,
+    });
+    if (remoteDup.exists) {
+      setFormError(remoteDup.reason || `This email address (${cleanEmail}) is already registered.`);
       setModalTab('details');
       return;
     }
@@ -452,7 +501,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
   };
 
   const handleResendLogin = (cust: CustomerRecord) => {
-    const pass = cust.password || cust.defaultPassword || 'DeskDrop#842';
+    const pass = cust.password || cust.defaultPassword || DEFAULT_SUBSCRIBER_PASSWORD;
     const emailMsg = formatCredentialEmailMessage({
       customerName: cust.fullName,
       email: cust.email,
@@ -531,66 +580,108 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
       )}
 
       {/* Filter Tabs & Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-1.5 bg-zinc-100/80 p-1 rounded-2xl w-fit">
-          <button
-            type="button"
-            onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              statusFilter === 'all'
-                ? 'bg-white text-zinc-900 shadow-2xs'
-                : 'text-zinc-600 hover:text-zinc-900'
-            }`}
-          >
-            All Customers ({customers.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('paid')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1 ${
-              statusFilter === 'paid'
-                ? 'bg-emerald-600 text-white shadow-2xs'
-                : 'text-emerald-700 hover:text-emerald-900'
-            }`}
-          >
-            <span>Paid</span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-900 px-1.5 py-0.2 rounded-full font-extrabold ml-1">
-              {paidCount}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('pending')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1 ${
-              statusFilter === 'pending'
-                ? 'bg-amber-600 text-white shadow-2xs'
-                : 'text-amber-700 hover:text-amber-900'
-            }`}
-          >
-            <span>Pending Verification</span>
-            <span className="text-[10px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded-full font-extrabold ml-1">
-              {pendingCount}
-            </span>
-          </button>
-        </div>
+      <div className="space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Payment Status Filter */}
+            <div className="flex items-center space-x-1 bg-zinc-100/80 p-1 rounded-2xl w-fit">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  statusFilter === 'all'
+                    ? 'bg-white text-zinc-900 shadow-2xs'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                All ({customers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('paid')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1 ${
+                  statusFilter === 'paid'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-emerald-700 hover:text-emerald-900'
+                }`}
+              >
+                <span>Paid</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-900 px-1.5 py-0.2 rounded-full font-extrabold ml-1">
+                  {paidCount}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('pending')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1 ${
+                  statusFilter === 'pending'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-amber-700 hover:text-amber-900'
+                }`}
+              >
+                <span>Pending Verification</span>
+                <span className="text-[10px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded-full font-extrabold ml-1">
+                  {pendingCount}
+                </span>
+              </button>
+            </div>
 
-        <div className="relative flex-1 sm:max-w-md">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, email, phone, company, address..."
-            className="w-full bg-white border border-zinc-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00] shadow-2xs"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-2.5 text-zinc-400 hover:text-zinc-600 text-xs cursor-pointer"
-            >
-              Clear
-            </button>
-          )}
+            {/* Source Differentiation Filter: Individual Self-Signup vs Company Employees */}
+            <div className="flex items-center space-x-1 bg-orange-50/70 border border-orange-200/70 p-1 rounded-2xl w-fit">
+              <button
+                type="button"
+                onClick={() => setSourceFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  sourceFilter === 'all'
+                    ? 'bg-white text-zinc-900 shadow-2xs'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                All Sources
+              </button>
+              <button
+                type="button"
+                onClick={() => setSourceFilter('individual')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1 ${
+                  sourceFilter === 'individual'
+                    ? 'bg-zinc-800 text-white shadow-2xs'
+                    : 'text-zinc-700 hover:text-zinc-900'
+                }`}
+              >
+                <span>Individual ({individualCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSourceFilter('company')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1 ${
+                  sourceFilter === 'company'
+                    ? 'bg-[#FF4C00] text-white shadow-2xs'
+                    : 'text-[#FF4C00] hover:bg-orange-100/60'
+                }`}
+              >
+                <span>From Company ({companyCount})</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="relative flex-1 lg:max-w-md">
+            <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, email, phone, company, address..."
+              className="w-full bg-white border border-zinc-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-zinc-900 focus:outline-none focus:border-[#FF4C00] shadow-2xs"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-2.5 text-zinc-400 hover:text-zinc-600 text-xs cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -624,16 +715,32 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
               <tbody className="divide-y divide-zinc-100">
                 {filteredCustomers.map((cust) => {
                   const isPasswordChanged = Boolean(cust.passwordLastChangedAt) || (!cust.mustChangePassword && !cust.isDefaultPassword && Boolean(cust.password));
-                  const currentPassword = cust.password || cust.defaultPassword || 'DeskDrop#842';
+                  const currentPassword = cust.password || cust.defaultPassword || DEFAULT_SUBSCRIBER_PASSWORD;
                   const isPaid = cust.paymentStatus === 'Paid';
+                  const isCorpStaff = isCompanyCustomer(cust);
 
                   return (
                     <tr key={cust.id} className="hover:bg-zinc-50/80 transition">
                       <td className="py-3.5 px-5">
-                        <div className="font-bold text-zinc-900 text-sm">{cust.fullName}</div>
-                        <div className="text-[11px] text-zinc-500 flex items-center space-x-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-bold text-zinc-900 text-sm">{cust.fullName}</span>
+                          {isCorpStaff ? (
+                            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-100 text-[#FF4C00] border border-orange-200">
+                              Company Staff
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 border border-zinc-200">
+                              Individual
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-zinc-500 flex items-center space-x-1 mt-0.5">
                           <Building className="w-3 h-3 text-zinc-400" />
-                          <span>{cust.company || 'Corporate Client'}</span>
+                          <span>
+                            {isCorpStaff
+                              ? `${cust.company || 'Company Plan'} · Paid by Company`
+                              : cust.company || 'Individual Desk Drop'}
+                          </span>
                         </div>
                       </td>
 
@@ -1472,7 +1579,18 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
                     1. Personal & Company Information
                   </span>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                        isCompanyCustomer(activeCustomer)
+                          ? 'bg-orange-100 text-[#FF4C00] border border-orange-200'
+                          : 'bg-zinc-100 text-zinc-700 border border-zinc-200'
+                      }`}
+                    >
+                      {isCompanyCustomer(activeCustomer)
+                        ? `Company Employee · ${activeCustomer.company}`
+                        : 'Individual Self-Signup'}
+                    </span>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         activeCustomer.paymentStatus === 'Paid'
@@ -1493,6 +1611,13 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                     </span>
                   </div>
                 </div>
+
+                {profileError && (
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{profileError}</span>
+                  </div>
+                )}
 
                 {isEditing ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -1724,7 +1849,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                   <div>
                     <span className="text-zinc-400 block text-[10px]">Current / Default Password</span>
                     <span className="font-bold text-white text-sm">
-                      {activeCustomer.password || activeCustomer.defaultPassword || 'DeskDrop#842'}
+                      {activeCustomer.password || activeCustomer.defaultPassword || DEFAULT_SUBSCRIBER_PASSWORD}
                     </span>
                   </div>
 
@@ -1733,7 +1858,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                       type="button"
                       onClick={() =>
                         handleCopyText(
-                          `Website: ${typeof window !== 'undefined' ? window.location.origin : 'https://11to12.food'}\nEmail: ${activeCustomer.email}\nPassword: ${activeCustomer.password || activeCustomer.defaultPassword || 'DeskDrop#842'}`,
+                          `Website: ${typeof window !== 'undefined' ? window.location.origin : 'https://11to12.food'}\nEmail: ${activeCustomer.email}\nPassword: ${activeCustomer.password || activeCustomer.defaultPassword || DEFAULT_SUBSCRIBER_PASSWORD}`,
                           'profile-creds'
                         )
                       }
@@ -1757,7 +1882,7 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                         formatCredentialWhatsAppMessage({
                           customerName: activeCustomer.fullName,
                           email: activeCustomer.email,
-                          defaultPassword: activeCustomer.password || activeCustomer.defaultPassword || 'DeskDrop#842',
+                          defaultPassword: activeCustomer.password || activeCustomer.defaultPassword || DEFAULT_SUBSCRIBER_PASSWORD,
                           totalDays: activeCustomer.totalDays || activeCustomer.selectedDays?.length || 0,
                           company: activeCustomer.company,
                         })

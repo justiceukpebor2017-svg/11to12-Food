@@ -515,6 +515,13 @@ export async function deleteCustomerFromFirestore(customerId: string, customerEm
       for (const d of snapsCredits.docs) {
         await deleteDoc(d.ref).catch(() => {});
       }
+
+      // Purge waitlist entries for this email
+      const qWaitlist = query(collection(db, 'waitlist'), where('email', '==', cleanEmail));
+      const snapsWaitlist = await getDocs(qWaitlist);
+      for (const d of snapsWaitlist.docs) {
+        await deleteDoc(d.ref).catch(() => {});
+      }
     } catch (e) {
       console.warn('[Firebase] Delete customer related docs notice:', e);
     }
@@ -1264,6 +1271,201 @@ export async function claimCorporateEmployeeSlotAndSave(
   await saveCustomerToFirestore(customerRecord);
 
   return { updatedAccount, usedSlots: nextUsedSlots };
+}
+
+/**
+ * Checks Firestore across active customers, corporate employees, and optionally orders/waitlist
+ * to strictly prevent registering an already-used email address.
+ */
+export async function isEmailAlreadyRegisteredInFirestore(
+  email: string,
+  options?: {
+    excludeCustomerId?: string;
+    includeWaitlist?: boolean;
+    includeOrders?: boolean;
+  }
+): Promise<{ exists: boolean; source?: 'customers' | 'corporateEmployees' | 'orders' | 'waitlist'; reason?: string }> {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail) return { exists: false };
+
+  try {
+    // 1. Check active customers
+    const custSnap = await getDocs(query(collection(db, 'customers'), where('email', '==', cleanEmail)));
+    for (const d of custSnap.docs) {
+      const data = d.data() as CustomerRecord;
+      if (options?.excludeCustomerId && d.id === options.excludeCustomerId) continue;
+      if (isCustomerRecordedAsDeleted(d.id, cleanEmail)) continue;
+      if ((data.email || '').trim().toLowerCase() === cleanEmail) {
+        return {
+          exists: true,
+          source: 'customers',
+          reason: `The email ${cleanEmail} is already registered as a customer account.`,
+        };
+      }
+    }
+
+    // 2. Check corporate employees
+    const empSnap = await getDocs(query(collection(db, 'corporateEmployees'), where('email', '==', cleanEmail)));
+    for (const d of empSnap.docs) {
+      const data = d.data() as CorporateEmployeeRecord;
+      if (options?.excludeCustomerId && d.id === options.excludeCustomerId) continue;
+      if ((data.email || '').trim().toLowerCase() === cleanEmail) {
+        return {
+          exists: true,
+          source: 'corporateEmployees',
+          reason: `The email ${cleanEmail} is already registered under a company meal plan.`,
+        };
+      }
+    }
+
+    // 3. Check pending/active orders
+    if (options?.includeOrders) {
+      const ordSnap = await getDocs(query(collection(db, 'orders'), where('email', '==', cleanEmail)));
+      for (const d of ordSnap.docs) {
+        const data = d.data() as any;
+        if ((data.email || '').trim().toLowerCase() === cleanEmail) {
+          return {
+            exists: true,
+            source: 'orders',
+            reason: `The email ${cleanEmail} already has a submitted order in our system.`,
+          };
+        }
+      }
+    }
+
+    // 4. Check waitlist leads
+    if (options?.includeWaitlist) {
+      const wlSnap = await getDocs(query(collection(db, 'waitlist'), where('email', '==', cleanEmail)));
+      for (const d of wlSnap.docs) {
+        const data = d.data() as any;
+        if ((data.email || '').trim().toLowerCase() === cleanEmail) {
+          return {
+            exists: true,
+            source: 'waitlist',
+            reason: `The email ${cleanEmail} is already registered on our Desk Drop list.`,
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Firebase isEmailAlreadyRegisteredInFirestore notice]:', err);
+  }
+
+  return { exists: false };
+}
+
+/**
+ * Deletes a corporate employee record from Firestore & local cache, recomputes the company's
+ * usedSlots and usedMealCredits so the slot immediately becomes available again.
+ */
+export async function deleteCorporateEmployeeAndFreeSlot(
+  account: CorporateAccount,
+  employee: CorporateEmployeeRecord
+): Promise<CorporateAccount> {
+  // 1. Remove from local employees cache
+  if (typeof window !== 'undefined') {
+    try {
+      const remainingLocal = getLocalCorporateEmployees().filter((e) => e.id !== employee.id);
+      localStorage.setItem(LOCAL_CORP_EMPLOYEES_KEY, JSON.stringify(remainingLocal));
+    } catch {}
+  }
+
+  // 2. Delete corporateEmployees document from Firestore
+  try {
+    await deleteDoc(doc(db, 'corporateEmployees', employee.id));
+  } catch (e) {
+    handleFirestoreError(e, OperationType.DELETE, `corporateEmployees/${employee.id}`);
+  }
+
+  // 3. Recompute live remaining slots & meal credits from Firestore
+  let latestAccount = account;
+  let remainingEmps: CorporateEmployeeRecord[] = [];
+  try {
+    const acctSnap = await getDoc(doc(db, 'corporateAccounts', account.id));
+    if (acctSnap.exists()) {
+      latestAccount = { ...(acctSnap.data() as CorporateAccount), id: acctSnap.id };
+    }
+    const empSnap = await getDocs(
+      query(collection(db, 'corporateEmployees'), where('corporateId', '==', account.id))
+    );
+    remainingEmps = empSnap.docs
+      .filter((d) => d.id !== employee.id)
+      .map((d) => ({ ...(d.data() as CorporateEmployeeRecord), id: d.id }));
+  } catch (err) {
+    console.warn('[Firebase deleteCorporateEmployeeAndFreeSlot recompute notice]:', err);
+    remainingEmps = getLocalCorporateEmployees().filter(
+      (e) => e.corporateId === account.id && e.id !== employee.id
+    );
+  }
+
+  const nextUsedSlots = remainingEmps.length;
+  const nextUsedCredits = remainingEmps.reduce(
+    (sum, emp) => sum + (emp.selectedDays?.length || 0),
+    0
+  );
+
+  const updatedAccount: CorporateAccount = {
+    ...latestAccount,
+    usedSlots: nextUsedSlots,
+    usedMealCredits: nextUsedCredits,
+  };
+
+  await saveCorporateAccountToFirestore(updatedAccount);
+  return updatedAccount;
+}
+
+/**
+ * Removes any corporateEmployees entries linked to a deleted customer (by email or corporateId)
+ * and restores the company's slot count cleanly.
+ */
+export async function removeEmployeeFromCorporateByCustomer(
+  customerId?: string,
+  customerEmail?: string,
+  corporateIdHint?: string
+): Promise<void> {
+  const cleanEmail = (customerEmail || '').trim().toLowerCase();
+  if (!cleanEmail && !corporateIdHint) return;
+
+  try {
+    const matches: CorporateEmployeeRecord[] = [];
+    if (cleanEmail) {
+      const qByEmail = query(collection(db, 'corporateEmployees'), where('email', '==', cleanEmail));
+      const snap = await getDocs(qByEmail);
+      snap.docs.forEach((d) => {
+        matches.push({ ...(d.data() as CorporateEmployeeRecord), id: d.id });
+      });
+    }
+
+    // Also inspect local cache if Firestore missed any offline entries
+    const localMatches = getLocalCorporateEmployees().filter(
+      (e) =>
+        (cleanEmail && (e.email || '').trim().toLowerCase() === cleanEmail) ||
+        (customerId && e.id === customerId)
+    );
+    localMatches.forEach((lm) => {
+      if (!matches.some((m) => m.id === lm.id)) {
+        matches.push(lm);
+      }
+    });
+
+    for (const emp of matches) {
+      let parentAcct: CorporateAccount | null =
+        getLocalCorporateAccounts().find((a) => a.id === emp.corporateId) || null;
+      if (!parentAcct) {
+        const acctSnap = await getDoc(doc(db, 'corporateAccounts', emp.corporateId));
+        if (acctSnap.exists()) {
+          parentAcct = { ...(acctSnap.data() as CorporateAccount), id: acctSnap.id };
+        }
+      }
+      if (parentAcct) {
+        await deleteCorporateEmployeeAndFreeSlot(parentAcct, emp);
+      } else {
+        await deleteDoc(doc(db, 'corporateEmployees', emp.id)).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.warn('[Firebase removeEmployeeFromCorporateByCustomer notice]:', err);
+  }
 }
 
 // --------------------------------------------------------------------------

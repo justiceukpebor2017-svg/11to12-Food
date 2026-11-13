@@ -325,8 +325,17 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
 
   const handleCreateCustomerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!custFullName.trim() || !custEmail.trim()) {
+    const cleanEmail = custEmail.trim().toLowerCase();
+    if (!custFullName.trim() || !cleanEmail) {
       showToast('Please provide customer name and email.');
+      return;
+    }
+
+    const emailExists = customersList.some(
+      (c) => (c.email || '').trim().toLowerCase() === cleanEmail
+    );
+    if (emailExists) {
+      showToast(`This email (${cleanEmail}) is already registered. Use a unique email address.`);
       return;
     }
 
@@ -991,7 +1000,7 @@ export const CustomersManager: React.FC<CustomersManagerProps> = ({
                       <input
                         type={showAddCustPass ? 'text' : 'password'}
                         required
-                        placeholder="e.g. DeskDrop#842"
+                        placeholder="e.g. eat@11to12"
                         value={custDefaultPassword}
                         onChange={(e) => setCustDefaultPassword(e.target.value)}
                         className="w-full bg-white border border-zinc-300 rounded-xl pl-3.5 pr-10 py-2.5 text-xs font-mono font-bold text-black focus:outline-hidden focus:border-[#FF4C00]"

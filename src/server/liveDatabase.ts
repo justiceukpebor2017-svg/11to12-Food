@@ -409,9 +409,20 @@ export function addCustomerRecord(customer: CustomerRecord): {
   message?: string;
 } {
   const email = normalizeEmail(customer.email);
-  const phoneKey = getStandardPhoneKey(customer.phone);
 
-  // Customers can be created or renewed with any phone or email as many times as desired
+  if (email) {
+    const existing = dbState.customers.find(
+      (c) => normalizeEmail(c.email) === email && c.id !== customer.id
+    );
+    if (existing) {
+      return {
+        success: false,
+        error: 'DUPLICATE_EMAIL',
+        message: `The email ${email} is already registered to an existing customer account.`,
+      };
+    }
+  }
+
   dbState.customers.unshift(customer);
   saveLiveDatabase();
   broadcastLiveUpdate('CUSTOMER_CREATED', customer);
@@ -724,6 +735,7 @@ export function confirmOrderPaymentInDb(orderId: string): { order?: OrderSubmiss
     updatedCustomer = dbState.customers[custIndex];
   } else if (order.email) {
     // If customer record doesn't exist yet, register them as active
+    const defPass = generateDefaultPassword();
     const newCust: CustomerRecord = {
       id: `cust-${order.id || Date.now()}`,
       fullName: order.fullName,
@@ -747,8 +759,8 @@ export function confirmOrderPaymentInDb(orderId: string): { order?: OrderSubmiss
       memberCode: order.memberCode,
       createdAt: order.submittedAt || new Date().toISOString(),
       isPasswordSet: true,
-      defaultPassword: 'DeskDrop#842',
-      password: 'DeskDrop#842',
+      defaultPassword: defPass,
+      password: defPass,
       isDefaultPassword: true,
       mustChangePassword: true,
     };
