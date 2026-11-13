@@ -100,7 +100,7 @@ export const LocationVerificationModal: React.FC<LocationVerificationModalProps>
     }
 
     if (!cleanPhone || cleanPhone.length < 10) {
-      setFormError('Please enter a valid Nigerian phone number (e.g. 0802 618 0680).');
+      setFormError('Please enter a valid Nigerian phone number (e.g. +234 903 955 7219).');
       return;
     }
 
@@ -421,7 +421,7 @@ export const LocationVerificationModal: React.FC<LocationVerificationModalProps>
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. 0802 618 0680"
+                    placeholder="e.g. +234 903 955 7219"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-xs font-medium focus:outline-none focus:border-[#FF4C00] bg-zinc-50 focus:bg-white transition"
                   />
                 </div>

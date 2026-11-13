@@ -57,17 +57,26 @@ interface PlanBuilderProps {
   onProceedToCheckout: (selectedDays: SelectedLunchDay[], summary: OrderSummary) => void;
   onOpenEmployeeInvite?: (account: CorporateAccount) => void;
   onCorporateOrderSubmitted?: (order: OrderSubmission) => void;
+  onCorporateModeChange?: (active: boolean) => void;
 }
 
 export const PlanBuilder: React.FC<PlanBuilderProps> = ({
   onProceedToCheckout,
   onOpenEmployeeInvite,
   onCorporateOrderSubmitted,
+  onCorporateModeChange,
 }) => {
   // Package selection gateway: null shows 3 cards; '5-days' | '23-days' opens calendar; 'corporate' opens Your Boss Will Pay
   const [selectedPackage, setSelectedPackage] = useState<'5-days' | '23-days' | 'corporate' | null>(null);
   const targetPackageDays = selectedPackage === '5-days' ? 5 : selectedPackage === '23-days' ? 23 : 0;
   const targetPackagePrice = selectedPackage === '5-days' ? 20000 : selectedPackage === '23-days' ? 70000 : 0;
+
+  useEffect(() => {
+    onCorporateModeChange?.(selectedPackage === 'corporate');
+    return () => {
+      onCorporateModeChange?.(false);
+    };
+  }, [selectedPackage, onCorporateModeChange]);
   // Mobile device viewport detection for mobile-specific Friday swallow popup
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -1076,8 +1085,12 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Header Block */}
-        <div className="text-center max-w-3xl mx-auto mb-10">
+        {/* Header Block (Fades when Corporate Flow is active so focus remains cleanly on the corporate wizard) */}
+        <div
+          className={`text-center max-w-3xl mx-auto mb-10 transition-opacity duration-300 ${
+            selectedPackage === 'corporate' ? 'opacity-15 pointer-events-none select-none' : 'opacity-100'
+          }`}
+        >
           <h2 className="text-3xl sm:text-4xl font-extrabold text-black mt-1">
             Build Your Lunch Plan
           </h2>

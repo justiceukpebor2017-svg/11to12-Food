@@ -127,9 +127,9 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
       font-size: 13px;
     }
     .box-dark {
-      background: #111111;
-      color: #ffffff;
-      border: 1px solid #222;
+      background: #fff4ed;
+      color: #111111;
+      border: 2px solid #ff4c00;
     }
     .box-title {
       font-size: 10px;
@@ -245,28 +245,20 @@ export function generateInvoiceHTML(order: InvoiceOrderData): string {
       </div>
 
       <div class="box box-dark">
-        <span class="box-title">Remittance Bank Details</span>
-        <div style="margin-bottom: 6px;">
-          <div style="display: flex; justify-content: space-between; font-size: 11px;">
-            <span style="color: #ff4c00; font-weight: 700;">Moniepoint (Primary):</span>
-            <strong style="font-size: 14px; color: #ff4c00; letter-spacing: 0.5px;">8026180680</strong>
-          </div>
+        <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline;">
+          <span style="color: #ff4c00; font-weight: 900; font-size: 14px;">Moniepoint MFB</span>
+          <strong style="font-size: 18px; color: #111; letter-spacing: 0.5px;">8026180680</strong>
         </div>
-        <div style="margin-bottom: 6px;">
-          <div style="display: flex; justify-content: space-between; font-size: 11px;">
-            <span style="color: #ccc; font-weight: 600;">Wema Bank:</span>
-            <strong style="font-size: 12px; color: #fff; letter-spacing: 0.5px;">7353969118</strong>
-          </div>
+        <div style="margin-bottom: 6px; display: flex; justify-content: space-between; align-items: baseline;">
+          <span style="color: #222; font-weight: 800; font-size: 13px;">Wema Bank</span>
+          <strong style="font-size: 15px; color: #111; letter-spacing: 0.5px;">7353969118</strong>
         </div>
-        <div style="margin-bottom: 6px;">
-          <div style="display: flex; justify-content: space-between; font-size: 11px;">
-            <span style="color: #ccc; font-weight: 600;">Flutterwave MFB:</span>
-            <strong style="font-size: 12px; color: #fff; letter-spacing: 0.5px;">9596073284</strong>
-          </div>
+        <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline;">
+          <span style="color: #222; font-weight: 800; font-size: 13px;">Flutterwave MFB</span>
+          <strong style="font-size: 15px; color: #111; letter-spacing: 0.5px;">9596073284</strong>
         </div>
-        <div style="display: flex; justify-content: space-between; border-top: 1px solid #333; padding-top: 4px; font-size: 11px;">
-          <span style="color: #aaa;">Account Name:</span>
-          <strong style="color: #eee;">11 TO 12 FOODS LTD</strong>
+        <div style="border-top: 1px solid #fed7aa; padding-top: 6px; font-size: 13px; font-weight: 900; color: #111;">
+          11 TO 12 FOODS LTD
         </div>
       </div>
     </div>

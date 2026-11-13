@@ -308,7 +308,7 @@ export const SubscriberDashboardPage: React.FC<SubscriberDashboardPageProps> = (
           {/* Right Top Header Actions - Exactly 1 Single Logout Button */}
           <div className="flex items-center space-x-2">
             <a
-              href="https://wa.me/2348026180680"
+              href="https://wa.me/2349039557219"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-zinc-200 hover:bg-zinc-50 text-xs font-semibold text-zinc-700 transition"

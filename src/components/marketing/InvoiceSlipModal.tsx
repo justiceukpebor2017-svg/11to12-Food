@@ -163,25 +163,21 @@ Bank Details: Flutterwave MFB (Formerly OK MFB) | 9838242145 | 11 TO 12 FOODS LT
             </div>
 
             {/* Official Bank Account for Payment */}
-            <div className="p-4 rounded-2xl bg-zinc-900 text-white border border-zinc-800 text-xs space-y-1.5">
-              <span className="text-[10px] font-bold text-[#FF4C00] uppercase tracking-wider block mb-1">
-                Official Remittance Accounts
-              </span>
-              <div className="flex justify-between items-baseline">
-                <span className="text-[11px] text-zinc-300 font-bold">Moniepoint (Primary):</span>
-                <span className="text-sm font-black text-[#FF4C00] select-all">8026180680</span>
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] text-black border-2 border-[#FF4C00] space-y-2.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-black text-[#FF4C00]">Moniepoint MFB</span>
+                <span className="text-xl font-black text-black font-mono tabular-nums select-all">8026180680</span>
               </div>
-              <div className="flex justify-between items-baseline">
-                <span className="text-[11px] text-zinc-400">Wema Bank:</span>
-                <span className="text-xs font-bold text-white select-all">7353969118</span>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-xs font-extrabold text-zinc-800">Wema Bank</span>
+                <span className="text-base font-black text-black font-mono tabular-nums select-all">7353969118</span>
               </div>
-              <div className="flex justify-between items-baseline">
-                <span className="text-[11px] text-zinc-400">Flutterwave MFB:</span>
-                <span className="text-xs font-bold text-white select-all">9596073284</span>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-xs font-extrabold text-zinc-800">Flutterwave MFB</span>
+                <span className="text-base font-black text-black font-mono tabular-nums select-all">9596073284</span>
               </div>
-              <div className="flex justify-between items-baseline pt-1 border-t border-zinc-800 text-[10px] text-zinc-400">
-                <span>Account Name:</span>
-                <span className="font-semibold text-zinc-300">11 TO 12 FOODS LTD</span>
+              <div className="pt-1.5 border-t border-orange-200 text-sm font-black text-black">
+                11 TO 12 FOODS LTD
               </div>
             </div>
 

@@ -886,7 +886,7 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
                     required
                     value={adminPhone}
                     onChange={(e) => setAdminPhone(e.target.value)}
-                    placeholder="0802 618 0680"
+                    placeholder="+234 903 955 7219"
                     className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-300 focus:border-[#FF4C00] outline-none text-sm"
                   />
                 </div>
@@ -918,69 +918,71 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
                 </div>
               </div>
 
-              {/* Settlement Bank Accounts (Gray & Orange Gradient cards — zero black) */}
+              {/* Settlement Bank Accounts (Clean, Large, Distraction-Free) */}
               <div className="space-y-3">
-                <div className="text-xs font-bold uppercase tracking-wider text-zinc-700">
-                  Make Payment to Any Official Account Below
-                </div>
-
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] border-2 border-[#FF4C00] space-y-2">
+                <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] border-2 border-[#FF4C00] space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-[#FF4C00]">
-                      Primary Account · {OFFICIAL_BANK_DETAILS.bankName}
+                    <span className="text-lg sm:text-xl font-black text-[#FF4C00]">
+                      {OFFICIAL_BANK_DETAILS.bankName}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleCopyAccount(OFFICIAL_BANK_DETAILS.accountNumber, 'moniepoint')}
-                      className="px-3 py-1 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
                     >
                       {copiedBank === 'moniepoint' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedBank === 'moniepoint' ? 'Copied!' : 'Copy Number'}</span>
+                      <span>{copiedBank === 'moniepoint' ? 'Copied' : 'Copy'}</span>
                     </button>
                   </div>
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-2xl font-black text-black font-mono tabular-nums">
-                      {OFFICIAL_BANK_DETAILS.accountNumber}
-                    </span>
-                    <span className="text-xs font-bold text-zinc-700">
-                      {OFFICIAL_BANK_DETAILS.accountName}
-                    </span>
+                  <div className="text-3xl sm:text-4xl font-black text-black font-mono tabular-nums tracking-wider select-all">
+                    {OFFICIAL_BANK_DETAILS.accountNumber}
+                  </div>
+                  <div className="text-sm sm:text-base font-extrabold text-zinc-900">
+                    {OFFICIAL_BANK_DETAILS.accountName}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-2xl bg-zinc-200 border border-zinc-300 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-zinc-700">Wema Bank</span>
+                  <div className="p-4 sm:p-5 rounded-2xl bg-zinc-200 border border-zinc-300 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm sm:text-base font-black text-black">
+                        {OFFICIAL_BANK_DETAILS.secondaryBankName}
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleCopyAccount(OFFICIAL_BANK_DETAILS.secondaryAccountNumber, 'wema')}
-                        className="px-2.5 py-0.5 rounded-full bg-white text-zinc-800 text-[10px] font-bold border border-zinc-300 cursor-pointer"
+                        className="px-2.5 py-1 rounded-full bg-white text-zinc-800 text-[11px] font-bold border border-zinc-300 cursor-pointer shrink-0"
                       >
-                        {copiedBank === 'wema' ? 'Copied!' : 'Copy'}
+                        {copiedBank === 'wema' ? 'Copied' : 'Copy'}
                       </button>
                     </div>
-                    <div className="text-sm font-black text-black font-mono tabular-nums">
+                    <div className="text-xl sm:text-2xl font-black text-black font-mono tabular-nums tracking-wider select-all">
                       {OFFICIAL_BANK_DETAILS.secondaryAccountNumber}
                     </div>
-                    <div className="text-[10px] text-zinc-600">{OFFICIAL_BANK_DETAILS.secondaryAccountName}</div>
+                    <div className="text-xs sm:text-sm font-bold text-zinc-800">
+                      {OFFICIAL_BANK_DETAILS.secondaryAccountName}
+                    </div>
                   </div>
 
-                  <div className="p-3.5 rounded-2xl bg-zinc-200 border border-zinc-300 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-zinc-700">Flutterwave MFB</span>
+                  <div className="p-4 sm:p-5 rounded-2xl bg-zinc-200 border border-zinc-300 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm sm:text-base font-black text-black">
+                        {OFFICIAL_BANK_DETAILS.tertiaryBankName}
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleCopyAccount(OFFICIAL_BANK_DETAILS.tertiaryAccountNumber, 'flw')}
-                        className="px-2.5 py-0.5 rounded-full bg-white text-zinc-800 text-[10px] font-bold border border-zinc-300 cursor-pointer"
+                        className="px-2.5 py-1 rounded-full bg-white text-zinc-800 text-[11px] font-bold border border-zinc-300 cursor-pointer shrink-0"
                       >
-                        {copiedBank === 'flw' ? 'Copied!' : 'Copy'}
+                        {copiedBank === 'flw' ? 'Copied' : 'Copy'}
                       </button>
                     </div>
-                    <div className="text-sm font-black text-black font-mono tabular-nums">
+                    <div className="text-xl sm:text-2xl font-black text-black font-mono tabular-nums tracking-wider select-all">
                       {OFFICIAL_BANK_DETAILS.tertiaryAccountNumber}
                     </div>
-                    <div className="text-[10px] text-zinc-600">{OFFICIAL_BANK_DETAILS.tertiaryAccountName}</div>
+                    <div className="text-xs sm:text-sm font-bold text-zinc-800">
+                      {OFFICIAL_BANK_DETAILS.tertiaryAccountName}
+                    </div>
                   </div>
                 </div>
               </div>

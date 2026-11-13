@@ -133,6 +133,13 @@ export default function App() {
   const [showSubscriberAuthModal, setShowSubscriberAuthModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(true);
   const [activeInviteCorporate, setActiveInviteCorporate] = useState<CorporateAccount | null>(null);
+  const [isCorporateModeActive, setIsCorporateModeActive] = useState(false);
+
+  useEffect(() => {
+    if (viewMode !== 'marketing' && isCorporateModeActive) {
+      setIsCorporateModeActive(false);
+    }
+  }, [viewMode, isCorporateModeActive]);
 
   // Detect corporate employee invitation link (?corp=INVITE_CODE) on mount
   useEffect(() => {
@@ -724,7 +731,7 @@ export default function App() {
             id: matched.id,
             name: matched.fullName || fbUser.displayName || 'Subscriber',
             email: matched.email,
-            phone: matched.phone || '0802 618 0680',
+            phone: matched.phone || '+234 903 955 7219',
             occupation: 'Corporate Professional',
             company: matched.company || 'Corporate Office',
             address: matched.officeAddress || 'Victoria Island, Lagos',
@@ -1924,14 +1931,16 @@ export default function App() {
       
       {/* Universal Clean Header with Brand Logo & Log In (Overlay on Marketing View) */}
       {viewMode === 'marketing' && (
-        <Header
-          currentTab={viewMode}
-          setCurrentTab={handleAttemptTabSwitch}
-          onOpenSubscriberLogin={() => setShowSubscriberAuthModal(true)}
-          timeWindow={timeWindow}
-          setTimeWindow={setTimeWindow}
-          creditsBalance={userProfile.creditsBalance}
-        />
+        <div className={isCorporateModeActive ? 'opacity-15 pointer-events-none select-none transition-all duration-300' : 'transition-all duration-300'}>
+          <Header
+            currentTab={viewMode}
+            setCurrentTab={handleAttemptTabSwitch}
+            onOpenSubscriberLogin={() => setShowSubscriberAuthModal(true)}
+            timeWindow={timeWindow}
+            setTimeWindow={setTimeWindow}
+            creditsBalance={userProfile.creditsBalance}
+          />
+        </div>
       )}
 
       {/* VIEW MODE 1: MARKETING PAGE */}
@@ -1940,57 +1949,62 @@ export default function App() {
           <main className="relative">
             
             {/* 1. First Section: Illustrated Lagos Route Map Hero */}
-            <HeroMapSection />
+            <div className={isCorporateModeActive ? 'opacity-15 pointer-events-none select-none transition-all duration-300' : 'transition-all duration-300'}>
+              <HeroMapSection />
 
-            {/* 2. Second Section: Restored Original Orange Hero */}
-            <div id="home">
-              <HeroTypewriter />
+              {/* 2. Second Section: Restored Original Orange Hero */}
+              <div id="home">
+                <HeroTypewriter />
+              </div>
+
+              {/* 3. How It Works (Moved above Build Your Lunch Plan) */}
+              <ProcessGrid />
             </div>
-
-            {/* 3. How It Works (Moved above Build Your Lunch Plan) */}
-            <ProcessGrid />
 
             {/* 4. Build Your Lunch Plan (3-Card Package Selector + Calendar + Corporate) */}
             <PlanBuilder
               key={planBuilderKey}
               onProceedToCheckout={handleProceedToCheckout}
               onOpenEmployeeInvite={(acct) => setActiveInviteCorporate(acct)}
+              onCorporateModeChange={setIsCorporateModeActive}
               onCorporateOrderSubmitted={(corpOrder) => {
                 setSubmittedOrders((prev) => [corpOrder, ...prev.filter((o) => o.id !== corpOrder.id)]);
               }}
             />
 
-            {/* 5. Reserve Your Desk Drop Section */}
-            <DeskDropWaitlistAndTeaser
-              waitlistCount={waitlistCount}
-              confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
-              existingWaitlist={waitlistLeads}
-              existingCustomers={customers}
-              onJoinWaitlist={async (leadData) => {
-                const res = await liveSync.joinWaitlist(leadData);
-                if (res.success && res.lead) {
-                  await saveWaitlistLeadToFirestore(res.lead);
-                  setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
-                }
-                return res;
-              }}
-            />
+            <div className={isCorporateModeActive ? 'opacity-15 pointer-events-none select-none transition-all duration-300' : 'transition-all duration-300'}>
+              {/* 5. Reserve Your Desk Drop Section */}
+              <DeskDropWaitlistAndTeaser
+                waitlistCount={waitlistCount}
+                confirmedSubscribersCount={customers.filter((c) => c.status === 'Active' || c.paymentStatus === 'Paid').length}
+                existingWaitlist={waitlistLeads}
+                existingCustomers={customers}
+                onJoinWaitlist={async (leadData) => {
+                  const res = await liveSync.joinWaitlist(leadData);
+                  if (res.success && res.lead) {
+                    await saveWaitlistLeadToFirestore(res.lead);
+                    setWaitlistLeads((prev) => [res.lead!, ...prev.filter((l) => l.id !== res.lead!.id)]);
+                  }
+                  return res;
+                }}
+              />
 
-            {/* 5b. See What Is On The Menu Showcase Section */}
-            <MenuShowcaseSection />
+              {/* 5b. See What Is On The Menu Showcase Section */}
+              <MenuShowcaseSection />
 
-            {/* WhatsApp Community Full Bleed Banner */}
-            <WhatsAppCommunityBanner />
+              {/* WhatsApp Community Full Bleed Banner */}
+              <WhatsAppCommunityBanner />
 
-            {/* 6. What 9–5ers Think of the Idea (Testimonials) */}
-            <Testimonials
-              testimonials={liveTestimonials}
-              title="What 9–5ers Think of the Idea"
-              subtitle="The smartest way to plan weekday meals ahead. No more 11 AM lunch arguments, scramble for dispatch riders, or daily payment stress."
-            />
+              {/* 6. What 9–5ers Think of the Idea (Testimonials) */}
+              <Testimonials
+                testimonials={liveTestimonials}
+                title="What 9–5ers Think of the Idea"
+                subtitle="The smartest way to plan weekday meals ahead. No more 11 AM lunch arguments, scramble for dispatch riders, or daily payment stress."
+              />
 
-            {/* 7. FAQ Section */}
-            <FaqSection />
+              {/* 7. FAQ Section */}
+              <FaqSection />
+            </div>
 
             {/* Payout & Registration Modal */}
             <CheckoutModal
@@ -2185,11 +2199,13 @@ export default function App() {
       )}
 
       {/* Global 11 to 12 Footer */}
-      <Footer
-        onNavigateToLanding={() => setViewMode('marketing')}
-        onNavigateToSubscriber={() => setShowSubscriberAuthModal(true)}
-        onNavigateToAdmin={() => handleAttemptOpenAdmin()}
-      />
+      <div className={viewMode === 'marketing' && isCorporateModeActive ? 'opacity-15 pointer-events-none select-none transition-all duration-300' : 'transition-all duration-300'}>
+        <Footer
+          onNavigateToLanding={() => setViewMode('marketing')}
+          onNavigateToSubscriber={() => setShowSubscriberAuthModal(true)}
+          onNavigateToAdmin={() => handleAttemptOpenAdmin()}
+        />
+      </div>
 
       {/* Reject or Accept Cookies Banner */}
       <CookieConsentBanner

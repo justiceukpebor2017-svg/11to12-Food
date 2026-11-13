@@ -80,7 +80,7 @@ Next Steps:
 2. Log in with your email and the default password above.
 3. You will be prompted to create your personal permanent password to secure your dashboard.
 
-If you have any questions or meal preference updates, you can contact the 11 to 12 team directly on WhatsApp (08026180680).
+If you have any questions or meal preference updates, you can contact the 11 to 12 team directly on WhatsApp (+234 903 955 7219).
 
 Warm regards,
 The 11 to 12 Team`,

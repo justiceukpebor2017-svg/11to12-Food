@@ -177,50 +177,62 @@ export const AddPlanDaysModal: React.FC<AddPlanDaysModalProps> = ({
               </div>
 
               {/* Official Payment Bank Accounts */}
-              <div className="p-4 rounded-2xl bg-zinc-950 text-white border border-zinc-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-[#FF4C00]">
-                    Direct Bank Remittance
-                  </span>
-                  <span className="text-[10px] text-zinc-400">Ref: {invoiceRef}</span>
+              <div className="space-y-2.5">
+                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] text-black border-2 border-[#FF4C00] space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-base sm:text-lg font-black text-[#FF4C00]">
+                      Moniepoint MFB
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyAccount('8026180680')}
+                      className="px-3 py-1 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white text-xs font-bold cursor-pointer shrink-0"
+                    >
+                      {copiedBank ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-black font-mono tabular-nums tracking-wider select-all">
+                    8026180680
+                  </div>
+                  <div className="text-sm font-extrabold text-zinc-900">
+                    11 TO 12 FOODS LTD
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-[#FF4C00] font-bold">Moniepoint (Primary)</span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyAccount('8026180680')}
-                        className="text-[10px] text-zinc-300 hover:text-white"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <span className="text-base font-black text-white select-all block mt-0.5">
-                      8026180680
-                    </span>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-zinc-400 font-bold">Wema Bank</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-zinc-200 text-black border border-zinc-300 space-y-1">
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-sm font-black text-black">Wema Bank</span>
                       <button
                         type="button"
                         onClick={() => handleCopyAccount('7353969118')}
-                        className="text-[10px] text-zinc-300 hover:text-white"
+                        className="px-2.5 py-0.5 rounded-full bg-white text-zinc-800 border border-zinc-300 text-[11px] font-bold cursor-pointer shrink-0"
                       >
                         Copy
                       </button>
                     </div>
-                    <span className="text-base font-black text-white select-all block mt-0.5">
+                    <div className="text-xl font-black text-black font-mono tabular-nums tracking-wider select-all">
                       7353969118
-                    </span>
+                    </div>
+                    <div className="text-xs font-bold text-zinc-800">11 TO 12 FOODS LTD</div>
                   </div>
-                </div>
 
-                <div className="text-[10px] text-zinc-400 pt-1 border-t border-zinc-800">
-                  Account Name: <strong className="text-white">11 TO 12 FOODS LTD</strong>
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-zinc-200 text-black border border-zinc-300 space-y-1">
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-sm font-black text-black">Flutterwave MFB</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAccount('9596073284')}
+                        className="px-2.5 py-0.5 rounded-full bg-white text-zinc-800 border border-zinc-300 text-[11px] font-bold cursor-pointer shrink-0"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <div className="text-xl font-black text-black font-mono tabular-nums tracking-wider select-all">
+                      9596073284
+                    </div>
+                    <div className="text-xs font-bold text-zinc-800">11 TO 12 FOODS LTD</div>
+                  </div>
                 </div>
               </div>
 

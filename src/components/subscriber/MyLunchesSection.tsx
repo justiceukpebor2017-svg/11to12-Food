@@ -1099,28 +1099,41 @@ export const MyLunchesSection: React.FC<MyLunchesSectionProps> = ({
                     </div>
                   </div>
 
-                  {/* Official Bank Details Box */}
-                  <div className="p-4 rounded-2xl bg-white border border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
-                        Official Bank Transfer Details
-                      </span>
-                      <p className="text-xs font-black text-zinc-900">
-                        Moniepoint • <span className="text-[#FF4C00]">8026180680</span> | Wema Bank • <span className="text-zinc-700">7353969118</span>
-                      </p>
-                      <p className="text-[11px] text-zinc-500">Account Name: 11 TO 12 FOODS LTD</p>
+                  {/* Bank Accounts */}
+                  <div className="space-y-2.5">
+                    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] border-2 border-[#FF4C00] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="text-base sm:text-lg font-black text-[#FF4C00]">Moniepoint MFB</div>
+                        <div className="text-2xl sm:text-3xl font-black text-black font-mono tabular-nums tracking-wider select-all">
+                          8026180680
+                        </div>
+                        <div className="text-sm font-extrabold text-zinc-900">11 TO 12 FOODS LTD</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText('8026180680');
+                          setCopiedBankAcc(true);
+                          setTimeout(() => setCopiedBankAcc(false), 2000);
+                        }}
+                        className="px-4 py-2 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-xs font-bold text-white transition cursor-pointer self-start sm:self-center shrink-0"
+                      >
+                        {copiedBankAcc ? 'Copied' : 'Copy'}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText('8026180680');
-                        setCopiedBankAcc(true);
-                        setTimeout(() => setCopiedBankAcc(false), 2000);
-                      }}
-                      className="px-3.5 py-1.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-xs font-bold text-white transition cursor-pointer self-start sm:self-auto"
-                    >
-                      {copiedBankAcc ? '✓ Copied' : 'Copy Moniepoint'}
-                    </button>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div className="p-3.5 rounded-2xl bg-zinc-200 border border-zinc-300 space-y-1">
+                        <div className="text-sm font-black text-black">Wema Bank</div>
+                        <div className="text-xl font-black text-black font-mono tabular-nums tracking-wider select-all">7353969118</div>
+                        <div className="text-xs font-bold text-zinc-800">11 TO 12 FOODS LTD</div>
+                      </div>
+                      <div className="p-3.5 rounded-2xl bg-zinc-200 border border-zinc-300 space-y-1">
+                        <div className="text-sm font-black text-black">Flutterwave MFB</div>
+                        <div className="text-xl font-black text-black font-mono tabular-nums tracking-wider select-all">9596073284</div>
+                        <div className="text-xs font-bold text-zinc-800">11 TO 12 FOODS LTD</div>
+                      </div>
+                    </div>
                   </div>
 
                   <p className="text-[11px] text-zinc-500 leading-relaxed">

@@ -343,94 +343,80 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
 
-              {/* Official Payment Accounts (Moniepoint MFB, Wema Bank & Flutterwave MFB) */}
+              {/* Official Payment Accounts */}
               <div className="space-y-3">
-                {/* Moniepoint MFB Account Card (Light Orange Card) */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] text-black border-2 border-[#FF4C00] shadow-sm space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#FF4C00] flex items-center space-x-1">
-                      <span>Primary Account • Moniepoint MFB</span>
+                {/* Moniepoint MFB */}
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] text-black border-2 border-[#FF4C00] shadow-sm space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-lg sm:text-xl font-black text-[#FF4C00]">
+                      Moniepoint MFB
                     </span>
                     <button
                       type="button"
                       onClick={() => handleCopyAccount('8026180680', 'moniepoint')}
-                      className="px-3 py-1 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white text-[11px] font-bold flex items-center space-x-1.5 transition cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-full bg-[#FF4C00] hover:bg-[#E04300] text-white text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer shrink-0"
                     >
                       {copiedBank === 'moniepoint' ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-white" />
-                          <span className="text-white">Copied!</span>
+                          <span>Copied</span>
                         </>
                       ) : (
                         <>
                           <Copy className="w-3.5 h-3.5" />
-                          <span>Copy Account</span>
+                          <span>Copy</span>
                         </>
                       )}
                     </button>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <span className="text-[10px] text-zinc-600 font-medium block">Account Number</span>
-                      <span className="text-xl sm:text-2xl font-black tracking-wider text-[#FF4C00] select-all">
-                        8026180680
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-zinc-600 font-medium block">Bank Name</span>
-                      <span className="text-base sm:text-lg font-extrabold text-black">
-                        Moniepoint
-                      </span>
-                    </div>
+                  <div className="text-3xl sm:text-4xl font-black tracking-wider text-black font-mono tabular-nums select-all">
+                    8026180680
                   </div>
-                  <div className="pt-2 border-t border-orange-200 text-[10px] text-zinc-600">
-                    Account Name: <strong className="text-black">11 TO 12 FOODS LTD</strong>
+                  <div className="text-sm sm:text-base font-extrabold text-zinc-900">
+                    11 TO 12 FOODS LTD
                   </div>
                 </div>
 
-                {/* Secondary Accounts Accordion/Cards (Gray Cards) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* Wema Bank Account Card */}
-                  <div className="p-3.5 rounded-xl bg-zinc-200 text-black border border-zinc-300 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-700">
+                {/* Wema Bank & Flutterwave MFB */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-4 rounded-2xl bg-zinc-200 text-black border border-zinc-300 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm sm:text-base font-black text-black">
                         Wema Bank
                       </span>
                       <button
                         type="button"
                         onClick={() => handleCopyAccount('7353969118', 'wema')}
-                        className="px-2 py-0.5 rounded-full bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 text-[10px] font-bold transition cursor-pointer"
+                        className="px-2.5 py-1 rounded-full bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 text-[11px] font-bold transition cursor-pointer shrink-0"
                       >
-                        {copiedBank === 'wema' ? 'Copied!' : 'Copy'}
+                        {copiedBank === 'wema' ? 'Copied' : 'Copy'}
                       </button>
                     </div>
-                    <div className="text-sm font-black text-black tracking-wider">
+                    <div className="text-xl sm:text-2xl font-black text-black tracking-wider font-mono tabular-nums select-all">
                       7353969118
                     </div>
-                    <div className="text-[9px] text-zinc-600">
+                    <div className="text-xs sm:text-sm font-bold text-zinc-800">
                       11 TO 12 FOODS LTD
                     </div>
                   </div>
 
-                  {/* Flutterwave MFB Account Card */}
-                  <div className="p-3.5 rounded-xl bg-zinc-200 text-black border border-zinc-300 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-700">
+                  <div className="p-4 rounded-2xl bg-zinc-200 text-black border border-zinc-300 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm sm:text-base font-black text-black">
                         Flutterwave MFB
                       </span>
                       <button
                         type="button"
                         onClick={() => handleCopyAccount('9596073284', 'flw')}
-                        className="px-2 py-0.5 rounded-full bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 text-[10px] font-bold transition cursor-pointer"
+                        className="px-2.5 py-1 rounded-full bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 text-[11px] font-bold transition cursor-pointer shrink-0"
                       >
-                        {copiedBank === 'flw' ? 'Copied!' : 'Copy'}
+                        {copiedBank === 'flw' ? 'Copied' : 'Copy'}
                       </button>
                     </div>
-                    <div className="text-sm font-black text-black tracking-wider">
+                    <div className="text-xl sm:text-2xl font-black text-black tracking-wider font-mono tabular-nums select-all">
                       9596073284
                     </div>
-                    <div className="text-[9px] text-zinc-600">
+                    <div className="text-xs sm:text-sm font-bold text-zinc-800">
                       11 TO 12 FOODS LTD
                     </div>
                   </div>

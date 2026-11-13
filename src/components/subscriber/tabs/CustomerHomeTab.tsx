@@ -458,7 +458,7 @@ export const CustomerHomeTab: React.FC<CustomerHomeTabProps> = ({
 
           {/* Action 6: WhatsApp Concierge */}
           <a
-            href="https://wa.me/2348026180680"
+            href="https://wa.me/2349039557219"
             target="_blank"
             rel="noopener noreferrer"
             className="bg-white border border-zinc-200 rounded-2xl p-4 text-left hover:border-zinc-400 transition cursor-pointer shadow-2xs group"
@@ -467,7 +467,7 @@ export const CustomerHomeTab: React.FC<CustomerHomeTabProps> = ({
               <MessageCircle className="w-4 h-4" />
             </div>
             <span className="text-xs font-bold text-zinc-900 block">WhatsApp Concierge</span>
-            <span className="text-[11px] text-zinc-400 mt-0.5 block">Direct support (08026180680)</span>
+            <span className="text-[11px] text-zinc-400 mt-0.5 block">Direct support (+234 903 955 7219)</span>
           </a>
 
         </div>

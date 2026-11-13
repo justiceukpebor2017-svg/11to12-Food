@@ -6,7 +6,7 @@ import {
   CircleDot,
   CupSoda,
   LayoutGrid,
-  Rows3,
+  Columns3,
   Camera,
 } from 'lucide-react';
 import {
@@ -24,7 +24,7 @@ import {
   subscribeToMenuShowcase,
 } from '../../services/firebase';
 
-type LayoutMode = 'grid' | 'vertical';
+type LayoutMode = 'grid' | 'horizontal';
 
 interface SectionTheme {
   container: string;
@@ -174,10 +174,10 @@ const MenuShowcaseCard: React.FC<MenuShowcaseCardProps> = ({
   const subTitle = item.subGroup ? `${item.subGroup} · ${categoryLabel}` : categoryLabel;
   const isDarkCard = false;
 
-  if (layout === 'vertical') {
+  if (layout === 'horizontal') {
     return (
-      <article className={`rounded-2xl border p-3 sm:p-4 flex items-center gap-4 transition-colors ${theme.cardBg}`}>
-        <div className={`w-24 h-20 sm:w-32 sm:h-24 rounded-xl overflow-hidden border shrink-0 relative flex items-center justify-center ${theme.imageBg}`}>
+      <article className={`w-[260px] sm:w-[290px] shrink-0 snap-start rounded-2xl border overflow-hidden flex flex-col hover:shadow-md transition-all ${theme.cardBg}`}>
+        <div className={`aspect-[4/3] w-full border-b relative overflow-hidden flex items-center justify-center ${theme.imageBg}`}>
           {hasValidImage ? (
             <img
               src={item.imageUrl}
@@ -188,28 +188,32 @@ const MenuShowcaseCard: React.FC<MenuShowcaseCardProps> = ({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className={`w-full h-full flex flex-col items-center justify-center p-2 text-center ${theme.placeholderBg}`}>
-              <CategoryFallbackIcon category={item.category} dark={isDarkCard} />
-              <span className={`mt-1 text-[9px] font-semibold flex items-center gap-1 ${theme.placeholderText}`}>
-                <Camera className="w-2.5 h-2.5" />
-                <span>Photo slot</span>
+            <div className={`w-full h-full flex flex-col items-center justify-center p-4 text-center ${theme.placeholderBg}`}>
+              <div className="w-12 h-12 rounded-2xl border bg-white/90 border-orange-200/70 flex items-center justify-center shadow-2xs mb-2">
+                <CategoryFallbackIcon category={item.category} dark={isDarkCard} />
+              </div>
+              <span className={`text-[11px] font-semibold flex items-center gap-1 ${theme.placeholderText}`}>
+                <Camera className="w-3 h-3 opacity-75" />
+                <span>Image ready in Admin</span>
               </span>
             </div>
           )}
         </div>
 
-        <div className="min-w-0 flex-1 space-y-1">
-          <p className={`text-[11px] font-semibold uppercase tracking-wider ${theme.cardKicker}`}>
-            {subTitle}
-          </p>
-          <h4 className={`text-sm sm:text-base font-bold leading-snug ${theme.cardTitle}`}>
-            {item.name}
-          </h4>
-          {item.description && (
-            <p className={`text-xs leading-relaxed line-clamp-2 ${theme.cardDesc}`}>
-              {item.description}
+        <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
+          <div className="space-y-1">
+            <p className={`text-[11px] font-semibold uppercase tracking-wider ${theme.cardKicker}`}>
+              {subTitle}
             </p>
-          )}
+            <h4 className={`text-sm sm:text-base font-bold leading-snug ${theme.cardTitle}`}>
+              {item.name}
+            </h4>
+            {item.description && (
+              <p className={`text-xs leading-relaxed line-clamp-2 ${theme.cardDesc}`}>
+                {item.description}
+              </p>
+            )}
+          </div>
         </div>
       </article>
     );
@@ -314,7 +318,7 @@ export const MenuShowcaseSection: React.FC = () => {
             See what is on the menu
           </h2>
           <p className="text-zinc-600 text-sm sm:text-base font-medium leading-relaxed">
-            Explore our freshly prepared main meals, rich soups, daily proteins, smooth swallows, and chilled drinks. Switch any section between grid or vertical scroll.
+            Explore our freshly prepared main meals, rich soups, daily proteins, smooth swallows, and chilled drinks. Switch any section between grid or horizontal scroll.
           </p>
         </div>
 
@@ -366,7 +370,7 @@ export const MenuShowcaseSection: React.FC = () => {
                 key={catMeta.id}
                 className={`rounded-3xl border p-5 sm:p-8 space-y-6 shadow-xs ${theme.container}`}
               >
-                {/* Section Header + Independent Grid / Vertical Scroll Toggle */}
+                {/* Section Header + Independent Grid / Horizontal Scroll Toggle */}
                 <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5 ${theme.headerBorder}`}>
                   <div className="space-y-1">
                     <div className="flex items-baseline gap-2.5">
@@ -400,13 +404,13 @@ export const MenuShowcaseSection: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setCategoryLayout(catMeta.id, 'vertical')}
+                      onClick={() => setCategoryLayout(catMeta.id, 'horizontal')}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 cursor-pointer ${
-                        currentLayout === 'vertical' ? theme.toggleActive : theme.toggleInactive
+                        currentLayout === 'horizontal' ? theme.toggleActive : theme.toggleInactive
                       }`}
                     >
-                      <Rows3 className="w-3.5 h-3.5" />
-                      <span>Vertical Scroll</span>
+                      <Columns3 className="w-3.5 h-3.5" />
+                      <span>Horizontal Scroll</span>
                     </button>
                   </div>
                 </div>
@@ -442,7 +446,7 @@ export const MenuShowcaseSection: React.FC = () => {
                   </div>
                 )}
 
-                {/* Items Container: Grid OR Vertical Scroll */}
+                {/* Items Container: Grid OR Horizontal Scroll */}
                 {categoryItems.length === 0 ? (
                   <div className="py-10 text-center text-sm opacity-75">
                     No items in this category yet.
@@ -460,12 +464,12 @@ export const MenuShowcaseSection: React.FC = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="max-h-[460px] overflow-y-auto pr-1.5 space-y-3">
+                  <div className="flex items-stretch gap-4 overflow-x-auto pb-3 snap-x snap-mandatory scroll-smooth">
                     {categoryItems.map((item) => (
                       <MenuShowcaseCard
                         key={item.id}
                         item={item}
-                        layout="vertical"
+                        layout="horizontal"
                         categoryLabel={catMeta.title}
                         theme={theme}
                       />
