@@ -204,12 +204,12 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
 
         {/* Reserve Your Desk Drop Form — Warm Gray & Orange Card (No black background) */}
         <div id="reserve-form" className="bg-zinc-200/80 rounded-3xl p-6 sm:p-10 border border-zinc-300 shadow-lg">
-          <div className="text-center space-y-1 mb-8">
-            <h2 className="text-2xl sm:text-4xl font-black text-black">
-              Reserve Your Desk Drop
+          <div className="text-center space-y-2 mb-8 max-w-2xl mx-auto">
+            <h2 className="text-2xl sm:text-4xl font-black text-black leading-tight">
+              Don’t want to pick a plan now? Or waiting for payday? Save your info
             </h2>
             <p className="text-sm sm:text-base text-zinc-700 font-medium">
-              Deliveries activate {LAUNCH_CONFIG.displayShort}. Priority meal drop to your desk.
+              Save your contact and office details now to get your unique member code — instant auto-fill whenever you’re ready to pick your meals.
             </p>
           </div>
 
@@ -298,10 +298,10 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Locking In Your Reservation...</span>
+                      <span>Saving Your Info...</span>
                     </>
                   ) : (
-                    <span>Reserve Spot</span>
+                    <span>Save My Info</span>
                   )}
                 </button>
               </div>
@@ -313,10 +313,10 @@ export const DeskDropWaitlistAndTeaser: React.FC<DeskDropWaitlistAndTeaserProps>
               </div>
               <div>
                 <h3 className="text-2xl sm:text-3xl font-black text-black">
-                  You're on the Waitlist, {fullName}!
+                  Your Info Is Saved, {fullName}!
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-700 mt-1">
-                  Deliveries activate {LAUNCH_CONFIG.displayShort} at {workplace || 'your office'}.
+                  Deliveries activate {LAUNCH_CONFIG.displayShort} at {workplace || 'your office'}. Use your member code below whenever you’re ready to pick your meals.
                 </p>
               </div>
 

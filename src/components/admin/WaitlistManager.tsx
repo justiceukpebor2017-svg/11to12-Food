@@ -187,7 +187,7 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
             Website Waitlist Leads ({totalCount})
           </h2>
           <p className="text-xs text-zinc-500">
-            Real prospective subscribers who filled the "Reserve Your Desk Drop" form on the website. Follow up to onboard them as paid subscribers.
+            Real prospective subscribers who filled the &quot;Save Your Info / Waiting for Payday&quot; form on the website. Follow up to onboard them as paid subscribers.
           </p>
         </div>
 
@@ -311,7 +311,7 @@ export const WaitlistManager: React.FC<WaitlistManagerProps> = ({
           <p className="text-xs text-zinc-500 max-w-md mx-auto mb-4">
             {searchTerm
               ? 'Try modifying your search keywords.'
-              : 'Visitors who fill out "Reserve Your Desk Drop" on the website will be listed here with their contact details so you can follow up and convert them into subscribers.'}
+              : 'Visitors who save their info ("Waiting for payday? Save your info") on the website will be listed here with their contact details so you can follow up and convert them into subscribers.'}
           </p>
         </div>
       ) : (

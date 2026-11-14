@@ -66,10 +66,39 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
   onCorporateOrderSubmitted,
   onCorporateModeChange,
 }) => {
-  // Package selection gateway: null shows 3 cards; '5-days' | '23-days' opens calendar; 'corporate' opens Your Boss Will Pay
-  const [selectedPackage, setSelectedPackage] = useState<'5-days' | '23-days' | 'corporate' | null>(null);
-  const targetPackageDays = selectedPackage === '5-days' ? 5 : selectedPackage === '23-days' ? 23 : 0;
-  const targetPackagePrice = selectedPackage === '5-days' ? 20000 : selectedPackage === '23-days' ? 70000 : 0;
+  // Package selection gateway: null shows cards; '5-days' | '23-days' opens calendar; 'custom-days' picks days first then opens calendar; 'corporate' opens Your Boss Will Pay
+  const [selectedPackage, setSelectedPackage] = useState<'5-days' | 'custom-days' | '23-days' | 'corporate' | null>(null);
+  const [customDaysCount, setCustomDaysCount] = useState<number>(10);
+  const [customDaysInput, setCustomDaysInput] = useState<string>('10');
+  const [customFlowStep, setCustomFlowStep] = useState<'pick-days' | 'calendar'>('pick-days');
+  const [pricingSettings, setPricingSettings] = useState<PricingSettings>(() => getPricingSettings());
+
+  useEffect(() => {
+    return subscribePricingSettings((cfg) => {
+      setPricingSettings(cfg);
+    });
+  }, []);
+
+  const customTierPricing = useMemo(() => {
+    return calculateTieredOrderTotal(customDaysCount, pricingSettings);
+  }, [customDaysCount, pricingSettings]);
+
+  const targetPackageDays =
+    selectedPackage === '5-days'
+      ? 5
+      : selectedPackage === 'custom-days'
+      ? customDaysCount
+      : selectedPackage === '23-days'
+      ? 23
+      : 0;
+  const targetPackagePrice =
+    selectedPackage === '5-days'
+      ? 20000
+      : selectedPackage === 'custom-days'
+      ? customTierPricing.totalNGN
+      : selectedPackage === '23-days'
+      ? 70000
+      : 0;
 
   useEffect(() => {
     onCorporateModeChange?.(selectedPackage === 'corporate');
@@ -559,8 +588,31 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
     setCurrentWeekIndex((prev) => (prev < CANONICAL_8_WEEKS_MENU.length - 1 ? prev + 1 : 0));
   };
 
-  // Handle package selection from the 3-card overview
-  const handleChoosePackage = (pkg: '5-days' | '23-days' | 'corporate') => {
+  // Compute total deliverable non-holiday workdays available across the 8-week schedule
+  const maxSelectableWorkdays = useMemo(() => {
+    let count = 0;
+    for (const week of CANONICAL_8_WEEKS_MENU) {
+      for (const dayMenu of week.days) {
+        const canonical = CANONICAL_DATES_MAP[dayMenu.dateStr];
+        const override = customMealOverrides[dayMenu.dateStr];
+        const isHoliday =
+          override?.isHoliday !== undefined
+            ? Boolean(override.isHoliday || override.isNoDelivery)
+            : Boolean(canonical?.isHoliday ?? dayMenu.isHoliday);
+        if (!isHoliday) count += 1;
+      }
+    }
+    return Math.max(23, count);
+  }, [menuVersion]);
+
+  const updateCustomDays = (days: number) => {
+    const clamped = Math.max(6, Math.min(maxSelectableWorkdays, Math.round(days)));
+    setCustomDaysCount(clamped);
+    setCustomDaysInput(String(clamped));
+  };
+
+  // Handle package selection from the cards overview
+  const handleChoosePackage = (pkg: '5-days' | 'custom-days' | '23-days' | 'corporate') => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
@@ -585,7 +637,44 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
       setSelectionHistory((prev) => prev.slice(-limit));
     }
 
+    if (pkg === 'custom-days') {
+      setCustomFlowStep('pick-days');
+    }
+
     setSelectedPackage(pkg);
+    if (typeof window !== 'undefined') {
+      const el = document.getElementById('plan-builder') || document.getElementById('pricing');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleConfirmCustomDaysToCalendar = () => {
+    const limit = Math.max(6, Math.min(maxSelectableWorkdays, customDaysCount));
+    setCustomDaysCount(limit);
+    setCustomDaysInput(String(limit));
+    setValidationError(null);
+    setShowOrderBill(false);
+    setCalculatedSummary(null);
+    setIsRevealComplete(false);
+    setIsAnimationRunning(false);
+    setIsCalculating(false);
+
+    setSelectedDaysMap((prev) => {
+      const keys = Object.keys(prev).sort();
+      if (keys.length <= limit) return prev;
+      const trimmed: Record<string, SelectedLunchDay> = {};
+      keys.slice(0, limit).forEach((k) => {
+        trimmed[k] = prev[k];
+      });
+      return trimmed;
+    });
+    setSelectionHistory((prev) => prev.slice(-limit));
+    setCustomFlowStep('calendar');
+
+    if (typeof window !== 'undefined') {
+      const el = document.getElementById('plan-builder') || document.getElementById('pricing');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const handleGoBackToPlans = () => {
@@ -598,6 +687,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
     setIsAnimationRunning(false);
     setIsCalculating(false);
     setValidationError(null);
+    setCustomFlowStep('pick-days');
     setSelectedPackage(null);
     if (typeof window !== 'undefined') {
       const el = document.getElementById('plan-builder') || document.getElementById('pricing');
@@ -897,14 +987,6 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
     });
   }, [activePreviewDateStr]);
 
-  const [pricingSettings, setPricingSettings] = useState<PricingSettings>(() => getPricingSettings());
-
-  useEffect(() => {
-    return subscribePricingSettings((cfg) => {
-      setPricingSettings(cfg);
-    });
-  }, []);
-
   const tieredPricing = useMemo(() => {
     return calculateTieredOrderTotal(selectedCount, pricingSettings);
   }, [selectedCount, pricingSettings]);
@@ -1099,17 +1181,19 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
               ? 'Choose a meal package below to select your delivery days and daily meals.'
               : selectedPackage === 'corporate'
               ? 'Company meal subscriptions for teams of 2 to 500+ office employees.'
+              : selectedPackage === 'custom-days' && customFlowStep === 'pick-days'
+              ? 'Pick the exact number of delivery days you want (over 5 days), then select your preferred daily meals.'
               : `Select your ${targetPackageDays} delivery days and preferred daily meal options.`}
           </p>
         </div>
 
-        {/* STAGE 1: 3-CARD PACKAGE SELECTOR (Calendar hidden until a package is clicked) */}
+        {/* STAGE 1: 4-CARD PACKAGE SELECTOR (Calendar hidden until a package is clicked) */}
         {selectedPackage === null && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-stretch">
             {/* Card 1: 5 Days Meal Package (White + Light Orange surface) */}
             <div
               onClick={() => handleChoosePackage('5-days')}
-              className="group bg-gradient-to-br from-white via-[#FFF9F4] to-[#FFE7D6] border border-orange-200 hover:border-[#FF4C00] rounded-3xl p-7 sm:p-8 flex flex-col justify-between transition-all cursor-pointer shadow-sm hover:shadow-xl"
+              className="group bg-gradient-to-br from-white via-[#FFF9F4] to-[#FFE7D6] border border-orange-200 hover:border-[#FF4C00] rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all cursor-pointer shadow-sm hover:shadow-xl"
             >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -1140,7 +1224,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
                     e.stopPropagation();
                     handleChoosePackage('5-days');
                   }}
-                  className="w-full py-3.5 px-5 rounded-full bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] hover:from-[#E04300] hover:to-[#FF4C00] text-white font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap shadow-sm"
+                  className="w-full py-3.5 px-4 rounded-full bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] hover:from-[#E04300] hover:to-[#FF4C00] text-white font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap shadow-sm"
                 >
                   <span>Select 5 Days Package</span>
                   <ArrowRight className="w-4 h-4 shrink-0" />
@@ -1148,10 +1232,55 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
               </div>
             </div>
 
-            {/* Card 2: 23 Days Meal Package (Orange Gradient Hero Card) */}
+            {/* Card 2: Custom Meal Package (In-Between 5 Days & 23 Days — Pick Any Number Over 5 Days) */}
+            <div
+              onClick={() => handleChoosePackage('custom-days')}
+              className="group bg-gradient-to-br from-[#FFF4ED] via-white to-[#FFEDE0] border-2 border-orange-300 hover:border-[#FF4C00] rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all cursor-pointer shadow-md hover:shadow-xl"
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#FF4C00] to-[#FF782C] text-white flex items-center justify-center shadow-2xs">
+                    <CalendarDays className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-bold text-[#FF4C00] tabular-nums">Over 5 Days · Custom</span>
+                </div>
+
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black text-black leading-tight">
+                    Custom Days Package
+                  </h3>
+                  <div className="text-2xl sm:text-3xl font-black text-[#FF4C00] mt-2 tabular-nums">
+                    6+ Workdays
+                  </div>
+                  <p className="text-xs font-bold text-zinc-600 mt-1 tabular-nums">
+                    From ₦3,000 – ₦3,600 / day
+                  </p>
+                </div>
+
+                <p className="text-sm text-zinc-700 leading-relaxed">
+                  Manually pick any number of delivery days over 5 days (e.g. 8, 10, 15 or 20 days), then choose your daily meals.
+                </p>
+              </div>
+
+              <div className="mt-8 pt-5 border-t border-orange-200/80">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleChoosePackage('custom-days');
+                  }}
+                  className="w-full py-3.5 px-4 rounded-full bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] hover:from-[#E04300] hover:to-[#FF4C00] text-white font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap shadow-sm"
+                >
+                  <span>Choose Custom Days</span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </button>
+              </div>
+            </div>
+
+            {/* Card 3: 23 Days Meal Package (Orange Gradient Hero Card) */}
             <div
               onClick={() => handleChoosePackage('23-days')}
-              className="group bg-gradient-to-br from-[#FF4C00] via-[#FF5E14] to-[#FF8533] text-white border-2 border-[#FF4C00] hover:border-orange-300 rounded-3xl p-7 sm:p-8 flex flex-col justify-between transition-all cursor-pointer shadow-lg hover:shadow-2xl"
+              className="group bg-gradient-to-br from-[#FF4C00] via-[#FF5E14] to-[#FF8533] text-white border-2 border-[#FF4C00] hover:border-orange-300 rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all cursor-pointer shadow-lg hover:shadow-2xl"
             >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -1182,7 +1311,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
                     e.stopPropagation();
                     handleChoosePackage('23-days');
                   }}
-                  className="w-full py-3.5 px-5 rounded-full bg-white hover:bg-orange-50 text-[#FF4C00] font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap shadow-md"
+                  className="w-full py-3.5 px-4 rounded-full bg-white hover:bg-orange-50 text-[#FF4C00] font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap shadow-md"
                 >
                   <span>Select 23 Days Package</span>
                   <ArrowRight className="w-4 h-4 shrink-0" />
@@ -1190,10 +1319,10 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
               </div>
             </div>
 
-            {/* Card 3: Your Boss Will Pay (Gray Card — Zero Black) */}
+            {/* Card 4: Your Boss Will Pay (Gray Card — Zero Black) */}
             <div
               onClick={() => handleChoosePackage('corporate')}
-              className="group bg-zinc-200 text-[#1A1A1A] border border-zinc-300 hover:border-[#FF4C00] rounded-3xl p-7 sm:p-8 flex flex-col justify-between transition-all cursor-pointer shadow-lg hover:shadow-2xl"
+              className="group bg-zinc-200 text-[#1A1A1A] border border-zinc-300 hover:border-[#FF4C00] rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all cursor-pointer shadow-lg hover:shadow-2xl"
             >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -1224,7 +1353,7 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
                     e.stopPropagation();
                     handleChoosePackage('corporate');
                   }}
-                  className="w-full py-3.5 px-5 rounded-full bg-white hover:bg-gradient-to-r hover:from-[#FF4C00] hover:to-[#FF6E24] text-[#1A1A1A] hover:text-white border border-zinc-300 hover:border-[#FF4C00] font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap shadow-2xs"
+                  className="w-full py-3.5 px-4 rounded-full bg-white hover:bg-gradient-to-r hover:from-[#FF4C00] hover:to-[#FF6E24] text-[#1A1A1A] hover:text-white border border-zinc-300 hover:border-[#FF4C00] font-bold text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap shadow-2xs"
                 >
                   <span>Explore Corporate Plan</span>
                   <ArrowRight className="w-4 h-4 shrink-0" />
@@ -1245,8 +1374,147 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
           />
         )}
 
-        {/* STAGE 2B: CALENDAR FOR 5-DAY OR 23-DAY MEAL PACKAGE */}
-        {(selectedPackage === '5-days' || selectedPackage === '23-days') && (
+        {/* STAGE 2C: CUSTOM DAYS PICKER SCREEN (Slider + Input Slot styled like Corporate Plan) */}
+        {selectedPackage === 'custom-days' && customFlowStep === 'pick-days' && (
+          <div className="max-w-3xl mx-auto">
+            <div className="bg-gradient-to-br from-[#FFF4ED] to-[#FFE8D8] border border-orange-200 rounded-3xl p-6 sm:p-10 shadow-sm space-y-6">
+              <div className="space-y-2 text-center max-w-lg mx-auto">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FF4C00] to-[#FF782C] text-white flex items-center justify-center mx-auto shadow-sm">
+                  <CalendarDays className="w-6 h-6" />
+                </div>
+                <p className="text-xs font-bold uppercase tracking-wider text-[#FF4C00]">
+                  Custom Meal Package · Over 5 Days
+                </p>
+                <h4 className="text-2xl sm:text-3xl font-black text-black">
+                  Select your number of meal days
+                </h4>
+                <p className="text-sm text-zinc-700">
+                  Slide to choose any number of days starting from 6 days, or type the exact number of days in the slot below.
+                </p>
+              </div>
+
+              {/* Slider + Input Slot Card */}
+              <div className="bg-white border border-orange-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 block">
+                      Selected Duration &amp; Plan Total
+                    </span>
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mt-1">
+                      <span className="text-3xl sm:text-4xl font-black text-[#FF4C00] tabular-nums">
+                        {customDaysCount} Days
+                      </span>
+                      <span className="text-xl sm:text-2xl font-black text-black tabular-nums">
+                        · ₦{customTierPricing.totalNGN.toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-zinc-600 mt-1">
+                      {customTierPricing.tierLabel}
+                    </p>
+                  </div>
+
+                  {/* Direct Numeric Input Slot starting from 6 */}
+                  <div className="bg-zinc-100 border border-zinc-300 rounded-2xl p-3 flex items-center gap-3 shrink-0 self-start sm:self-auto">
+                    <label htmlFor="custom-days-input" className="text-xs font-bold text-zinc-700 whitespace-nowrap">
+                      Insert Days (6–{maxSelectableWorkdays}):
+                    </label>
+                    <input
+                      id="custom-days-input"
+                      type="number"
+                      min={6}
+                      max={maxSelectableWorkdays}
+                      value={customDaysInput}
+                      onChange={(e) => {
+                        const rawStr = e.target.value;
+                        setCustomDaysInput(rawStr);
+                        const parsed = parseInt(rawStr, 10);
+                        if (!Number.isNaN(parsed) && parsed >= 6 && parsed <= maxSelectableWorkdays) {
+                          setCustomDaysCount(parsed);
+                        }
+                      }}
+                      onBlur={() => {
+                        const parsed = parseInt(customDaysInput, 10);
+                        const clamped = Number.isNaN(parsed)
+                          ? customDaysCount
+                          : Math.max(6, Math.min(maxSelectableWorkdays, parsed));
+                        setCustomDaysCount(clamped);
+                        setCustomDaysInput(String(clamped));
+                      }}
+                      className="w-20 px-3 py-2 rounded-xl bg-white border border-zinc-300 focus:border-[#FF4C00] outline-none text-center text-lg font-black text-black tabular-nums"
+                    />
+                  </div>
+                </div>
+
+                {/* Interactive Range Slider starting from 6 days */}
+                <div className="space-y-3">
+                  <input
+                    type="range"
+                    min={6}
+                    max={maxSelectableWorkdays}
+                    step={1}
+                    value={Math.min(maxSelectableWorkdays, Math.max(6, customDaysCount))}
+                    onChange={(e) => updateCustomDays(Number(e.target.value))}
+                    className="w-full h-3 bg-zinc-200 rounded-full appearance-none cursor-pointer accent-[#FF4C00]"
+                    aria-label="Slide to select custom meal days"
+                  />
+                  <div className="flex items-center justify-between text-[11px] font-bold text-zinc-500 tabular-nums">
+                    <span>6 Days</span>
+                    <span>10 Days</span>
+                    <span>15 Days</span>
+                    <span>20 Days</span>
+                    <span>25 Days</span>
+                    <span>{maxSelectableWorkdays} Days</span>
+                  </div>
+                </div>
+
+                {/* Quick Day Presets */}
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {[6, 8, 10, 12, 15, 18, 20, 22, 25, 30]
+                    .filter((d) => d >= 6 && d <= maxSelectableWorkdays)
+                    .map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => updateCustomDays(d)}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer tabular-nums ${
+                          customDaysCount === d
+                            ? 'bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] text-white border-[#FF4C00]'
+                            : 'bg-zinc-100 text-zinc-700 border-zinc-200 hover:border-[#FF4C00]'
+                        }`}
+                      >
+                        {d} Days
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Navigation Footer */}
+              <div className="flex items-center justify-between pt-2 gap-3">
+                <button
+                  type="button"
+                  onClick={handleGoBackToPlans}
+                  className="px-5 py-3 rounded-full bg-zinc-200 hover:bg-zinc-300 text-zinc-800 text-xs font-bold transition cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Go Back</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCustomDaysToCalendar}
+                  className="px-7 py-3.5 rounded-full bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] hover:from-[#E04300] hover:to-[#FF4C00] text-white text-xs font-black uppercase tracking-wider shadow-md transition cursor-pointer inline-flex items-center gap-2 whitespace-nowrap"
+                >
+                  <span>Pick {customDaysCount} Meals on Calendar</span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STAGE 2B: CALENDAR FOR 5-DAY, CUSTOM-DAY OR 23-DAY MEAL PACKAGE */}
+        {(selectedPackage === '5-days' ||
+          selectedPackage === '23-days' ||
+          (selectedPackage === 'custom-days' && customFlowStep === 'calendar')) && (
           <>
             {/* Top Package Bar with Prominent Go Back Action (Gray Card — Zero Black) */}
             <div className="bg-zinc-200 text-[#1A1A1A] rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shadow-md border border-zinc-300">
@@ -1259,9 +1527,23 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
                   <ArrowLeft className="w-4 h-4" />
                   <span>Go Back</span>
                 </button>
+                {selectedPackage === 'custom-days' && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomFlowStep('pick-days')}
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl bg-[#FFF4ED] hover:bg-[#FFE8D8] text-[#FF4C00] border border-orange-300 text-xs font-extrabold transition cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
+                  >
+                    <CalendarDays className="w-4 h-4" />
+                    <span>Change Days ({customDaysCount})</span>
+                  </button>
+                )}
                 <div>
                   <h3 className="text-base sm:text-xl font-black text-black">
-                    {selectedPackage === '5-days' ? '5 Days Meal Package · ₦20,000' : '23 Days Meal Package · ₦70,000'}
+                    {selectedPackage === '5-days'
+                      ? '5 Days Meal Package · ₦20,000'
+                      : selectedPackage === 'custom-days'
+                      ? `Custom ${targetPackageDays} Days Package · ₦${targetPackagePrice.toLocaleString()}`
+                      : '23 Days Meal Package · ₦70,000'}
                   </h3>
                   <p className="text-xs text-zinc-600 font-medium">
                     Choose any {targetPackageDays} available dates or go back to select a different plan
@@ -1774,7 +2056,11 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
                 <div className="my-4 p-4 rounded-2xl bg-white border border-orange-200/70 shadow-2xs space-y-3">
                   <div className="flex items-center justify-between text-xs font-bold">
                     <span className="text-zinc-800">
-                      {selectedPackage === '5-days' ? '5 Days Meal Package' : '23 Days Meal Package'}
+                      {selectedPackage === '5-days'
+                        ? '5 Days Meal Package'
+                        : selectedPackage === 'custom-days'
+                        ? `Custom ${targetPackageDays} Days Package`
+                        : '23 Days Meal Package'}
                     </span>
                     <span className="text-[#FF4C00] font-black tabular-nums">
                       ₦{targetPackagePrice.toLocaleString()}
@@ -2129,7 +2415,11 @@ export const PlanBuilder: React.FC<PlanBuilderProps> = ({
       </div>
 
       {/* Mobile-Only Floating Calculate Order Bar: floats on screen bottom once a user clicks any date, removed when no date is selected */}
-      {(selectedPackage === '5-days' || selectedPackage === '23-days') && selectedCount > 0 && !showOrderBill && (
+      {(selectedPackage === '5-days' ||
+        selectedPackage === '23-days' ||
+        (selectedPackage === 'custom-days' && customFlowStep === 'calendar')) &&
+        selectedCount > 0 &&
+        !showOrderBill && (
         <aside
           aria-label="Mobile Calculate Order"
           className="fixed bottom-3 inset-x-3 z-40 md:hidden font-['Poppins'] animate-in fade-in slide-in-from-bottom-5 duration-300 select-none pointer-events-auto"
