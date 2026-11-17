@@ -77,7 +77,11 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [resendNotice, setResendNotice] = useState<string | null>(null);
 
+  const isCompanyAccount = (cust: CustomerRecord): boolean =>
+    cust.id.startsWith('cust-corp-') || cust.floorSuite === 'Corporate Account';
+
   const isCompanyCustomer = (cust: CustomerRecord): boolean =>
+    isCompanyAccount(cust) ||
     Boolean(cust.corporateId) ||
     Boolean(cust.memberCode && cust.memberCode.trim().toUpperCase().startsWith('CORP-')) ||
     Boolean(cust.planName && cust.planName.trim().toLowerCase().startsWith('corporate:'));
@@ -242,7 +246,11 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
 
     const rows = filteredCustomers.map((c) => [
       c.fullName,
-      isCompanyCustomer(c) ? 'Company Employee' : 'Individual Self-Signup',
+      isCompanyAccount(c)
+        ? 'Company Account'
+        : isCompanyCustomer(c)
+          ? 'Company Employee'
+          : 'Individual Self-Signup',
       c.email,
       c.phone,
       c.company || 'Corporate Client',
@@ -718,13 +726,18 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                   const currentPassword = cust.password || cust.defaultPassword || DEFAULT_SUBSCRIBER_PASSWORD;
                   const isPaid = cust.paymentStatus === 'Paid';
                   const isCorpStaff = isCompanyCustomer(cust);
+                  const isCorpOrg = isCompanyAccount(cust);
 
                   return (
                     <tr key={cust.id} className="hover:bg-zinc-50/80 transition">
                       <td className="py-3.5 px-5">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-bold text-zinc-900 text-sm">{cust.fullName}</span>
-                          {isCorpStaff ? (
+                          {isCorpOrg ? (
+                            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FF4C00] text-white">
+                              Company
+                            </span>
+                          ) : isCorpStaff ? (
                             <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-100 text-[#FF4C00] border border-orange-200">
                               Company Staff
                             </span>
@@ -737,9 +750,11 @@ export const AdminCustomersTab: React.FC<AdminCustomersTabProps> = ({
                         <div className="text-[11px] text-zinc-500 flex items-center space-x-1 mt-0.5">
                           <Building className="w-3 h-3 text-zinc-400" />
                           <span>
-                            {isCorpStaff
-                              ? `${cust.company || 'Company Plan'} · Paid by Company`
-                              : cust.company || 'Individual Desk Drop'}
+                            {isCorpOrg
+                              ? `${cust.planName || 'Confirmed Company Plan'}`
+                              : isCorpStaff
+                                ? `${cust.company || 'Company Plan'} · Paid by Company`
+                                : cust.company || 'Individual Desk Drop'}
                           </span>
                         </div>
                       </td>

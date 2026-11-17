@@ -30,9 +30,21 @@ export const Footer: React.FC<FooterProps> = ({
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
           
           {/* Brand Logo */}
-          <div
+          <a
+            href="/"
             className="flex items-center space-x-3 cursor-pointer"
-            onClick={onNavigateToLanding}
+            onClick={(e) => {
+              e.preventDefault();
+              try {
+                localStorage.removeItem('11to12_active_view_mode');
+                localStorage.removeItem('11to12_corporate_session_v1');
+              } catch {}
+              if (onNavigateToLanding) {
+                onNavigateToLanding();
+              } else {
+                window.location.href = '/';
+              }
+            }}
           >
             <img
               src="https://i.ibb.co/FLX7ttjm/11to12logg.png"
@@ -42,7 +54,7 @@ export const Footer: React.FC<FooterProps> = ({
                 (e.currentTarget as HTMLImageElement).src = 'https://i.ibb.co/mV0z77Mb/11to12logg.png';
               }}
             />
-          </div>
+          </a>
 
           {/* Links matching prompt with dedicated screens */}
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs sm:text-sm font-medium text-zinc-400 text-center">

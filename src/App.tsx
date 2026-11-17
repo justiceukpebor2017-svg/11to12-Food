@@ -50,6 +50,7 @@ import { LocationVerificationModal } from './components/marketing/LocationVerifi
 import { SubscriberAuthModal } from './components/subscriber/SubscriberAuthModal';
 import { SubscriberDashboardPage } from './pages/SubscriberDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { CompanyDashboardPage } from './components/corporate/CompanyDashboardPage';
 import { generateDefaultPassword } from './utils/credentialUtils';
 import { liveSync } from './services/liveSyncService';
 import {
@@ -66,6 +67,11 @@ import {
   recordCustomerAsDeleted,
   isCustomerRecordedAsDeleted,
   unrecordCustomerAsDeleted,
+  recordOrderAsDeleted,
+  isOrderRecordedAsDeleted,
+  unrecordOrderAsDeleted,
+  recordCorporateAsDeleted,
+  isCorporateRecordedAsDeleted,
 } from './utils/customerDeletions';
 import { SessionConflictModal } from './components/common/SessionConflictModal';
 import { DashboardTakeoverModal } from './components/common/DashboardTakeoverModal';
@@ -96,8 +102,11 @@ import {
   logoutSubscriberAccount,
   updateCustomerPasswordInFirestore,
   getCorporateAccountByInviteCode,
+  getCorporateAccountByAccessCodeOrEmail,
   confirmCorporateAccountAndOrder,
   removeEmployeeFromCorporateByCustomer,
+  deleteCorporateAccountAndLinkedData,
+  getLocalCorporateAccounts,
 } from './services/firebase';
 import { isOrderPendingVerification, recordOrderAsConfirmed, getConfirmedOrderIds } from './utils/finance';
 import { getLaunchSettings, updateLaunchConfig, subscribeLaunchConfig } from './config/launchConfig';
@@ -109,9 +118,24 @@ const APP_STORAGE_KEYS = {
   ORDERS: '11to12_persistent_submitted_orders_v1',
   CREDIT_REDEMPTIONS: '11to12_persistent_credit_redemptions_v1',
   USER_PROFILE: '11to12_persistent_user_profile_v1',
+  CORPORATE_SESSION: '11to12_corporate_session_v1',
 };
 
 export default function App() {
+  const [activeCorporateAccount, setActiveCorporateAccount] = useState<CorporateAccount | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const saved = localStorage.getItem(APP_STORAGE_KEYS.CORPORATE_SESSION);
+      if (saved) {
+        const parsed = JSON.parse(saved) as CorporateAccount;
+        if (parsed?.id && !isCorporateRecordedAsDeleted(parsed.id)) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (typeof window === 'undefined') return 'marketing';
     try {
@@ -121,6 +145,15 @@ export default function App() {
       }
       if (savedMode === 'subscriber') {
         return 'subscriber';
+      }
+      if (savedMode === 'corporate') {
+        const savedCorp = localStorage.getItem(APP_STORAGE_KEYS.CORPORATE_SESSION);
+        if (savedCorp) {
+          const parsed = JSON.parse(savedCorp) as CorporateAccount;
+          if (parsed?.id && !isCorporateRecordedAsDeleted(parsed.id)) {
+            return 'corporate';
+          }
+        }
       }
       if (savedMode === 'marketing') {
         return 'marketing';
@@ -180,6 +213,7 @@ export default function App() {
     const titles: Record<ViewMode, string> = {
       marketing: '11 to 12 - Lagos Office Food Subscription',
       subscriber: 'Subscriber Portal - 11 to 12',
+      corporate: 'Company Portal - 11 to 12',
       admin: 'Admin Operations Control - 11 to 12',
     };
     trackPageView(titles[viewMode] || '11 to 12 Food', `/${viewMode}`);
@@ -243,12 +277,14 @@ export default function App() {
       const saved = localStorage.getItem(APP_STORAGE_KEYS.CUSTOMERS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((c: CustomerRecord) => !isCustomerRecordedAsDeleted(c.id));
+        }
       }
     } catch (e) {
       console.error('Failed to load customers from storage', e);
     }
-    return INITIAL_CUSTOMERS;
+    return INITIAL_CUSTOMERS.filter((c) => !isCustomerRecordedAsDeleted(c.id));
   });
 
   // Website Waitlist Leads (persisted so signups are never lost)
@@ -282,7 +318,9 @@ export default function App() {
       const saved = localStorage.getItem(APP_STORAGE_KEYS.ORDERS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((o: OrderSubmission) => !isOrderRecordedAsDeleted(o.id));
+        }
       }
     } catch (e) {
       console.error('Failed to load orders from storage', e);
@@ -442,12 +480,15 @@ export default function App() {
         } catch {}
       }
       if (liveState.submittedOrders && Array.isArray(liveState.submittedOrders)) {
-        if (liveState.submittedOrders.length > 0) {
-          setSubmittedOrders((prev) => {
-            const confirmedIds = getConfirmedOrderIds();
-            const map = new Map<string, OrderSubmission>();
-            prev.forEach((o) => map.set(o.id, o));
-            liveState.submittedOrders.forEach((so) => {
+        setSubmittedOrders((prev) => {
+          const confirmedIds = getConfirmedOrderIds();
+          const map = new Map<string, OrderSubmission>();
+          prev
+            .filter((o) => !isOrderRecordedAsDeleted(o.id))
+            .forEach((o) => map.set(o.id, o));
+          liveState.submittedOrders
+            .filter((so) => !isOrderRecordedAsDeleted(so.id))
+            .forEach((so) => {
               const existing = map.get(so.id);
               if (confirmedIds.has(so.id) || (existing?.paymentStatus === 'Confirmed' && so.paymentStatus !== 'Confirmed')) {
                 map.set(so.id, { ...so, paymentStatus: 'Confirmed' });
@@ -455,13 +496,12 @@ export default function App() {
                 map.set(so.id, so);
               }
             });
-            const merged = Array.from(map.values());
-            try {
-              localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(merged));
-            } catch {}
-            return merged;
-          });
-        }
+          const merged = Array.from(map.values());
+          try {
+            localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
       }
       if (liveState.creditRedemptions && Array.isArray(liveState.creditRedemptions) && liveState.creditRedemptions.length > 0) {
         setCreditRedemptions((prev) => {
@@ -491,8 +531,15 @@ export default function App() {
   // Real-time onSnapshot camera stream: Listen to entire waitlist collection across all devices
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'waitlist'), (snapshot) => {
-      if (snapshot.empty) return;
       setWaitlistCount(snapshot.size);
+
+      if (snapshot.empty) {
+        setWaitlistLeads([]);
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.WAITLIST, JSON.stringify([]));
+        } catch {}
+        return;
+      }
 
       const leads: WaitlistLead[] = snapshot.docs.map((d) => {
         const data = d.data();
@@ -509,14 +556,10 @@ export default function App() {
           notes: data.notes || data.dietaryNotes || '',
         };
       });
-      if (leads.length > 0) {
-        setWaitlistLeads((prev) => {
-          const map = new Map<string, WaitlistLead>();
-          prev.forEach((l) => map.set(l.id, l));
-          leads.forEach((l) => map.set(l.id, l));
-          return Array.from(map.values());
-        });
-      }
+      setWaitlistLeads(leads);
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.WAITLIST, JSON.stringify(leads));
+      } catch {}
     }, (error) => {
       console.warn('[Firestore onSnapshot waitlist error]:', error);
     });
@@ -642,43 +685,54 @@ export default function App() {
   // Real-time onSnapshot camera stream: Listen to submitted orders collection across all devices
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'orders'), (snapshot) => {
-      if (snapshot.empty) return;
-      const firestoreOrders: OrderSubmission[] = snapshot.docs.map((d) => ({
-        ...(d.data() as OrderSubmission),
-        id: d.id,
-      }));
-      if (firestoreOrders.length > 0) {
-        setSubmittedOrders((prev) => {
-          const confirmedIds = getConfirmedOrderIds();
-          const map = new Map<string, OrderSubmission>();
-          prev.forEach((o) => map.set(o.id, o));
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'removed') {
+          recordOrderAsDeleted(change.doc.id);
+        }
+      });
 
-          firestoreOrders.forEach((fo) => {
-            const existing = map.get(fo.id);
-            // If already confirmed locally or belongs to an active confirmed customer, keep Confirmed!
-            const isAlreadyConfirmed =
-              confirmedIds.has(fo.id) ||
-              existing?.paymentStatus === 'Confirmed' ||
-              !isOrderPendingVerification(fo, customers);
-
-            if (isAlreadyConfirmed) {
-              map.set(fo.id, { ...fo, paymentStatus: 'Confirmed' });
-              // Self-heal Firestore if Firestore was still showing unverified
-              if (fo.paymentStatus !== 'Confirmed') {
-                confirmOrderInFirestore(fo.id).catch(() => {});
-              }
-            } else {
-              map.set(fo.id, fo);
-            }
-          });
-
-          const merged = Array.from(map.values());
-          try {
-            localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(merged));
-          } catch {}
-          return merged;
-        });
+      if (snapshot.empty) {
+        setSubmittedOrders([]);
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify([]));
+        } catch {}
+        return;
       }
+
+      const firestoreOrders: OrderSubmission[] = snapshot.docs
+        .map((d) => ({
+          ...(d.data() as OrderSubmission),
+          id: d.id,
+        }))
+        .filter((fo) => !isOrderRecordedAsDeleted(fo.id));
+
+      setSubmittedOrders((prev) => {
+        const confirmedIds = getConfirmedOrderIds();
+        const prevMap = new Map<string, OrderSubmission>();
+        prev.forEach((o) => prevMap.set(o.id, o));
+
+        const nextList: OrderSubmission[] = firestoreOrders.map((fo) => {
+          const existing = prevMap.get(fo.id);
+          const isAlreadyConfirmed =
+            confirmedIds.has(fo.id) ||
+            existing?.paymentStatus === 'Confirmed' ||
+            fo.paymentStatus === 'Confirmed' ||
+            !isOrderPendingVerification(fo, customers);
+
+          if (isAlreadyConfirmed) {
+            if (fo.paymentStatus !== 'Confirmed') {
+              confirmOrderInFirestore(fo.id).catch(() => {});
+            }
+            return { ...fo, paymentStatus: 'Confirmed' as const };
+          }
+          return fo;
+        });
+
+        try {
+          localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(nextList));
+        } catch {}
+        return nextList;
+      });
     }, (error) => {
       console.warn('[Firestore onSnapshot orders error]:', error);
     });
@@ -687,6 +741,87 @@ export default function App() {
       unsubscribe();
     };
   }, [customers]);
+
+  // Global tombstone listener: ensure deleted customers, orders, and companies never resurrect across sessions/devices
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'deletedCustomerRecords'), (snapshot) => {
+      const removedCustIds: string[] = [];
+      const removedOrderIds: string[] = [];
+      const removedCorpIds: string[] = [];
+
+      snapshot.docs.forEach((d) => {
+        const data = d.data() as any;
+        if (data?.type === 'order' || d.id.startsWith('ord_')) {
+          const targetId = String(data?.targetId || d.id.replace(/^ord_/, '')).trim();
+          if (targetId) {
+            recordOrderAsDeleted(targetId);
+            removedOrderIds.push(targetId);
+          }
+        } else if (data?.type === 'corporate' || d.id.startsWith('corp_')) {
+          const targetId = String(data?.targetId || d.id.replace(/^corp_/, '')).trim();
+          if (targetId) {
+            recordCorporateAsDeleted(targetId);
+            removedCorpIds.push(targetId);
+          }
+        } else {
+          const targetId = String(data?.id || d.id).trim();
+          if (targetId) {
+            recordCustomerAsDeleted(targetId, data?.email);
+            removedCustIds.push(targetId);
+          }
+        }
+      });
+
+      if (removedCustIds.length > 0) {
+        const delSet = new Set(removedCustIds);
+        setCustomers((prev) => {
+          const next = prev.filter((c) => !delSet.has(c.id));
+          if (next.length !== prev.length) {
+            try {
+              localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(next));
+            } catch {}
+          }
+          return next;
+        });
+        const currentId = userProfileRef.current.id;
+        if (currentId && delSet.has(currentId)) {
+          handleForceLogoutDueToAccountDeletion();
+        }
+      }
+
+      if (removedOrderIds.length > 0) {
+        const delOrderSet = new Set(removedOrderIds);
+        setSubmittedOrders((prev) => {
+          const next = prev.filter((o) => !delOrderSet.has(o.id));
+          if (next.length !== prev.length) {
+            try {
+              localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(next));
+            } catch {}
+          }
+          return next;
+        });
+      }
+
+      if (removedCorpIds.length > 0) {
+        const delCorpSet = new Set(removedCorpIds);
+        setActiveCorporateAccount((prev) => {
+          if (prev && delCorpSet.has(prev.id)) {
+            try {
+              localStorage.removeItem(APP_STORAGE_KEYS.CORPORATE_SESSION);
+              localStorage.removeItem('11to12_active_view_mode');
+            } catch {}
+            setViewMode((vm) => (vm === 'corporate' ? 'marketing' : vm));
+            return null;
+          }
+          return prev;
+        });
+      }
+    }, (error) => {
+      console.warn('[Firestore onSnapshot deletedCustomerRecords notice]:', error);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Real-time synchronization: Keep active subscriber's userProfile synchronized with customers state
   // When an admin confirms extra meal days or changes meals, userProfile reflects it immediately
@@ -1438,6 +1573,7 @@ export default function App() {
 
   const handleOrderSubmitted = async (order: OrderSubmission) => {
     trackOrderSubmitted(order);
+    unrecordOrderAsDeleted(order.id);
     // 1. Immediately store order in submittedOrders for invoices / verification
     setSubmittedOrders((prev) => {
       const exists = prev.some((o) => o.id === order.id);
@@ -1456,7 +1592,7 @@ export default function App() {
       registeredCustomer = {
         id: `cust-${order.id || Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
         fullName: order.fullName,
-        email: order.email,
+        email: cleanEmail,
         phone: order.phone,
         company: order.company,
         officeAddress: order.officeAddress,
@@ -1553,6 +1689,22 @@ export default function App() {
     setAnnouncements((prev) => [topUpAnnouncement, ...prev]);
   };
 
+  // Helper: Upsert a confirmed Company CustomerRecord into Customers -> Company
+  const handleUpsertConfirmedCompanyCustomer = (companyCustomer: CustomerRecord) => {
+    unrecordCustomerAsDeleted(companyCustomer.id, companyCustomer.email);
+    setCustomers((prev) => {
+      const next = [
+        companyCustomer,
+        ...prev.filter((c) => c.id !== companyCustomer.id),
+      ];
+      try {
+        localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    liveSync.registerCustomer(companyCustomer).catch(() => {});
+  };
+
   // Admin confirms paid top-up order and synchronizes the added meal days to customer's calendar & production
   const handleConfirmTopUpOrder = (orderId: string) => {
     // 1. Permanently record as confirmed so no refresh, re-login or snapshot will ever regress it
@@ -1585,13 +1737,14 @@ export default function App() {
 
     if (!order) return;
 
-    // If this order is a Corporate Package order, activate the corporate account & invite link instead of creating a fake individual customer row
+    // If this order is a Corporate Package order, activate the corporate account & invite link and register Company in Customers -> Company
     if (order.id.startsWith('CORP-ORD-') || (order.memberCode && order.memberCode.toUpperCase().startsWith('CORP-'))) {
       if (order.memberCode) {
         getCorporateAccountByInviteCode(order.memberCode)
-          .then((acct) => {
+          .then(async (acct) => {
             if (acct) {
-              return confirmCorporateAccountAndOrder(acct);
+              const { companyCustomer } = await confirmCorporateAccountAndOrder(acct);
+              handleUpsertConfirmedCompanyCustomer(companyCustomer);
             }
           })
           .catch(() => {});
@@ -1665,7 +1818,7 @@ export default function App() {
       const newCustomer: CustomerRecord = {
         id: `cust-${order.id || Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
         fullName: order.fullName,
-        email: order.email,
+        email: (order.email || '').trim().toLowerCase(),
         phone: order.phone,
         company: order.company,
         officeAddress: order.officeAddress,
@@ -1839,9 +1992,72 @@ export default function App() {
 
   const handleDeleteCustomer = async (customerId: string, email?: string) => {
     const cleanEmail = (email || '').trim().toLowerCase();
+    const targetCustomer = customers.find((c) => c.id === customerId);
 
     // 1. Permanently record deletion in markers so snapshots & liveSync never restore it
     recordCustomerAsDeleted(customerId, cleanEmail);
+    if (targetCustomer?.orderRef) {
+      recordOrderAsDeleted(targetCustomer.orderRef);
+    }
+
+    // Check if this is a Confirmed Company customer record (`cust-corp-*` or `floorSuite === 'Corporate Account'`)
+    const isCompanyCustomer =
+      customerId.startsWith('cust-corp-') || targetCustomer?.floorSuite === 'Corporate Account';
+
+    if (isCompanyCustomer) {
+      const corpIdGuess = customerId.replace(/^cust-corp-/, '');
+      recordCorporateAsDeleted(corpIdGuess);
+
+      let matchedAccount: CorporateAccount | null =
+        getLocalCorporateAccounts().find(
+          (a) =>
+            a.id === corpIdGuess ||
+            (targetCustomer?.memberCode && a.inviteCode === targetCustomer.memberCode) ||
+            (cleanEmail && a.adminEmail?.trim().toLowerCase() === cleanEmail)
+        ) || null;
+
+      if (!matchedAccount && targetCustomer?.memberCode) {
+        matchedAccount = await getCorporateAccountByInviteCode(targetCustomer.memberCode).catch(() => null);
+      }
+      if (!matchedAccount && cleanEmail) {
+        matchedAccount = await getCorporateAccountByAccessCodeOrEmail(cleanEmail).catch(() => null);
+      }
+
+      if (matchedAccount) {
+        const res = await deleteCorporateAccountAndLinkedData(matchedAccount).catch(() => null);
+        if (res) {
+          res.deletedCustomerIds.forEach((id) => recordCustomerAsDeleted(id));
+          res.deletedEmployeeIds.forEach((id) => recordCustomerAsDeleted(id));
+          res.deletedOrderIds.forEach((oid) => recordOrderAsDeleted(oid));
+        }
+        setCustomers((prev) => {
+          const next = prev.filter((c) => {
+            if (c.id === customerId) return false;
+            if (c.corporateId === matchedAccount!.id) return false;
+            if (res?.deletedCustomerIds.includes(c.id) || res?.deletedEmployeeIds.includes(c.id)) return false;
+            if (cleanEmail && c.email && c.email.trim().toLowerCase() === cleanEmail) return false;
+            if (c.email && res?.deletedEmployeeEmails.includes(c.email.trim().toLowerCase())) return false;
+            return true;
+          });
+          try {
+            localStorage.setItem(APP_STORAGE_KEYS.CUSTOMERS, JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+        setSubmittedOrders((prev) => {
+          const next = prev.filter((o) => {
+            if (res?.deletedOrderIds.includes(o.id)) return false;
+            if (matchedAccount!.inviteCode && o.memberCode === matchedAccount!.inviteCode) return false;
+            if (cleanEmail && o.email && o.email.trim().toLowerCase() === cleanEmail) return false;
+            return true;
+          });
+          try {
+            localStorage.setItem(APP_STORAGE_KEYS.ORDERS, JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      }
+    }
 
     // 2. Remove from local customers state and localStorage
     setCustomers((prev) => {
@@ -1874,10 +2090,15 @@ export default function App() {
       return next;
     });
 
-    // 3c. Purge submittedOrders for this email so future registrations start completely clean
+    // 3c. Purge submittedOrders for this email & record order tombstones so deleted invoices never return
     setSubmittedOrders((prev) => {
       const next = prev.filter((o) => {
-        if (cleanEmail && o.email && o.email.trim().toLowerCase() === cleanEmail) return false;
+        const matchOrderRef = Boolean(targetCustomer?.orderRef && o.id === targetCustomer.orderRef);
+        const matchEmail = Boolean(cleanEmail && o.email && o.email.trim().toLowerCase() === cleanEmail);
+        if (matchOrderRef || matchEmail) {
+          recordOrderAsDeleted(o.id);
+          return false;
+        }
         return true;
       });
       try {
@@ -1911,6 +2132,9 @@ export default function App() {
   };
 
   const handleDeleteOrder = async (orderId: string) => {
+    const targetOrder = submittedOrders.find((o) => o.id === orderId);
+    recordOrderAsDeleted(orderId);
+
     setSubmittedOrders((prev) => {
       const next = prev.filter((o) => o.id !== orderId);
       try {
@@ -1920,6 +2144,46 @@ export default function App() {
     });
     await liveSync.deleteOrder(orderId).catch(() => {});
     await deleteOrderFromFirestore(orderId).catch(() => {});
+
+    // If this deleted pending invoice belongs to an unverified Pending Verification customer, remove that customer cleanly too
+    const pendingCustomer = customers.find(
+      (c) => c.orderRef === orderId && c.paymentStatus === 'Pending Verification'
+    );
+    if (pendingCustomer) {
+      await handleDeleteCustomer(pendingCustomer.id, pendingCustomer.email);
+    }
+
+    // If this deleted order was an unconfirmed corporate package invoice, purge the unconfirmed corporate account too
+    if (
+      targetOrder &&
+      targetOrder.paymentStatus !== 'Confirmed' &&
+      (orderId.startsWith('CORP-ORD-') || targetOrder.memberCode?.toUpperCase().startsWith('CORP-')) &&
+      targetOrder.memberCode
+    ) {
+      const acct = await getCorporateAccountByInviteCode(targetOrder.memberCode).catch(() => null);
+      if (acct && acct.paymentStatus !== 'Confirmed') {
+        await deleteCorporateAccountAndLinkedData(acct).catch(() => {});
+      }
+    }
+  };
+
+  const handleCompanyLoginSuccess = (account: CorporateAccount) => {
+    setActiveCorporateAccount(account);
+    try {
+      localStorage.setItem(APP_STORAGE_KEYS.CORPORATE_SESSION, JSON.stringify(account));
+      localStorage.setItem('11to12_active_view_mode', 'corporate');
+    } catch {}
+    setViewMode('corporate');
+    setShowSubscriberAuthModal(false);
+  };
+
+  const handleCorporateLogout = () => {
+    setActiveCorporateAccount(null);
+    try {
+      localStorage.removeItem(APP_STORAGE_KEYS.CORPORATE_SESSION);
+      localStorage.removeItem('11to12_active_view_mode');
+    } catch {}
+    setViewMode('marketing');
   };
 
   const handleUpdateLaunchSettings = async (patch: Partial<LaunchSettings>) => {
@@ -2091,6 +2355,18 @@ export default function App() {
         />
       )}
 
+      {/* VIEW MODE 2B: DEDICATED READ-ONLY COMPANY DASHBOARD */}
+      {viewMode === 'corporate' && activeCorporateAccount && (
+        <CompanyDashboardPage
+          corporateAccount={activeCorporateAccount}
+          onLogout={handleCorporateLogout}
+          onAccountDeleted={() => {
+            handleCorporateLogout();
+            setSessionToast('This company account was removed by administration.');
+          }}
+        />
+      )}
+
       {/* VIEW MODE 3: KITCHEN ADMIN CONTROL */}
       {viewMode === 'admin' && (
         <AdminDashboardPage
@@ -2105,6 +2381,7 @@ export default function App() {
           creditRedemptions={creditRedemptions}
           onConfirmCreditRedemption={handleConfirmCreditRedemption}
           onConfirmTopUpOrder={handleConfirmTopUpOrder}
+          onCompanyConfirmed={handleUpsertConfirmedCompanyCustomer}
           onUpdateWaitlistLead={(updated) => {
             setWaitlistLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
             liveSync.updateWaitlistLead(updated.id, updated);
@@ -2188,6 +2465,7 @@ export default function App() {
             handleAttemptOpenSubscriber(customer);
             setShowSubscriberAuthModal(false);
           }}
+          onCompanyLoginSuccess={handleCompanyLoginSuccess}
           onUpdateCustomerPassword={(customerId, newPass) => {
             const cust = customers.find((c) => c.id === customerId);
             if (cust) {

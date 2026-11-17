@@ -11,26 +11,21 @@ import {
   saveCorporateAccountToFirestore,
   subscribeToCorporateAccount,
   subscribeToCorporateEmployees,
-  getCorporateAccountByAccessCodeOrEmail,
+  loginCorporatePortalAccount,
   saveOrderToFirestore,
 } from '../../services/firebase';
 import { CANONICAL_8_WEEKS_MENU } from '../../data/menuRotation';
+import { DEFAULT_SUBSCRIBER_PASSWORD } from '../../utils/credentialUtils';
+import { CompanyDashboardPage } from '../corporate/CompanyDashboardPage';
 import { LagosIslandAddressCheckModal } from '../common/LagosIslandAddressCheckModal';
 import {
   ArrowLeft,
   ArrowRight,
-  Building2,
   Users,
   CalendarDays,
   Copy,
   Check,
   CheckCircle2,
-  ExternalLink,
-  CreditCard,
-  ShieldCheck,
-  Utensils,
-  Truck,
-  Wallet,
   Loader2,
   AlertCircle,
   Upload,
@@ -38,6 +33,7 @@ import {
   Mail,
   Clock,
   Sparkles,
+  Lock,
 } from 'lucide-react';
 
 interface CorporateSubscriptionFlowProps {
@@ -192,13 +188,13 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
   const [isCreating, setIsCreating] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [submittedAccount, setSubmittedAccount] = useState<CorporateAccount | null>(null);
-  const [copiedInvite, setCopiedInvite] = useState(false);
 
-  // Employer Dashboard / Lookup state
+  // Employer Dashboard / Login state
   const [activeCorporate, setActiveCorporate] = useState<CorporateAccount | null>(null);
   const [employees, setEmployees] = useState<CorporateEmployeeRecord[]>([]);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [lookupInput, setLookupInput] = useState('');
+  const [lookupPassword, setLookupPassword] = useState('');
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [isLookingUp, setIsLookingUp] = useState(false);
 
@@ -279,16 +275,25 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
     setLookupError(null);
     setIsLookingUp(true);
     try {
-      const found = await getCorporateAccountByAccessCodeOrEmail(lookupInput);
-      if (found) {
+      const effectivePass = lookupPassword.trim() || DEFAULT_SUBSCRIBER_PASSWORD;
+      const res = await loginCorporatePortalAccount(lookupInput, effectivePass);
+      if (res.status === 'ok' && res.account) {
         setIsDemoMode(false);
-        setActiveCorporate(found);
+        setActiveCorporate(res.account);
         setActiveView('dashboard');
+      } else if (res.status === 'pending') {
+        setLookupError(
+          'Your company payment is still awaiting Admin verification. Once confirmed, your Company Portal login and team invite link will unlock.'
+        );
+      } else if (res.status === 'invalid-password') {
+        setLookupError(
+          `Incorrect password entered. New company accounts use default password "${DEFAULT_SUBSCRIBER_PASSWORD}".`
+        );
       } else {
-        setLookupError('No corporate account found for that Access Code or Work Email.');
+        setLookupError('No registered company account found with that Company Email or Access Code.');
       }
     } catch {
-      setLookupError('Could not retrieve corporate dashboard. Please check your code and try again.');
+      setLookupError('Could not retrieve corporate dashboard. Please verify your login details and try again.');
     } finally {
       setIsLookingUp(false);
     }
@@ -349,6 +354,9 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
         paymentProofUrl: paymentProofUrl || undefined,
         deliveryStatus: 'Scheduled',
         createdAt: nowIso,
+        defaultPassword: DEFAULT_SUBSCRIBER_PASSWORD,
+        password: DEFAULT_SUBSCRIBER_PASSWORD,
+        isDefaultPassword: true,
       };
 
       await saveCorporateAccountToFirestore(newCorporate);
@@ -386,73 +394,7 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
     }
   };
 
-  const dashboardStats = useMemo(() => {
-    if (!activeCorporate) {
-      return {
-        invited: 0,
-        registered: 0,
-        selectedMealsCount: 0,
-        remainingCredits: 0,
-        remainingValueNGN: 0,
-        dailyMealsBreakdown: [] as Array<{ dateStr: string; count: number; opt1: number; opt2: number }>,
-      };
-    }
-
-    const invited = activeCorporate.totalEmployees;
-    const registered = isDemoMode
-      ? Math.max(38, employees.length)
-      : Math.max(activeCorporate.usedSlots || 0, employees.length);
-    const employeesWithMeals = employees.filter((e) => e.hasSelectedMeals && e.selectedDays.length > 0);
-    const selectedMealsCount = isDemoMode
-      ? Math.max(32, employeesWithMeals.length)
-      : employeesWithMeals.length;
-
-    const totalPlatesAllocated = employees.reduce((acc, e) => acc + (e.selectedDays?.length || 0), 0);
-    const usedCredits = isDemoMode
-      ? Math.max(activeCorporate.usedMealCredits, totalPlatesAllocated)
-      : totalPlatesAllocated;
-
-    const remainingCredits = Math.max(0, activeCorporate.totalMealCredits - usedCredits);
-    const ratePerPlate = Math.round(
-      activeCorporate.pricePerEmployeeNGN / Math.max(1, activeCorporate.mealDaysPerEmployee)
-    );
-    const remainingValueNGN = remainingCredits * ratePerPlate;
-
-    const dailyMap = new Map<string, { dateStr: string; count: number; opt1: number; opt2: number }>();
-    employees.forEach((emp) => {
-      (emp.selectedDays || []).forEach((sel) => {
-        const cur = dailyMap.get(sel.dateStr) || { dateStr: sel.dateStr, count: 0, opt1: 0, opt2: 0 };
-        cur.count += 1;
-        if (sel.selectedMealOption?.id === 'opt-2') cur.opt2 += 1;
-        else cur.opt1 += 1;
-        dailyMap.set(sel.dateStr, cur);
-      });
-    });
-
-    const dailyMealsBreakdown = Array.from(dailyMap.values())
-      .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
-      .slice(0, 10);
-
-    return {
-      invited,
-      registered,
-      selectedMealsCount,
-      remainingCredits,
-      remainingValueNGN,
-      dailyMealsBreakdown,
-    };
-  }, [activeCorporate, employees, isDemoMode]);
-
-  const inviteUrl = activeCorporate
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/?corp=${activeCorporate.inviteCode}`
-    : '';
-
-  const handleCopyInviteLink = () => {
-    if (!inviteUrl) return;
-    navigator.clipboard.writeText(inviteUrl);
-    setCopiedInvite(true);
-    setTimeout(() => setCopiedInvite(false), 2500);
-  };
+  // Placeholder reference guard kept clean via CompanyDashboardPage
 
   const whatsappProofUrl = `https://wa.me/${CONTACT_CONFIG.whatsappIntl}?text=${encodeURIComponent(
     `Hello 11:12 Food! We just submitted a Corporate Package payment for ${
@@ -1115,7 +1057,7 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
                 </h4>
                 <p className="text-sm text-zinc-700 leading-relaxed">
                   Our Admin team will confirm your transfer of{' '}
-                  <strong>₦{submittedAccount.totalPackageNGN.toLocaleString()}</strong>, set up your dedicated company dashboard, and send your unique employee invitation link directly to HR (<strong>{submittedAccount.adminEmail}</strong> / WhatsApp <strong>{submittedAccount.adminPhone}</strong>).
+                  <strong>₦{submittedAccount.totalPackageNGN.toLocaleString()}</strong>, activate your dedicated company dashboard under <strong>{submittedAccount.companyName}</strong>, and send your unique employee invitation link + Company Portal login details directly to HR (<strong>{submittedAccount.adminEmail}</strong> / WhatsApp <strong>{submittedAccount.adminPhone}</strong>).
                 </p>
               </div>
 
@@ -1135,7 +1077,15 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">Employer Access Reference:</span>
+                  <span className="text-zinc-500">Company Portal Login Email:</span>
+                  <span className="font-bold text-black">{submittedAccount.adminEmail}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Default Portal Password:</span>
+                  <span className="font-mono font-black text-[#FF4C00]">{DEFAULT_SUBSCRIBER_PASSWORD}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Employer Access Code:</span>
                   <span className="font-mono font-bold text-black">{submittedAccount.accessCode}</span>
                 </div>
               </div>
@@ -1178,32 +1128,54 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
         </div>
       )}
 
-      {/* LOOKUP EMPLOYER PORTAL */}
+      {/* COMPANY PORTAL LOGIN */}
       {activeView === 'lookup' && (
         <div className="max-w-xl mx-auto bg-zinc-100 border border-zinc-200 rounded-3xl p-6 sm:p-10 space-y-5 shadow-sm">
           <div className="space-y-1">
-            <h4 className="text-2xl font-black text-black">Open Your Employer Dashboard</h4>
+            <h4 className="text-2xl font-black text-black">Company Portal Login</h4>
             <p className="text-xs sm:text-sm text-zinc-600">
-              Enter your corporate Access Code (e.g. BOSS-...) or the HR Work Email sent after Admin confirmation.
+              Sign in with your registered HR Email (or Employer Access Code) and your company password (default:{' '}
+              <span className="font-mono font-bold text-[#FF4C00]">{DEFAULT_SUBSCRIBER_PASSWORD}</span>) to view every staff member and the daily meals they picked.
             </p>
           </div>
 
           <form onSubmit={handleLookupAccount} className="space-y-3">
-            <input
-              type="text"
-              value={lookupInput}
-              onChange={(e) => setLookupInput(e.target.value)}
-              placeholder="Access Code or HR Email"
-              className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-300 focus:border-[#FF4C00] outline-none text-sm"
-            />
+            <div>
+              <label className="block text-xs font-bold text-zinc-700 mb-1">
+                HR Email or Access Code *
+              </label>
+              <input
+                type="text"
+                required
+                value={lookupInput}
+                onChange={(e) => setLookupInput(e.target.value)}
+                placeholder="hr@company.com or BOSS-..."
+                className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-300 focus:border-[#FF4C00] outline-none text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-zinc-700 mb-1">
+                Company Password *
+              </label>
+              <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white border border-zinc-300 focus-within:border-[#FF4C00]">
+                <Lock className="w-4 h-4 text-zinc-400 shrink-0" />
+                <input
+                  type="password"
+                  value={lookupPassword}
+                  onChange={(e) => setLookupPassword(e.target.value)}
+                  placeholder={`Default password: ${DEFAULT_SUBSCRIBER_PASSWORD}`}
+                  className="w-full bg-transparent outline-none text-sm"
+                />
+              </div>
+            </div>
             {lookupError && <p className="text-xs font-semibold text-rose-600">{lookupError}</p>}
-            <div className="flex flex-wrap gap-2.5">
+            <div className="flex flex-wrap gap-2.5 pt-1">
               <button
                 type="submit"
                 disabled={isLookingUp}
                 className="px-6 py-3 rounded-full bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] text-white text-xs font-black uppercase tracking-wider cursor-pointer"
               >
-                {isLookingUp ? 'Looking up...' : 'Open Live Dashboard'}
+                {isLookingUp ? 'Verifying...' : 'Sign In to Company Dashboard'}
               </button>
               <button
                 type="button"
@@ -1217,247 +1189,26 @@ export const CorporateSubscriptionFlow: React.FC<CorporateSubscriptionFlowProps>
         </div>
       )}
 
-      {/* VIEW 2: EMPLOYER DASHBOARD */}
+      {/* VIEW 2: STRICTLY READ-ONLY COMPANY DASHBOARD */}
       {activeView === 'dashboard' && activeCorporate && (
-        <div className="space-y-6">
-          {/* Employer Identity Banner — Orange Gradient Card */}
-          <div className="bg-gradient-to-br from-[#FF4C00] via-[#FF5E14] to-[#FF8533] text-white rounded-3xl p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6 shadow-md">
-            <div className="space-y-1.5 min-w-0">
-              <div className="flex items-center gap-2 text-xs text-orange-100 font-semibold">
-                <Building2 className="w-4 h-4 shrink-0" />
-                <span>{isDemoMode ? 'Sample Employer Dashboard (50 Employees × 20 Days)' : 'Live Employer Dashboard'}</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono">Access Code: {activeCorporate.accessCode}</span>
-              </div>
-              <h4 className="text-2xl sm:text-3xl font-black text-white truncate">
-                {activeCorporate.companyName}
-              </h4>
-              <p className="text-xs text-orange-50">
-                {activeCorporate.officeAddress} · {activeCorporate.mealDaysPerEmployee} meal days per employee
-              </p>
-            </div>
-
-            {activeCorporate.paymentStatus === 'Confirmed' ? (
-              <div className="bg-white/15 backdrop-blur-xs border border-white/25 rounded-2xl p-4 space-y-2.5 lg:min-w-[380px]">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-white">Unique Employee Invitation Link</span>
-                  <span className="font-mono text-orange-100 font-bold">{activeCorporate.inviteCode}</span>
-                </div>
-                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl">
-                  <span className="text-xs font-mono text-zinc-800 truncate flex-1">{inviteUrl}</span>
-                  <button
-                    type="button"
-                    onClick={handleCopyInviteLink}
-                    className="px-3 py-1.5 rounded-lg bg-[#FF4C00] hover:bg-[#E04300] text-white text-xs font-bold cursor-pointer flex items-center space-x-1 shrink-0"
-                  >
-                    {copiedInvite ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedInvite ? 'Copied' : 'Copy Link'}</span>
-                  </button>
-                </div>
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <span className="text-[11px] text-orange-50">
-                    {dashboardStats.registered} / {dashboardStats.invited} slots claimed
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onOpenEmployeeInvite(activeCorporate)}
-                    className="px-3 py-1.5 rounded-lg bg-white text-[#FF4C00] hover:bg-zinc-100 text-xs font-bold cursor-pointer flex items-center space-x-1 shrink-0 whitespace-nowrap"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Open Employee Link</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white text-zinc-900 rounded-2xl p-4 lg:max-w-sm space-y-1.5 shadow-sm">
-                <div className="text-xs font-black text-amber-700 uppercase tracking-wider">
-                  Awaiting Admin Confirmation
-                </div>
-                <p className="text-xs text-zinc-600">
-                  Your unique employee invitation link will unlock automatically once 11:12 Admin verifies payment and activates your team link.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* 6 Employer Metrics (Gray & White Cards) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-5">
-              <div className="flex items-center justify-between text-xs text-zinc-600 font-semibold">
-                <span>Employees Invited</span>
-                <Users className="w-4 h-4 text-[#FF4C00]" />
-              </div>
-              <div className="text-3xl font-black text-black mt-2 tabular-nums">
-                {dashboardStats.invited}
-              </div>
-              <p className="text-xs text-zinc-500 mt-1">Total purchased team slots</p>
-            </div>
-
-            <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-5">
-              <div className="flex items-center justify-between text-xs text-zinc-600 font-semibold">
-                <span>Slots Claimed / Registered</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div className="text-3xl font-black text-black mt-2 tabular-nums">
-                {dashboardStats.registered}{' '}
-                <span className="text-base font-bold text-zinc-400">/ {dashboardStats.invited}</span>
-              </div>
-              <p className="text-xs text-zinc-500 mt-1">
-                {Math.max(0, dashboardStats.invited - dashboardStats.registered)} slots still available
-              </p>
-            </div>
-
-            <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-5">
-              <div className="flex items-center justify-between text-xs text-zinc-600 font-semibold">
-                <span>Selected Their Meals</span>
-                <Utensils className="w-4 h-4 text-[#FF4C00]" />
-              </div>
-              <div className="text-3xl font-black text-black mt-2 tabular-nums">
-                {dashboardStats.selectedMealsCount}{' '}
-                <span className="text-base font-bold text-zinc-400">/ {dashboardStats.registered}</span>
-              </div>
-              <p className="text-xs text-zinc-500 mt-1">Employees with dates &amp; dishes locked</p>
-            </div>
-
-            <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-5">
-              <div className="flex items-center justify-between text-xs text-zinc-600 font-semibold">
-                <span>Remaining Meal Credits</span>
-                <Wallet className="w-4 h-4 text-zinc-500" />
-              </div>
-              <div className="text-3xl font-black text-black mt-2 tabular-nums">
-                {dashboardStats.remainingCredits.toLocaleString()}
-              </div>
-              <p className="text-xs text-emerald-700 font-semibold mt-1 tabular-nums">
-                ₦{dashboardStats.remainingValueNGN.toLocaleString()} remaining balance
-              </p>
-            </div>
-
-            <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-5">
-              <div className="flex items-center justify-between text-xs text-zinc-600 font-semibold">
-                <span>Delivery Status</span>
-                <Truck className="w-4 h-4 text-[#FF4C00]" />
-              </div>
-              <div className="text-2xl font-black text-black mt-2">
-                {activeCorporate.deliveryStatus}
-              </div>
-              <p className="text-xs text-zinc-500 mt-1">Window: 11:00 AM – 12:00 PM WAT</p>
-            </div>
-
-            <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-5">
-              <div className="flex items-center justify-between text-xs text-zinc-600 font-semibold">
-                <span>Total Package Value</span>
-                <CreditCard className="w-4 h-4 text-zinc-500" />
-              </div>
-              <div className="text-2xl font-black text-black mt-2 tabular-nums">
-                ₦{activeCorporate.totalPackageNGN.toLocaleString()}
-              </div>
-              <p className="text-xs text-zinc-600 mt-1">
-                Status: <strong className="text-black">{activeCorporate.paymentStatus}</strong>
-              </p>
-            </div>
-          </div>
-
-          {/* Meals Required Per Day + Registered Employees Roster */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            <div className="lg:col-span-5 bg-white border border-zinc-200 rounded-3xl p-6 space-y-4">
-              <div>
-                <h5 className="text-base font-black text-black">Number of Meals Required Per Day</h5>
-                <p className="text-xs text-zinc-500 mt-0.5">
-                  Automatically tallied from employee calendar selections.
-                </p>
-              </div>
-              {dashboardStats.dailyMealsBreakdown.length === 0 ? (
-                <div className="p-6 rounded-2xl bg-zinc-100 text-center text-xs font-semibold text-zinc-600">
-                  No employee dates selected yet.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-zinc-200 text-zinc-500 font-semibold">
-                        <th className="py-2 pr-2">Delivery Date</th>
-                        <th className="py-2 px-2 text-right">Opt 1</th>
-                        <th className="py-2 px-2 text-right">Opt 2</th>
-                        <th className="py-2 pl-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100 tabular-nums">
-                      {dashboardStats.dailyMealsBreakdown.map((row) => (
-                        <tr key={row.dateStr}>
-                          <td className="py-2.5 pr-2 font-bold text-zinc-900">{row.dateStr}</td>
-                          <td className="py-2.5 px-2 text-right text-zinc-600">{row.opt1}</td>
-                          <td className="py-2.5 px-2 text-right text-zinc-600">{row.opt2}</td>
-                          <td className="py-2.5 pl-2 text-right font-black text-[#FF4C00]">{row.count}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            <div className="lg:col-span-7 bg-white border border-zinc-200 rounded-3xl p-6 space-y-4">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <h5 className="text-base font-black text-black">Employee Roster &amp; Meal Status</h5>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    Live employee signups via {activeCorporate.inviteCode}
-                  </p>
-                </div>
-                {activeCorporate.paymentStatus === 'Confirmed' && (
-                  <button
-                    type="button"
-                    onClick={() => onOpenEmployeeInvite(activeCorporate)}
-                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#FF4C00] to-[#FF6E24] text-white text-xs font-bold cursor-pointer whitespace-nowrap"
-                  >
-                    + Add Employee via Link
-                  </button>
-                )}
-              </div>
-
-              {employees.length === 0 ? (
-                <div className="p-6 rounded-2xl bg-zinc-100 text-center text-xs font-semibold text-zinc-600">
-                  Waiting for employees to claim their slots via {activeCorporate.inviteCode}.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-zinc-200 text-zinc-500 font-semibold">
-                        <th className="py-2 pr-3">Employee</th>
-                        <th className="py-2 px-2">Delivery Option 1 / 2</th>
-                        <th className="py-2 px-2 text-right">Days Picked</th>
-                        <th className="py-2 pl-2 text-right">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100">
-                      {employees.map((emp) => (
-                        <tr key={emp.id}>
-                          <td className="py-2.5 pr-3">
-                            <div className="font-bold text-black">{emp.fullName}</div>
-                            <div className="text-[11px] text-zinc-500">{emp.email}</div>
-                          </td>
-                          <td className="py-2.5 px-2 text-zinc-600">
-                            <div>{emp.deskLocation}</div>
-                            {emp.secondAddress && (
-                              <div className="text-[11px] text-zinc-400">Alt: {emp.secondAddress}</div>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-2 text-right font-bold tabular-nums">
-                            {emp.selectedDays.length} / {emp.mealDaysAllocated}
-                          </td>
-                          <td className="py-2.5 pl-2 text-right font-bold text-emerald-700">
-                            Meals Ready
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <CompanyDashboardPage
+          corporateAccount={activeCorporate}
+          isDemoMode={isDemoMode}
+          demoEmployees={employees}
+          embedded
+          onLogout={() => {
+            setActiveCorporate(null);
+            setEmployees([]);
+            setIsDemoMode(false);
+            setActiveView('lookup');
+          }}
+          onAccountDeleted={() => {
+            setActiveCorporate(null);
+            setEmployees([]);
+            setIsDemoMode(false);
+            setActiveView('wizard');
+          }}
+        />
       )}
 
       <LagosIslandAddressCheckModal

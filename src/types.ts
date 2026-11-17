@@ -2,7 +2,7 @@ import { calculateTieredOrderTotal } from './config/pricingConfig';
 
 export type DayOfWeek = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat';
 
-export type ViewMode = 'marketing' | 'subscriber' | 'admin';
+export type ViewMode = 'marketing' | 'subscriber' | 'admin' | 'corporate';
 
 export type MealCategory =
   | 'Rice'
@@ -431,6 +431,9 @@ export interface CorporateAccount {
   usedMealCredits: number;
   inviteCode: string;
   accessCode: string;
+  password?: string;
+  defaultPassword?: string;
+  isDefaultPassword?: boolean;
   paymentStatus: 'Pending Verification' | 'Confirmed';
   paymentProofUrl?: string;
   confirmedAt?: string;

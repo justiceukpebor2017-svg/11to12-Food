@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   MenuItem,
   UserProfile,
@@ -12,6 +12,7 @@ import {
   CreditRedemptionOrder,
   TestimonialItem,
   LaunchSettings,
+  CorporateAccount,
 } from '../types';
 import { AdminSidebar, AdminTab } from '../components/admin/AdminSidebar';
 import { AdminDashboardTab } from '../components/admin/tabs/AdminDashboardTab';
@@ -69,6 +70,7 @@ interface AdminDashboardPageProps {
   onDeleteTestimonial?: (id: string) => Promise<boolean | void>;
   launchSettings?: LaunchSettings;
   onUpdateLaunchSettings?: (settings: LaunchSettings) => void;
+  onCompanyConfirmed?: (companyCustomer: CustomerRecord, updatedAcct: CorporateAccount) => void;
   onLogout?: () => void;
 }
 
@@ -85,6 +87,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onDeleteOrder,
   onConfirmOrderPayment = () => {},
   onNavigateToHome = () => {},
+  onCompanyConfirmed,
   onLogout,
   launchSettings,
   onUpdateLaunchSettings,
@@ -94,6 +97,28 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedCustomerProfile, setSelectedCustomerProfile] = useState<CustomerRecord | null>(null);
   const [isGlobalAddCustomerOpen, setIsGlobalAddCustomerOpen] = useState(false);
+
+  const companyCustomersCount = useMemo(() => {
+    const companyIds = new Set<string>();
+    customers.forEach((c) => {
+      const isCompany =
+        c.id.startsWith('cust-corp-') ||
+        c.floorSuite === 'Corporate Account' ||
+        Boolean(c.corporateId) ||
+        Boolean(c.memberCode && c.memberCode.trim().toUpperCase().startsWith('CORP-')) ||
+        Boolean(c.planName && c.planName.trim().toLowerCase().startsWith('corporate'));
+      if (isCompany) {
+        companyIds.add(c.corporateId || c.memberCode || c.id);
+      }
+    });
+    return companyIds.size;
+  }, [customers]);
+
+  useEffect(() => {
+    if (activeTab === 'companies' && companyCustomersCount === 0) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, companyCustomersCount]);
 
   // Persistent dismissed notification IDs
   const [dismissedNotifIds, setDismissedNotifIds] = useState<Set<string>>(() => {
@@ -236,6 +261,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           pendingOrdersCount={pendingOrdersCount}
           waitlistCount={waitlistLeads.length}
           customersCount={customers.length}
+          companiesCount={companyCustomersCount}
         />
       </div>
 
@@ -260,6 +286,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               pendingOrdersCount={pendingOrdersCount}
               waitlistCount={waitlistLeads.length}
               customersCount={customers.length}
+              companiesCount={companyCustomersCount}
             />
           </div>
           <div className="flex-1" onClick={() => setIsMobileSidebarOpen(false)} />
@@ -426,12 +453,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         )}
 
         {/* 4b. Companies Tab */}
-        {activeTab === 'companies' && (
+        {activeTab === 'companies' && companyCustomersCount > 0 && (
           <AdminCompaniesTab
             customers={customers}
             submittedOrders={submittedOrders}
             onDeleteCustomer={onDeleteCustomer}
             onDeleteOrder={onDeleteOrder}
+            onCompanyConfirmed={onCompanyConfirmed}
           />
         )}
 

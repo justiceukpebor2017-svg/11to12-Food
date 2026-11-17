@@ -42,7 +42,12 @@ import {
   recordCustomerAsDeleted,
   isCustomerRecordedAsDeleted,
   unrecordCustomerAsDeleted,
+  recordOrderAsDeleted,
+  recordCorporateAsDeleted,
+  isCorporateRecordedAsDeleted,
+  unrecordCorporateAsDeleted,
 } from '../utils/customerDeletions';
+import { DEFAULT_SUBSCRIBER_PASSWORD } from '../utils/credentialUtils';
 
 // Set log level to error to avoid noisy debug logs
 try {
@@ -217,6 +222,72 @@ export async function registerSubscriberAccount(data: {
 /**
  * Log in a subscriber via real Firebase Auth or verified Firestore/server customer record
  */
+export function buildCompanyCustomerRecord(acct: CorporateAccount): CustomerRecord {
+  const cleanEmail = (acct.adminEmail || '').trim().toLowerCase();
+  const effectiveDefault = acct.defaultPassword || DEFAULT_SUBSCRIBER_PASSWORD;
+  const effectivePassword = acct.password || effectiveDefault;
+
+  return {
+    id: `cust-corp-${acct.id}`,
+    corporateId: acct.id,
+    fullName: acct.companyName,
+    email: cleanEmail,
+    phone: acct.adminPhone || '',
+    company: acct.companyName,
+    officeAddress: acct.officeAddress || '',
+    secondAddress: acct.secondAddress || '',
+    floorSuite: 'Corporate Account',
+    deliveryArea: acct.deliveryArea || 'Lagos Island',
+    notes: `Company Account (${acct.totalEmployees} Staff × ${acct.mealDaysPerEmployee} Days · Code: ${acct.inviteCode})`,
+    status: 'Active',
+    paymentStatus: acct.paymentStatus === 'Confirmed' ? 'Paid' : 'Pending Verification',
+    paymentProofUrl: acct.paymentProofUrl,
+    planName: `Corporate Company: ${acct.companyName} (${acct.totalEmployees} Staff × ${acct.mealDaysPerEmployee} Days)`,
+    totalDays: acct.totalMealCredits || acct.totalEmployees * acct.mealDaysPerEmployee,
+    creditsBalance: 0,
+    selectedDays: [],
+    subtotalNGN: acct.totalPackageNGN || 0,
+    discountNGN: 0,
+    finalTotalNGN: acct.totalPackageNGN || 0,
+    orderRef: `CORP-ORD-${acct.inviteCode}`,
+    memberCode: acct.inviteCode,
+    createdAt: acct.createdAt || new Date().toISOString(),
+    confirmedAt: acct.confirmedAt,
+    isPasswordSet: true,
+    defaultPassword: effectiveDefault,
+    password: effectivePassword,
+    isDefaultPassword: acct.isDefaultPassword ?? true,
+    mustChangePassword: false,
+  };
+}
+
+function checkCustomerPasswordMatch(customer: CustomerRecord, cleanPass: string): boolean {
+  const hasChangedCustomPassword =
+    Boolean(customer.passwordLastChangedAt) ||
+    customer.isDefaultPassword === false ||
+    (Boolean(customer.password) &&
+      customer.password.trim() !== DEFAULT_SUBSCRIBER_PASSWORD &&
+      customer.mustChangePassword === false);
+
+  if (customer.password && cleanPass === customer.password.trim()) {
+    return true;
+  }
+  if (customer.defaultPassword && cleanPass === customer.defaultPassword.trim()) {
+    return true;
+  }
+  if (!hasChangedCustomPassword && cleanPass.toLowerCase() === DEFAULT_SUBSCRIBER_PASSWORD) {
+    return true;
+  }
+  // Allow company accounts to also sign in with their Employer Access Code if present
+  if (
+    (customer.id.startsWith('cust-corp-') || customer.floorSuite === 'Corporate Account') &&
+    customer.memberCode
+  ) {
+    // Also check corporate access code stored in notes or matched later
+  }
+  return false;
+}
+
 export async function loginSubscriberAccount(
   email: string,
   pass: string
@@ -225,50 +296,68 @@ export async function loginSubscriberAccount(
   const cleanPass = pass.trim();
 
   let fbUser: User | null = null;
-  let authFailed = false;
 
   // 1. Attempt standard Firebase Auth sign-in, safely absorbing auth/operation-not-allowed
   try {
     const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
     fbUser = userCredential.user;
   } catch (err: any) {
-    authFailed = true;
     console.warn('[Firebase Auth] signInWithEmailAndPassword notice (falling back to database credentials):', err?.code);
   }
 
-  // 2. Fetch customer record from Firestore
+  // 2. Fetch customer record from Firestore (exact match first, then case-insensitive fallback)
   let customer: CustomerRecord | null = null;
   try {
     if (fbUser) {
       const customerRef = doc(db, 'customers', fbUser.uid);
       const snap = await getDoc(customerRef);
-      if (snap.exists()) {
-        customer = snap.data() as CustomerRecord;
+      if (snap.exists() && !isCustomerRecordedAsDeleted(snap.id)) {
+        customer = { ...(snap.data() as CustomerRecord), id: snap.id };
       }
     }
 
     if (!customer) {
       const q = query(collection(db, 'customers'), where('email', '==', cleanEmail));
       const querySnap = await getDocs(q);
-      if (!querySnap.empty) {
-        customer = querySnap.docs[0].data() as CustomerRecord;
+      for (const d of querySnap.docs) {
+        if (!isCustomerRecordedAsDeleted(d.id)) {
+          customer = { ...(d.data() as CustomerRecord), id: d.id };
+          break;
+        }
+      }
+    }
+
+    // 2a. Case-insensitive Firestore scan in case email was saved with mixed casing (e.g. Name@Company.com)
+    if (!customer) {
+      const allCustSnap = await getDocs(collection(db, 'customers'));
+      for (const d of allCustSnap.docs) {
+        if (isCustomerRecordedAsDeleted(d.id)) continue;
+        const data = d.data() as CustomerRecord;
+        if (data.email && data.email.trim().toLowerCase() === cleanEmail) {
+          customer = { ...data, id: d.id };
+          break;
+        }
       }
     }
   } catch (e) {
     console.warn('[Firebase] Firestore lookup notice:', e);
   }
 
-  // 2b. If not found in Firestore yet, check server live database endpoint
+  // 2b. Check server live database endpoint if Firestore didn't return a customer
   if (!customer) {
     try {
       const resp = await fetch('/api/customers');
       if (resp.ok) {
         const data = await resp.json();
         const list: CustomerRecord[] = data?.customers || [];
-        const match = list.find((c) => c.email && c.email.trim().toLowerCase() === cleanEmail);
+        const match = list.find(
+          (c) =>
+            !isCustomerRecordedAsDeleted(c.id) &&
+            c.email &&
+            c.email.trim().toLowerCase() === cleanEmail
+        );
         if (match) {
           customer = match;
-          // Synchronize back to Firestore so future lookups are instantaneous
           saveCustomerToFirestore(match).catch(() => {});
         }
       }
@@ -277,23 +366,85 @@ export async function loginSubscriberAccount(
     }
   }
 
-  // 3. Fallback verification: Check password if Firebase Auth failed (handles auth/operation-not-allowed)
-  if (customer) {
-    const isPasswordValid =
-      (customer.password && cleanPass === customer.password.trim()) ||
-      (customer.defaultPassword && cleanPass === customer.defaultPassword.trim());
-
-    if (isPasswordValid) {
-      return { user: fbUser, customer };
-    } else {
-      const err = new Error('Incorrect password entered. Please verify your credentials or contact 11 to 12 Support.');
-      (err as any).code = 'auth/wrong-password';
-      throw err;
+  // 2c. Recover corporate employee customer record if they exist in corporateEmployees
+  if (!customer) {
+    try {
+      const empSnap = await getDocs(collection(db, 'corporateEmployees'));
+      for (const d of empSnap.docs) {
+        if (isCustomerRecordedAsDeleted(d.id)) continue;
+        const emp = d.data() as CorporateEmployeeRecord;
+        if (emp.email && emp.email.trim().toLowerCase() === cleanEmail) {
+          const rebuilt: CustomerRecord = {
+            id: `corp-cust-${emp.id}`,
+            corporateId: emp.corporateId,
+            fullName: emp.fullName,
+            email: cleanEmail,
+            phone: emp.phone || '',
+            company: emp.companyName,
+            officeAddress: emp.deskLocation || '',
+            secondAddress: emp.secondAddress,
+            floorSuite: emp.deskLocation || '',
+            deliveryArea: 'Lagos Island',
+            notes: `Corporate Employee (${emp.companyName} · ${emp.inviteCode})`,
+            status: 'Active',
+            paymentStatus: 'Paid',
+            planName: `Corporate: ${emp.companyName} (${emp.mealDaysAllocated} Days)`,
+            totalDays: emp.selectedDays?.length || emp.mealDaysAllocated || 5,
+            remainingMeals: emp.selectedDays?.length || emp.mealDaysAllocated || 5,
+            creditsBalance: 0,
+            selectedDays: emp.selectedDays || [],
+            subtotalNGN: 0,
+            discountNGN: 0,
+            finalTotalNGN: 0,
+            memberCode: emp.inviteCode,
+            createdAt: emp.registeredAt || new Date().toISOString(),
+            confirmedAt: emp.registeredAt || new Date().toISOString(),
+            isPasswordSet: true,
+            defaultPassword: DEFAULT_SUBSCRIBER_PASSWORD,
+            password: DEFAULT_SUBSCRIBER_PASSWORD,
+            isDefaultPassword: true,
+            mustChangePassword: true,
+          };
+          customer = rebuilt;
+          saveCustomerToFirestore(rebuilt).catch(() => {});
+          break;
+        }
+      }
+    } catch (empErr) {
+      console.warn('[Firebase] corporateEmployees lookup notice:', empErr);
     }
   }
 
-  if (fbUser && customer) {
-    return { user: fbUser, customer };
+  // 2d. Check confirmed corporateAccounts adminEmail if customer record hasn't synced yet
+  if (!customer) {
+    try {
+      const corpSnap = await getDocs(collection(db, 'corporateAccounts'));
+      for (const d of corpSnap.docs) {
+        if (isCorporateRecordedAsDeleted(d.id)) continue;
+        const acct = { ...(d.data() as CorporateAccount), id: d.id };
+        if (acct.adminEmail && acct.adminEmail.trim().toLowerCase() === cleanEmail && acct.paymentStatus === 'Confirmed') {
+          const companyCust = buildCompanyCustomerRecord(acct);
+          if (!isCustomerRecordedAsDeleted(companyCust.id)) {
+            customer = companyCust;
+            saveCustomerToFirestore(companyCust).catch(() => {});
+            break;
+          }
+        }
+      }
+    } catch (corpErr) {
+      console.warn('[Firebase] corporateAccounts fallback lookup notice:', corpErr);
+    }
+  }
+
+  // 3. Verify credentials against found customer record
+  if (customer) {
+    if (checkCustomerPasswordMatch(customer, cleanPass)) {
+      return { user: fbUser, customer };
+    } else {
+      const err = new Error('Incorrect password entered. Please verify your credentials or click "Forgot Password".');
+      (err as any).code = 'auth/wrong-password';
+      throw err;
+    }
   }
 
   // If Firebase user exists but customer document was deleted by admin, sign out Firebase auth user
@@ -306,6 +457,80 @@ export async function loginSubscriberAccount(
   const notFoundErr = new Error('No active subscriber account found with this email. This credential is no longer active.');
   (notFoundErr as any).code = 'auth/user-not-found';
   throw notFoundErr;
+}
+
+export async function loginCorporatePortalAccount(
+  identifier: string,
+  pass: string
+): Promise<{
+  status: 'ok' | 'pending' | 'invalid-password' | 'not-found';
+  account?: CorporateAccount;
+}> {
+  const cleanId = identifier.trim();
+  const cleanLower = cleanId.toLowerCase();
+  const cleanUpper = cleanId.toUpperCase();
+  const cleanPass = pass.trim();
+
+  if (!cleanId) return { status: 'not-found' };
+
+  let candidates: CorporateAccount[] = [];
+  try {
+    const snap = await getDocs(collection(db, 'corporateAccounts'));
+    candidates = snap.docs
+      .filter((d) => !isCorporateRecordedAsDeleted(d.id))
+      .map((d) => ({ ...(d.data() as CorporateAccount), id: d.id }));
+  } catch {
+    candidates = getLocalCorporateAccounts().filter((a) => !isCorporateRecordedAsDeleted(a.id));
+  }
+
+  const matched = candidates.find(
+    (a) =>
+      a.adminEmail?.trim().toLowerCase() === cleanLower ||
+      a.accessCode?.trim().toUpperCase() === cleanUpper ||
+      a.inviteCode?.trim().toUpperCase() === cleanUpper
+  );
+
+  if (!matched) {
+    return { status: 'not-found' };
+  }
+
+  if (matched.paymentStatus !== 'Confirmed') {
+    return { status: 'pending', account: matched };
+  }
+
+  // Check password against CorporateAccount OR its corresponding cust-corp-{id} CustomerRecord
+  let linkedCustomer: CustomerRecord | null = null;
+  try {
+    const custSnap = await getDoc(doc(db, 'customers', `cust-corp-${matched.id}`));
+    if (custSnap.exists() && !isCustomerRecordedAsDeleted(custSnap.id)) {
+      linkedCustomer = { ...(custSnap.data() as CustomerRecord), id: custSnap.id };
+    }
+  } catch {}
+
+  const validPasswords = new Set<string>();
+  if (matched.password) validPasswords.add(matched.password.trim());
+  if (matched.defaultPassword) validPasswords.add(matched.defaultPassword.trim());
+  if (matched.accessCode) validPasswords.add(matched.accessCode.trim());
+  if (linkedCustomer?.password) validPasswords.add(linkedCustomer.password.trim());
+  if (linkedCustomer?.defaultPassword) validPasswords.add(linkedCustomer.defaultPassword.trim());
+
+  const hasCustomChanged =
+    matched.isDefaultPassword === false &&
+    Boolean(matched.password) &&
+    matched.password?.trim() !== DEFAULT_SUBSCRIBER_PASSWORD;
+  if (!hasCustomChanged && (!linkedCustomer || linkedCustomer.isDefaultPassword !== false)) {
+    validPasswords.add(DEFAULT_SUBSCRIBER_PASSWORD);
+  }
+
+  const passwordValid =
+    validPasswords.has(cleanPass) ||
+    (!hasCustomChanged && cleanPass.toLowerCase() === DEFAULT_SUBSCRIBER_PASSWORD);
+
+  if (!passwordValid) {
+    return { status: 'invalid-password', account: matched };
+  }
+
+  return { status: 'ok', account: matched };
 }
 
 /**
@@ -507,7 +732,17 @@ export async function deleteCustomerFromFirestore(customerId: string, customerEm
       const qOrders = query(collection(db, 'orders'), where('email', '==', cleanEmail));
       const snapsOrders = await getDocs(qOrders);
       for (const d of snapsOrders.docs) {
+        recordOrderAsDeleted(d.id);
         await deleteDoc(d.ref).catch(() => {});
+        await setDoc(
+          doc(db, 'deletedCustomerRecords', `ord_${d.id}`),
+          sanitizeForFirestore({
+            id: `ord_${d.id}`,
+            targetId: d.id,
+            type: 'order',
+            deletedAt: new Date().toISOString(),
+          })
+        ).catch(() => {});
       }
 
       // Purge creditRedemptions for this email
@@ -552,12 +787,22 @@ export async function deleteCustomerFromFirestore(customerId: string, customerEm
 }
 
 /**
- * Delete Order from Firestore
+ * Delete Order from Firestore + persist permanent order deletion tombstone
  */
 export async function deleteOrderFromFirestore(orderId: string): Promise<void> {
+  recordOrderAsDeleted(orderId);
   try {
     const orderRef = doc(db, 'orders', orderId);
     await deleteDoc(orderRef);
+    await setDoc(
+      doc(db, 'deletedCustomerRecords', `ord_${orderId}`),
+      sanitizeForFirestore({
+        id: `ord_${orderId}`,
+        targetId: orderId,
+        type: 'order',
+        deletedAt: new Date().toISOString(),
+      })
+    ).catch(() => {});
     console.log('[Firebase] Order successfully deleted from Firestore:', orderId);
   } catch (e) {
     handleFirestoreError(e, OperationType.DELETE, `orders/${orderId}`);
@@ -1039,10 +1284,12 @@ function cacheCorporateEmployeeLocally(emp: CorporateEmployeeRecord) {
 }
 
 export async function saveCorporateAccountToFirestore(account: CorporateAccount): Promise<void> {
+  unrecordCorporateAsDeleted(account.id);
   cacheCorporateAccountLocally(account);
   try {
     const clean = sanitizeForFirestore(account);
     await setDoc(doc(db, 'corporateAccounts', account.id), clean, { merge: true });
+    await deleteDoc(doc(db, 'deletedCustomerRecords', `corp_${account.id}`)).catch(() => {});
   } catch (e) {
     handleFirestoreError(e, OperationType.WRITE, `corporateAccounts/${account.id}`);
   }
@@ -1137,16 +1384,26 @@ export function subscribeToCorporateEmployees(
   return onSnapshot(
     q,
     (snapshot) => {
-      const list: CorporateEmployeeRecord[] = snapshot.docs.map((d) => ({
-        ...(d.data() as CorporateEmployeeRecord),
-        id: d.id,
-      }));
-      list.forEach(cacheCorporateEmployeeLocally);
+      const list: CorporateEmployeeRecord[] = snapshot.docs
+        .map((d) => ({
+          ...(d.data() as CorporateEmployeeRecord),
+          id: d.id,
+        }))
+        .filter((emp) => !isCustomerRecordedAsDeleted(emp.id));
+
+      if (typeof window !== 'undefined') {
+        try {
+          const otherEmps = getLocalCorporateEmployees().filter((e) => e.corporateId !== corporateId);
+          localStorage.setItem(LOCAL_CORP_EMPLOYEES_KEY, JSON.stringify([...list, ...otherEmps]));
+        } catch {}
+      }
       callback(list.sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || '')));
     },
     (err) => {
       console.warn('[Firebase subscribeToCorporateEmployees notice]:', err);
-      const localList = getLocalCorporateEmployees().filter((e) => e.corporateId === corporateId);
+      const localList = getLocalCorporateEmployees().filter(
+        (e) => e.corporateId === corporateId && !isCustomerRecordedAsDeleted(e.id)
+      );
       callback(localList);
     }
   );
@@ -1158,16 +1415,23 @@ export function subscribeToAllCorporateAccounts(
   return onSnapshot(
     collection(db, 'corporateAccounts'),
     (snapshot) => {
-      const list: CorporateAccount[] = snapshot.docs.map((d) => ({
-        ...(d.data() as CorporateAccount),
-        id: d.id,
-      }));
-      list.forEach(cacheCorporateAccountLocally);
+      const list: CorporateAccount[] = snapshot.docs
+        .map((d) => ({
+          ...(d.data() as CorporateAccount),
+          id: d.id,
+        }))
+        .filter((acct) => !isCorporateRecordedAsDeleted(acct.id));
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(LOCAL_CORP_ACCOUNTS_KEY, JSON.stringify(list));
+        } catch {}
+      }
       callback(list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')));
     },
     (err) => {
       console.warn('[Firebase subscribeToAllCorporateAccounts notice]:', err);
-      callback(getLocalCorporateAccounts());
+      callback(getLocalCorporateAccounts().filter((a) => !isCorporateRecordedAsDeleted(a.id)));
     }
   );
 }
@@ -1178,26 +1442,38 @@ export function subscribeToAllCorporateEmployees(
   return onSnapshot(
     collection(db, 'corporateEmployees'),
     (snapshot) => {
-      const list: CorporateEmployeeRecord[] = snapshot.docs.map((d) => ({
-        ...(d.data() as CorporateEmployeeRecord),
-        id: d.id,
-      }));
-      list.forEach(cacheCorporateEmployeeLocally);
+      const list: CorporateEmployeeRecord[] = snapshot.docs
+        .map((d) => ({
+          ...(d.data() as CorporateEmployeeRecord),
+          id: d.id,
+        }))
+        .filter((emp) => !isCustomerRecordedAsDeleted(emp.id));
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(LOCAL_CORP_EMPLOYEES_KEY, JSON.stringify(list));
+        } catch {}
+      }
       callback(list.sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || '')));
     },
     (err) => {
       console.warn('[Firebase subscribeToAllCorporateEmployees notice]:', err);
-      callback(getLocalCorporateEmployees());
+      callback(getLocalCorporateEmployees().filter((e) => !isCustomerRecordedAsDeleted(e.id)));
     }
   );
 }
 
-export async function confirmCorporateAccountAndOrder(account: CorporateAccount): Promise<CorporateAccount> {
+export async function confirmCorporateAccountAndOrder(
+  account: CorporateAccount
+): Promise<{ updatedAccount: CorporateAccount; companyCustomer: CustomerRecord }> {
   const confirmedAt = new Date().toISOString();
   const updatedAccount: CorporateAccount = {
     ...account,
     paymentStatus: 'Confirmed',
     confirmedAt,
+    defaultPassword: account.defaultPassword || DEFAULT_SUBSCRIBER_PASSWORD,
+    password: account.password || DEFAULT_SUBSCRIBER_PASSWORD,
+    isDefaultPassword: account.isDefaultPassword ?? true,
   };
   await saveCorporateAccountToFirestore(updatedAccount);
 
@@ -1216,7 +1492,11 @@ export async function confirmCorporateAccountAndOrder(account: CorporateAccount)
     console.warn('[Firebase confirmCorporateAccountAndOrder orders notice]:', err);
   }
 
-  return updatedAccount;
+  // Create/sync confirmed Company entry in Customers section under "Company"
+  const companyCustomer = buildCompanyCustomerRecord(updatedAccount);
+  await saveCustomerToFirestore(companyCustomer);
+
+  return { updatedAccount, companyCustomer };
 }
 
 export async function claimCorporateEmployeeSlotAndSave(
@@ -1290,12 +1570,12 @@ export async function isEmailAlreadyRegisteredInFirestore(
   if (!cleanEmail) return { exists: false };
 
   try {
-    // 1. Check active customers
-    const custSnap = await getDocs(query(collection(db, 'customers'), where('email', '==', cleanEmail)));
+    // 1. Check active customers (case-insensitive scan so mixed-case docs are always caught)
+    const custSnap = await getDocs(collection(db, 'customers'));
     for (const d of custSnap.docs) {
       const data = d.data() as CustomerRecord;
       if (options?.excludeCustomerId && d.id === options.excludeCustomerId) continue;
-      if (isCustomerRecordedAsDeleted(d.id, cleanEmail)) continue;
+      if (isCustomerRecordedAsDeleted(d.id)) continue;
       if ((data.email || '').trim().toLowerCase() === cleanEmail) {
         return {
           exists: true,
@@ -1306,10 +1586,11 @@ export async function isEmailAlreadyRegisteredInFirestore(
     }
 
     // 2. Check corporate employees
-    const empSnap = await getDocs(query(collection(db, 'corporateEmployees'), where('email', '==', cleanEmail)));
+    const empSnap = await getDocs(collection(db, 'corporateEmployees'));
     for (const d of empSnap.docs) {
       const data = d.data() as CorporateEmployeeRecord;
       if (options?.excludeCustomerId && d.id === options.excludeCustomerId) continue;
+      if (isCustomerRecordedAsDeleted(d.id)) continue;
       if ((data.email || '').trim().toLowerCase() === cleanEmail) {
         return {
           exists: true,
@@ -1321,7 +1602,7 @@ export async function isEmailAlreadyRegisteredInFirestore(
 
     // 3. Check pending/active orders
     if (options?.includeOrders) {
-      const ordSnap = await getDocs(query(collection(db, 'orders'), where('email', '==', cleanEmail)));
+      const ordSnap = await getDocs(collection(db, 'orders'));
       for (const d of ordSnap.docs) {
         const data = d.data() as any;
         if ((data.email || '').trim().toLowerCase() === cleanEmail) {
@@ -1336,7 +1617,7 @@ export async function isEmailAlreadyRegisteredInFirestore(
 
     // 4. Check waitlist leads
     if (options?.includeWaitlist) {
-      const wlSnap = await getDocs(query(collection(db, 'waitlist'), where('email', '==', cleanEmail)));
+      const wlSnap = await getDocs(collection(db, 'waitlist'));
       for (const d of wlSnap.docs) {
         const data = d.data() as any;
         if ((data.email || '').trim().toLowerCase() === cleanEmail) {
@@ -1486,6 +1767,12 @@ export async function deleteCorporateAccountAndLinkedData(
   const deletedCustomerIds = new Set<string>();
   const deletedOrderIds = new Set<string>();
 
+  // 0. Record permanent deletion tombstone for corporate account so snapshots/logout never restore it
+  recordCorporateAsDeleted(account.id);
+  const companyCustomerId = `cust-corp-${account.id}`;
+  recordCustomerAsDeleted(companyCustomerId, account.adminEmail);
+  deletedCustomerIds.add(companyCustomerId);
+
   // 1. Clean localStorage corporate caches first so stale snapshots never resurrect
   if (typeof window !== 'undefined') {
     try {
@@ -1521,7 +1808,9 @@ export async function deleteCorporateAccountAndLinkedData(
     handleFirestoreError(e, OperationType.DELETE, `corporateEmployees?corporateId=${account.id}`);
   }
 
-  // 3. Delete any linked CustomerRecord documents & sessions tied to this company
+  // 3. Delete the Company customer document + any linked CustomerRecord documents & sessions
+  await deleteCustomerFromFirestore(companyCustomerId, account.adminEmail).catch(() => {});
+
   try {
     const custSnap = await getDocs(
       query(collection(db, 'customers'), where('corporateId', '==', account.id))
@@ -1542,7 +1831,7 @@ export async function deleteCorporateAccountAndLinkedData(
     await deleteCustomerFromFirestore('', empEmail).catch(() => {});
   }
 
-  // 4. Delete corporate orders matching inviteCode from Firestore /orders
+  // 4. Delete corporate orders matching inviteCode from Firestore /orders + record order deletion tombstones
   if (account.inviteCode) {
     try {
       const ordSnap = await getDocs(
@@ -1550,16 +1839,25 @@ export async function deleteCorporateAccountAndLinkedData(
       );
       for (const ordDoc of ordSnap.docs) {
         deletedOrderIds.add(ordDoc.id);
-        await deleteDoc(doc(db, 'orders', ordDoc.id));
+        await deleteOrderFromFirestore(ordDoc.id).catch(() => {});
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `orders?memberCode=${account.inviteCode}`);
     }
   }
 
-  // 5. Delete the corporateAccounts document itself
+  // 5. Delete the corporateAccounts document itself & write Firestore corporate tombstone
   try {
     await deleteDoc(doc(db, 'corporateAccounts', account.id));
+    await setDoc(
+      doc(db, 'deletedCustomerRecords', `corp_${account.id}`),
+      sanitizeForFirestore({
+        id: `corp_${account.id}`,
+        targetId: account.id,
+        type: 'corporate',
+        deletedAt: new Date().toISOString(),
+      })
+    ).catch(() => {});
   } catch (e) {
     handleFirestoreError(e, OperationType.DELETE, `corporateAccounts/${account.id}`);
   }

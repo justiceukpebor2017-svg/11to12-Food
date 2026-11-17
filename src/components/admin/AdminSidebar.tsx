@@ -33,6 +33,7 @@ interface AdminSidebarProps {
   pendingOrdersCount: number;
   waitlistCount?: number;
   customersCount?: number;
+  companiesCount?: number;
 }
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
@@ -44,6 +45,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   pendingOrdersCount,
   waitlistCount = 0,
   customersCount = 0,
+  companiesCount = 0,
 }) => {
   const navItems = [
     {
@@ -72,11 +74,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       badge: customersCount > 0 ? String(customersCount) : undefined,
       badgeColor: 'bg-emerald-950 text-emerald-400 border border-emerald-800/60',
     },
-    {
-      id: 'companies' as AdminTab,
-      label: 'Companies',
-      icon: Building2,
-    },
+    ...(companiesCount > 0
+      ? [
+          {
+            id: 'companies' as AdminTab,
+            label: 'Companies',
+            icon: Building2,
+            badge: String(companiesCount),
+            badgeColor: 'bg-orange-950 text-orange-300 border border-orange-800/60',
+          },
+        ]
+      : []),
     {
       id: 'meal-schedule' as AdminTab,
       label: 'Meal Schedule',

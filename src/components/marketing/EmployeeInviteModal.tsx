@@ -24,6 +24,7 @@ import {
   subscribeToCorporateEmployees,
   isEmailAlreadyRegisteredInFirestore,
 } from '../../services/firebase';
+import { unrecordCustomerAsDeleted } from '../../utils/customerDeletions';
 import { DEFAULT_SUBSCRIBER_PASSWORD } from '../../utils/credentialUtils';
 import { LagosIslandAddressCheckModal } from '../common/LagosIslandAddressCheckModal';
 import {
@@ -354,6 +355,8 @@ export const EmployeeInviteModal: React.FC<EmployeeInviteModalProps> = ({
       const nowIso = new Date().toISOString();
       const employeeId = `emp-${activeAccount.id}-${Date.now()}`;
       const customerId = `corp-cust-${Date.now()}`;
+      unrecordCustomerAsDeleted(employeeId);
+      unrecordCustomerAsDeleted(customerId);
 
       const employeeRecord: CorporateEmployeeRecord = {
         id: employeeId,

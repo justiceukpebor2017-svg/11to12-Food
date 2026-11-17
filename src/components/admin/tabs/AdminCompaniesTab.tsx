@@ -13,6 +13,7 @@ import {
   deleteCorporateEmployeeAndFreeSlot,
   deleteCorporateAccountAndLinkedData,
 } from '../../../services/firebase';
+import { DEFAULT_SUBSCRIBER_PASSWORD } from '../../../utils/credentialUtils';
 import {
   Building2,
   Users,
@@ -33,6 +34,7 @@ import {
   Image as ImageIcon,
   Trash2,
   AlertTriangle,
+  Key,
 } from 'lucide-react';
 
 interface AdminCompaniesTabProps {
@@ -40,6 +42,7 @@ interface AdminCompaniesTabProps {
   submittedOrders?: OrderSubmission[];
   onDeleteCustomer?: (customerId: string, customerEmail?: string) => Promise<void> | void;
   onDeleteOrder?: (orderId: string) => Promise<void> | void;
+  onCompanyConfirmed?: (companyCustomer: CustomerRecord, updatedAcct: CorporateAccount) => void;
 }
 
 export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
@@ -47,6 +50,7 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
   submittedOrders = [],
   onDeleteCustomer,
   onDeleteOrder,
+  onCompanyConfirmed,
 }) => {
   const [accounts, setAccounts] = useState<CorporateAccount[]>([]);
   const [employees, setEmployees] = useState<CorporateEmployeeRecord[]>([]);
@@ -70,6 +74,21 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
     };
   }, []);
 
+  // Requirement: Only companies present in the Customers section belong in the Companies nav page
+  const visibleAccounts = useMemo(() => {
+    return accounts.filter((acct) => {
+      const cleanAdminEmail = (acct.adminEmail || '').trim().toLowerCase();
+      const cleanInvite = (acct.inviteCode || '').trim().toUpperCase();
+      return customers.some(
+        (c) =>
+          c.id === `cust-corp-${acct.id}` ||
+          c.corporateId === acct.id ||
+          (cleanInvite && (c.memberCode || '').trim().toUpperCase() === cleanInvite) ||
+          (cleanAdminEmail && (c.email || '').trim().toLowerCase() === cleanAdminEmail)
+      );
+    });
+  }, [accounts, customers]);
+
   const employeesByCompany = useMemo(() => {
     const map = new Map<string, CorporateEmployeeRecord[]>();
     employees.forEach((emp) => {
@@ -82,7 +101,7 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
 
   const filteredAccounts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const sorted = [...accounts].sort((a, b) => {
+    const sorted = [...visibleAccounts].sort((a, b) => {
       if (a.paymentStatus !== b.paymentStatus) {
         return a.paymentStatus === 'Pending Verification' ? -1 : 1;
       }
@@ -96,11 +115,11 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
         a.adminEmail.toLowerCase().includes(q) ||
         a.inviteCode.toLowerCase().includes(q)
     );
-  }, [accounts, searchQuery]);
+  }, [visibleAccounts, searchQuery]);
 
   const selectedCompany = useMemo(
-    () => accounts.find((a) => a.id === selectedCompanyId) || null,
-    [accounts, selectedCompanyId]
+    () => visibleAccounts.find((a) => a.id === selectedCompanyId) || null,
+    [visibleAccounts, selectedCompanyId]
   );
 
   const selectedCompanyEmployees = useMemo(() => {
@@ -121,7 +140,9 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
   const handleConfirmCompany = async (acct: CorporateAccount) => {
     setConfirmingId(acct.id);
     try {
-      await confirmCorporateAccountAndOrder(acct);
+      const { updatedAccount, companyCustomer } = await confirmCorporateAccountAndOrder(acct);
+      setAccounts((prev) => prev.map((a) => (a.id === updatedAccount.id ? updatedAccount : a)));
+      onCompanyConfirmed?.(companyCustomer, updatedAccount);
     } finally {
       setConfirmingId(null);
     }
@@ -246,21 +267,26 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
     }
   };
 
-  const pendingCount = accounts.filter((a) => a.paymentStatus === 'Pending Verification').length;
-  const totalCompanyStaffCount = employees.length;
+  const visibleAccountIds = useMemo(() => new Set(visibleAccounts.map((a) => a.id)), [visibleAccounts]);
+  const pendingCount = visibleAccounts.filter((a) => a.paymentStatus === 'Pending Verification').length;
+  const totalCompanyStaffCount = employees.filter((e) => visibleAccountIds.has(e.corporateId)).length;
 
   // COMPANY DETAIL VIEW WITH FULL EMPLOYEE ROSTER
   if (selectedCompany) {
     const usedSlots = selectedCompanyEmployees.length;
     const remainingSlots = Math.max(0, selectedCompany.totalEmployees - usedSlots);
     const inviteUrl = getInviteUrl(selectedCompany.inviteCode);
+    const companyPortalPass =
+      selectedCompany.password || selectedCompany.defaultPassword || DEFAULT_SUBSCRIBER_PASSWORD;
+    const portalOrigin =
+      typeof window !== 'undefined' ? window.location.origin : 'https://www.11to12.food';
     const waShareUrl = `https://wa.me/${selectedCompany.adminPhone.replace(/\D/g, '').replace(/^0/, '234')}?text=${encodeURIComponent(
-      `Hello ${selectedCompany.adminName}! Your ${selectedCompany.companyName} corporate lunch plan (${selectedCompany.totalEmployees} employees × ${selectedCompany.mealDaysPerEmployee} days) is now confirmed and active on 11:12 Food. Share this unique link with your team so each staff member can claim their slot and choose their meals:\n${inviteUrl}\n\nEmployer Access Code: ${selectedCompany.accessCode}`
+      `Hello ${selectedCompany.adminName}! Your ${selectedCompany.companyName} corporate lunch plan (${selectedCompany.totalEmployees} employees × ${selectedCompany.mealDaysPerEmployee} days) is now confirmed and active on 11:12 Food.\n\n1) Share this unique link with your staff so each person picks their meals:\n${inviteUrl}\n\n2) Company Portal Login (View-Only Staff & Meal Tracker):\nWebsite: ${portalOrigin}\nEmail: ${selectedCompany.adminEmail}\nDefault Password: ${companyPortalPass}\nAccess Code: ${selectedCompany.accessCode}`
     )}`;
     const emailShareUrl = `mailto:${selectedCompany.adminEmail}?subject=${encodeURIComponent(
-      `${selectedCompany.companyName} — Your 11:12 Food Employee Invitation Link`
+      `${selectedCompany.companyName} — Your 11:12 Food Employee Link & Company Portal Login`
     )}&body=${encodeURIComponent(
-      `Hello ${selectedCompany.adminName},\n\nYour corporate lunch subscription (${selectedCompany.totalEmployees} employees × ${selectedCompany.mealDaysPerEmployee} meal days) has been verified.\n\nShare this unique employee invitation link with your staff:\n${inviteUrl}\n\nEmployer Dashboard Access Code: ${selectedCompany.accessCode}\n\nBest regards,\n11:12 Food Operations`
+      `Hello ${selectedCompany.adminName},\n\nYour corporate lunch subscription (${selectedCompany.totalEmployees} employees × ${selectedCompany.mealDaysPerEmployee} meal days) has been verified.\n\n1. Staff Invitation Link:\n${inviteUrl}\n\n2. Company Portal Login (View-Only Staff & Meal Tracker):\nWebsite: ${portalOrigin}\nEmail: ${selectedCompany.adminEmail}\nPassword: ${companyPortalPass}\nAccess Code: ${selectedCompany.accessCode}\n\nBest regards,\n11:12 Food Operations`
     )}`;
 
     return (
@@ -385,6 +411,51 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
               </select>
             </div>
           </div>
+        </div>
+
+        {/* Company Portal Login Details Card (White & Light Orange — Zero Black Cards) */}
+        <div className="bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] border border-orange-200 rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-xs font-black text-[#FF4C00] uppercase tracking-wider">
+              <Key className="w-4 h-4" />
+              <span>Company Portal Login Details (Read-Only Staff &amp; Meals View)</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-zinc-800">
+              <span>
+                Email: <strong className="text-black">{selectedCompany.adminEmail}</strong>
+              </span>
+              <span>
+                Password:{' '}
+                <strong className="font-mono text-[#FF4C00]">{companyPortalPass}</strong>
+              </span>
+              <span>
+                Access Code:{' '}
+                <strong className="font-mono text-black">{selectedCompany.accessCode}</strong>
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-600">
+              {selectedCompany.companyName} HR can sign in via the main <strong>Log In</strong> button or <strong>Employer Portal</strong> to view all staff who claimed slots and their daily meal selections.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const detailsText = `11:12 Food Company Portal Login (${selectedCompany.companyName})\nWebsite: ${portalOrigin}\nEmail: ${selectedCompany.adminEmail}\nPassword: ${companyPortalPass}\nAccess Code: ${selectedCompany.accessCode}\nStaff Invite Link: ${inviteUrl}`;
+              navigator.clipboard.writeText(detailsText);
+              setCopiedCode(`login-${selectedCompany.id}`);
+              setTimeout(() => setCopiedCode(null), 2500);
+            }}
+            className="px-4 py-2.5 rounded-xl bg-white hover:bg-zinc-100 border border-orange-300 text-xs font-bold text-[#FF4C00] inline-flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
+          >
+            {copiedCode === `login-${selectedCompany.id}` ? (
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
+            <span>
+              {copiedCode === `login-${selectedCompany.id}` ? 'Login Details Copied' : 'Copy Company Login Details'}
+            </span>
+          </button>
         </div>
 
         {/* Registered Employees Under This Company */}
@@ -625,8 +696,8 @@ export const AdminCompaniesTab: React.FC<AdminCompaniesTabProps> = ({
             <span>Corporate Accounts</span>
             <Building2 className="w-4 h-4 text-[#FF4C00]" />
           </div>
-          <div className="text-3xl font-black text-black mt-2 tabular-nums">{accounts.length}</div>
-          <p className="text-xs text-zinc-500 mt-1">Total companies subscribed</p>
+          <div className="text-3xl font-black text-black mt-2 tabular-nums">{visibleAccounts.length}</div>
+          <p className="text-xs text-zinc-500 mt-1">Confirmed / Customer-linked companies</p>
         </div>
 
         <div className="bg-gradient-to-br from-[#FFF4ED] to-[#FFE7D6] border border-orange-200 rounded-2xl p-5">

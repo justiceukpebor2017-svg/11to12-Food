@@ -67,11 +67,14 @@ export const Header: React.FC<HeaderProps> = ({
             
             {/* 11 to 12 Brand Logo */}
             <a
-              href="#"
+              href="/"
               onClick={(e) => {
                 e.preventDefault();
-                setCurrentTab('marketing');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                try {
+                  localStorage.removeItem('11to12_active_view_mode');
+                  localStorage.removeItem('11to12_corporate_session_v1');
+                } catch {}
+                window.location.href = '/';
               }}
               className="flex items-center space-x-3 group"
             >

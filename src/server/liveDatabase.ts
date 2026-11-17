@@ -16,6 +16,7 @@ export interface LiveDatabaseSchema {
   launchSettings: LaunchSettings;
   pricingSettings?: PricingSettings;
   deletedCustomerRecords?: Array<{ id: string; email: string; deletedAt: string }>;
+  deletedOrderIds?: string[];
   customMeals?: Record<string, any>;
   activeSessions?: Record<string, ActiveSessionRecord>;
   sessionResetEpoch?: number;
@@ -130,6 +131,7 @@ let dbState: LiveDatabaseSchema = {
   },
   pricingSettings: DEFAULT_PRICING_SETTINGS,
   deletedCustomerRecords: [],
+  deletedOrderIds: [],
   customMeals: {},
   activeSessions: {},
   sessionResetEpoch: 0,
@@ -167,6 +169,7 @@ export function initLiveDatabase(): void {
           ? parsed.pricingSettings
           : DEFAULT_PRICING_SETTINGS,
         deletedCustomerRecords: Array.isArray(parsed.deletedCustomerRecords) ? parsed.deletedCustomerRecords : [],
+        deletedOrderIds: Array.isArray(parsed.deletedOrderIds) ? parsed.deletedOrderIds : [],
         customMeals: parsed.customMeals && typeof parsed.customMeals === 'object' ? parsed.customMeals : {},
         activeSessions: parsed.activeSessions && typeof parsed.activeSessions === 'object' ? parsed.activeSessions : {},
         sessionResetEpoch: typeof parsed.sessionResetEpoch === 'number' ? parsed.sessionResetEpoch : 0,
@@ -588,6 +591,9 @@ export function deleteCustomerRecord(id: string, emailHint?: string): boolean {
  * Adds an order submission (deduplicates by ID and preserves confirmed status)
  */
 export function addOrderSubmission(order: OrderSubmission): OrderSubmission {
+  if (order.id && dbState.deletedOrderIds) {
+    dbState.deletedOrderIds = dbState.deletedOrderIds.filter((id) => id !== order.id);
+  }
   const existingIdx = dbState.submittedOrders.findIndex(
     (o) => o.id.toLowerCase() === (order.id || '').toLowerCase()
   );
@@ -611,7 +617,7 @@ export function addOrderSubmission(order: OrderSubmission): OrderSubmission {
       const newCust: CustomerRecord = {
         id: `cust-${order.id || Date.now()}`,
         fullName: order.fullName,
-        email: order.email,
+        email: cleanEmail,
         phone: order.phone,
         company: order.company,
         officeAddress: order.officeAddress,
@@ -739,7 +745,7 @@ export function confirmOrderPaymentInDb(orderId: string): { order?: OrderSubmiss
     const newCust: CustomerRecord = {
       id: `cust-${order.id || Date.now()}`,
       fullName: order.fullName,
-      email: order.email,
+      email: normalizeEmail(order.email),
       phone: order.phone,
       company: order.company,
       officeAddress: order.officeAddress,
@@ -777,14 +783,18 @@ export function confirmOrderPaymentInDb(orderId: string): { order?: OrderSubmiss
  * Deletes an order submission completely from the database
  */
 export function deleteOrderSubmissionInDb(orderId: string): boolean {
-  const initialLen = dbState.submittedOrders.length;
-  dbState.submittedOrders = dbState.submittedOrders.filter((o) => o.id !== orderId);
-  if (dbState.submittedOrders.length < initialLen) {
-    saveLiveDatabase();
-    broadcastLiveUpdate('ORDER_DELETED', { id: orderId });
-    return true;
+  const cleanOrderId = (orderId || '').trim();
+  if (!cleanOrderId) return false;
+  if (!dbState.deletedOrderIds) {
+    dbState.deletedOrderIds = [];
   }
-  return false;
+  if (!dbState.deletedOrderIds.includes(cleanOrderId)) {
+    dbState.deletedOrderIds.push(cleanOrderId);
+  }
+  dbState.submittedOrders = dbState.submittedOrders.filter((o) => o.id !== cleanOrderId);
+  saveLiveDatabase();
+  broadcastLiveUpdate('ORDER_DELETED', { id: cleanOrderId });
+  return true;
 }
 
 /**

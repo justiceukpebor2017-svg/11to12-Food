@@ -5,7 +5,12 @@ import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { getLaunchSettings, updateLaunchConfig } from '../config/launchConfig';
 import { PricingSettings, updatePricingSettings as updatePricingSettingsLocal } from '../config/pricingConfig';
 import { customMealOverrides, broadcastMenuUpdate } from '../data/menuRotation';
-import { recordCustomerAsDeleted, isCustomerRecordedAsDeleted } from '../utils/customerDeletions';
+import {
+  recordCustomerAsDeleted,
+  isCustomerRecordedAsDeleted,
+  recordOrderAsDeleted,
+  isOrderRecordedAsDeleted,
+} from '../utils/customerDeletions';
 
 export interface PulseStats {
   waitlistCount: number;
@@ -73,12 +78,16 @@ class LiveSyncService {
         const savedCust = localStorage.getItem('11to12_persistent_customers_v1');
         if (savedCust) {
           const parsed = JSON.parse(savedCust);
-          if (Array.isArray(parsed) && parsed.length > 0) this.state.customers = parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.state.customers = parsed.filter((c: CustomerRecord) => !isCustomerRecordedAsDeleted(c.id));
+          }
         }
         const savedOrders = localStorage.getItem('11to12_persistent_submitted_orders_v1');
         if (savedOrders) {
           const parsed = JSON.parse(savedOrders);
-          if (Array.isArray(parsed) && parsed.length > 0) this.state.submittedOrders = parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.state.submittedOrders = parsed.filter((o: OrderSubmission) => !isOrderRecordedAsDeleted(o.id));
+          }
         }
         const savedCredits = localStorage.getItem('11to12_persistent_credit_redemptions_v1');
         if (savedCredits) {
@@ -169,7 +178,7 @@ class LiveSyncService {
     }
 
     if (data.type === 'INITIAL_SYNC' && data.db) {
-      if (Array.isArray(data.db.waitlistLeads) && data.db.waitlistLeads.length > 0) {
+      if (Array.isArray(data.db.waitlistLeads)) {
         this.state.waitlistLeads = data.db.waitlistLeads;
       }
       if (Array.isArray(data.db.deletedCustomerRecords)) {
@@ -177,17 +186,24 @@ class LiveSyncService {
           recordCustomerAsDeleted(d.id, d.email);
         });
       }
+      if (Array.isArray(data.db.deletedOrderIds)) {
+        data.db.deletedOrderIds.forEach((oid: string) => {
+          recordOrderAsDeleted(oid);
+        });
+      }
       if (Array.isArray(data.db.customers)) {
         const serverMap = new Map<string, CustomerRecord>();
         data.db.customers.forEach((c: CustomerRecord) => {
-          if (!isCustomerRecordedAsDeleted(c.id, c.email)) {
+          if (!isCustomerRecordedAsDeleted(c.id)) {
             serverMap.set(c.id, c);
           }
         });
         this.state.customers = Array.from(serverMap.values());
       }
       if (Array.isArray(data.db.submittedOrders)) {
-        this.state.submittedOrders = data.db.submittedOrders;
+        this.state.submittedOrders = data.db.submittedOrders.filter(
+          (o: OrderSubmission) => !isOrderRecordedAsDeleted(o.id)
+        );
       }
       if (Array.isArray(data.db.creditRedemptions)) {
         this.state.creditRedemptions = data.db.creditRedemptions;
@@ -300,6 +316,7 @@ class LiveSyncService {
         );
       }
     } else if (data.type === 'ORDER_DELETED' && data.payload) {
+      recordOrderAsDeleted(data.payload.id);
       this.state.submittedOrders = this.state.submittedOrders.filter((o) => o.id !== data.payload.id);
     } else if (data.type === 'CREDIT_REDEEMED' && data.payload) {
       const exists = this.state.creditRedemptions.some((r) => r.id === data.payload.id);
@@ -376,20 +393,27 @@ class LiveSyncService {
               recordCustomerAsDeleted(d.id, d.email);
             });
           }
+          if (Array.isArray(json.db.deletedOrderIds)) {
+            json.db.deletedOrderIds.forEach((oid: string) => {
+              recordOrderAsDeleted(oid);
+            });
+          }
           if (Array.isArray(json.db.waitlistLeads)) {
             this.state.waitlistLeads = json.db.waitlistLeads;
           }
           if (Array.isArray(json.db.customers)) {
             const serverMap = new Map<string, CustomerRecord>();
             json.db.customers.forEach((c: CustomerRecord) => {
-              if (!isCustomerRecordedAsDeleted(c.id, c.email)) {
+              if (!isCustomerRecordedAsDeleted(c.id)) {
                 serverMap.set(c.id, c);
               }
             });
             this.state.customers = Array.from(serverMap.values());
           }
           if (Array.isArray(json.db.submittedOrders)) {
-            this.state.submittedOrders = json.db.submittedOrders;
+            this.state.submittedOrders = json.db.submittedOrders.filter(
+              (o: OrderSubmission) => !isOrderRecordedAsDeleted(o.id)
+            );
           }
           if (Array.isArray(json.db.creditRedemptions) && json.db.creditRedemptions.length > 0) {
             const map = new Map<string, CreditRedemptionOrder>();
@@ -926,21 +950,20 @@ class LiveSyncService {
    * Completely removes an order submission/invoice from central database and broadcasts across all devices
    */
   public async deleteOrder(id: string): Promise<boolean> {
+    recordOrderAsDeleted(id);
+    this.state.submittedOrders = this.state.submittedOrders.filter((o) => o.id !== id);
+    this.notify();
     try {
       const res = await fetch(apiUrl(`/api/orders/${encodeURIComponent(id)}`), {
         method: 'DELETE',
       });
       if (res.ok) {
-        this.state.submittedOrders = this.state.submittedOrders.filter((o) => o.id !== id);
-        this.notify();
         return true;
       }
     } catch (e) {
       console.warn('[LiveSync] Network deleteOrder error, falling back locally:', e);
     }
 
-    this.state.submittedOrders = this.state.submittedOrders.filter((o) => o.id !== id);
-    this.notify();
     return true;
   }
 

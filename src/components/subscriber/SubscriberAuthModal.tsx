@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CustomerRecord, TestimonialItem } from '../../types';
+import { CustomerRecord, TestimonialItem, CorporateAccount } from '../../types';
 import {
   Lock,
   Mail,
@@ -18,10 +18,15 @@ import { CONTACT_CONFIG } from '../../config/contactConfig';
 import { SignInPage } from '../ui/sign-in';
 import {
   loginSubscriberAccount,
+  loginCorporatePortalAccount,
+  getCorporateAccountByAccessCodeOrEmail,
   loginWithGoogleAccount,
-  sendSubscriberPasswordReset,
   updateCustomerPasswordInFirestore,
+  db,
+  collection,
 } from '../../services/firebase';
+import { getDocs } from 'firebase/firestore';
+import { DEFAULT_SUBSCRIBER_PASSWORD } from '../../utils/credentialUtils';
 import { isCustomerRecordedAsDeleted } from '../../utils/customerDeletions';
 
 interface SubscriberAuthModalProps {
@@ -29,6 +34,7 @@ interface SubscriberAuthModalProps {
   onClose: () => void;
   customers: CustomerRecord[];
   onLoginSuccess: (customer: CustomerRecord) => void;
+  onCompanyLoginSuccess?: (account: CorporateAccount) => void;
   onUpdateCustomerPassword: (customerId: string, newPass: string) => void;
   onOpenAdminLogin?: () => void;
   testimonials?: TestimonialItem[];
@@ -41,6 +47,7 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
   onClose,
   customers,
   onLoginSuccess,
+  onCompanyLoginSuccess,
   onUpdateCustomerPassword,
   onOpenAdminLogin,
   testimonials,
@@ -86,9 +93,33 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       return;
     }
 
-    // Helper to detect any default / initial password
+    // Helper to check if a password matches a customer record (including eat@11to12 default password)
+    const effectivePassMatches = (cust: CustomerRecord, passInput: string): boolean => {
+      const hasChangedCustomPassword =
+        Boolean(cust.passwordLastChangedAt) ||
+        cust.isDefaultPassword === false ||
+        (Boolean(cust.password) &&
+          cust.password.trim() !== DEFAULT_SUBSCRIBER_PASSWORD &&
+          cust.mustChangePassword === false);
+
+      if (cust.password && passInput === cust.password.trim()) {
+        return true;
+      }
+      if (cust.defaultPassword && passInput === cust.defaultPassword.trim()) {
+        return true;
+      }
+      if (!hasChangedCustomPassword && passInput.toLowerCase() === DEFAULT_SUBSCRIBER_PASSWORD) {
+        return true;
+      }
+      return false;
+    };
+
+    // Helper to detect whether the user should be prompted for first-login password setup
     const isDefaultPasswordValue = (pass: string, cust?: CustomerRecord | null): boolean => {
       if (!cust) return false;
+      if (cust.id.startsWith('cust-corp-') || cust.floorSuite === 'Corporate Account') {
+        return false;
+      }
 
       // If customer already customized and set their personal password, NEVER prompt to change again
       if (
@@ -99,12 +130,25 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
         return false;
       }
 
-      // Only prompt if account is genuinely on initial temporary/default password
       const p = (pass || '').trim().toLowerCase();
       const defP = (cust.defaultPassword || '').trim().toLowerCase();
-      const knownDefaults = ['eat@11to12', '11to12desk', '11to12lagos', '11to12', 'welcome123', 'password', '123456', 'deskdrop2026', 'deskdrop'];
+      const knownDefaults = [
+        DEFAULT_SUBSCRIBER_PASSWORD,
+        '11to12desk',
+        '11to12lagos',
+        '11to12',
+        'welcome123',
+        'password',
+        '123456',
+        'deskdrop2026',
+        'deskdrop',
+      ];
 
-      if (cust.mustChangePassword || cust.isDefaultPassword || p === 'eat@11to12') {
+      if (
+        cust.mustChangePassword ||
+        cust.isDefaultPassword ||
+        p === DEFAULT_SUBSCRIBER_PASSWORD
+      ) {
         if (defP && p === defP) return true;
         if (knownDefaults.includes(p)) return true;
         if (cust.defaultPassword && pass.trim() === cust.defaultPassword.trim()) return true;
@@ -113,27 +157,48 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       return false;
     };
 
-    // 0. Worldwide deletion check: immediately reject if account was removed
-    if (isCustomerRecordedAsDeleted(undefined, cleanEmail)) {
-      setError('This account was removed by administration. Credentials are no longer active in our database.');
-      setIsLoading(false);
-      try {
-        localStorage.removeItem('11to12_subscriber_profile');
-        localStorage.removeItem('11to12_active_view_mode');
-      } catch {}
-      return;
+    // 1. Check active customers list first (matching only non-deleted document IDs)
+    const registeredCustomer = customers.find(
+      (c) =>
+        c.email &&
+        c.email.trim().toLowerCase() === cleanEmail &&
+        !isCustomerRecordedAsDeleted(c.id)
+    );
+
+    const isRegisteredCompanyCustomer = Boolean(
+      registeredCustomer &&
+        (registeredCustomer.id.startsWith('cust-corp-') ||
+          registeredCustomer.floorSuite === 'Corporate Account')
+    );
+
+    // 1a. If logging in as a Company Account (or via Employer Access Code / Corporate Email), route to Read-Only Company Dashboard
+    if (isRegisteredCompanyCustomer || cleanEmail.startsWith('boss-')) {
+      const corpAuth = await loginCorporatePortalAccount(cleanEmail, cleanPass);
+      if (corpAuth.status === 'ok' && corpAuth.account && onCompanyLoginSuccess) {
+        onCompanyLoginSuccess(corpAuth.account);
+        setIsLoading(false);
+        onClose();
+        return;
+      }
+      if (corpAuth.status === 'pending') {
+        setError(
+          'Your company package is awaiting Admin payment confirmation. Once confirmed, your Company Portal dashboard and staff invite link will unlock.'
+        );
+        setIsLoading(false);
+        return;
+      }
+      if (corpAuth.status === 'invalid-password') {
+        setError(
+          `Incorrect password entered. Default company password is ${DEFAULT_SUBSCRIBER_PASSWORD}. Please verify and try again.`
+        );
+        setIsLoading(false);
+        return;
+      }
     }
 
-    // Pre-check registered customer in active customers list (ignoring deleted accounts)
-    const registeredCustomer = customers.find(
-      (c) => c.email && c.email.trim().toLowerCase() === cleanEmail && !isCustomerRecordedAsDeleted(c.id, c.email)
-    );
-    if (registeredCustomer && !isCustomerRecordedAsDeleted(registeredCustomer.id, registeredCustomer.email)) {
-      const passMatches = Boolean(
-        (registeredCustomer.password && cleanPass === registeredCustomer.password.trim()) ||
-        (registeredCustomer.defaultPassword && cleanPass === registeredCustomer.defaultPassword.trim())
-      );
-      if (passMatches) {
+    // 1b. Pre-check matched individual / company-staff subscriber
+    if (registeredCustomer && !isRegisteredCompanyCustomer) {
+      if (effectivePassMatches(registeredCustomer, cleanPass)) {
         if (isDefaultPasswordValue(cleanPass, registeredCustomer)) {
           setMatchedCustomer(registeredCustomer);
           setNewPassword('');
@@ -142,7 +207,6 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
           setIsLoading(false);
           return;
         }
-        // Custom password already set: log in directly without asking to change password
         onLoginSuccess(registeredCustomer);
         setIsLoading(false);
         onClose();
@@ -150,11 +214,51 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
       }
     }
 
-    try {
-      // 1. Authenticate with real Firebase Authentication backend
-      const { user, customer } = await loginSubscriberAccount(cleanEmail, cleanPass);
+    // 2. Check Confirmed Corporate Accounts in Firestore directly in case local customers haven't synced yet
+    if (!registeredCustomer && onCompanyLoginSuccess) {
+      try {
+        const corpAuth = await loginCorporatePortalAccount(cleanEmail, cleanPass);
+        if (corpAuth.status === 'ok' && corpAuth.account) {
+          onCompanyLoginSuccess(corpAuth.account);
+          setIsLoading(false);
+          onClose();
+          return;
+        }
+        if (corpAuth.status === 'pending') {
+          setError(
+            'Your company package is awaiting Admin payment confirmation. Once confirmed, your Company Portal dashboard and staff invite link will unlock.'
+          );
+          setIsLoading(false);
+          return;
+        }
+        if (corpAuth.status === 'invalid-password') {
+          setError(
+            `Incorrect password entered. Default company password is ${DEFAULT_SUBSCRIBER_PASSWORD}. Please verify and try again.`
+          );
+          setIsLoading(false);
+          return;
+        }
+      } catch {}
+    }
 
-      if (customer && !isCustomerRecordedAsDeleted(customer.id, customer.email)) {
+    try {
+      // 3. Authenticate with real Firebase / Firestore / live DB backend
+      const { customer } = await loginSubscriberAccount(cleanEmail, cleanPass);
+
+      if (customer && !isCustomerRecordedAsDeleted(customer.id)) {
+        if (
+          (customer.id.startsWith('cust-corp-') || customer.floorSuite === 'Corporate Account') &&
+          onCompanyLoginSuccess
+        ) {
+          const corpAcct = await getCorporateAccountByAccessCodeOrEmail(customer.email);
+          if (corpAcct) {
+            onCompanyLoginSuccess(corpAcct);
+            setIsLoading(false);
+            onClose();
+            return;
+          }
+        }
+
         if (isDefaultPasswordValue(cleanPass, customer)) {
           setMatchedCustomer(customer);
           setNewPassword('');
@@ -170,49 +274,23 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
         return;
       }
 
-      setError('No active subscriber account found for this email. This credential is no longer active.');
+      setError('No active subscriber account found for this email.');
       setIsLoading(false);
       return;
     } catch (err: any) {
       console.warn('[Firebase Auth] Sign in error:', err);
 
-      // Check if user is an active customer in customers list (and strictly not deleted)
-      const activeCustomer = customers.find(
-        (c) => c.email && c.email.toLowerCase() === cleanEmail && !isCustomerRecordedAsDeleted(c.id, c.email)
-      );
-      if (
-        activeCustomer &&
-        !isCustomerRecordedAsDeleted(activeCustomer.id, activeCustomer.email) &&
-        ((activeCustomer.password && cleanPass === activeCustomer.password.trim()) ||
-         (activeCustomer.defaultPassword && cleanPass === activeCustomer.defaultPassword.trim()) ||
-         isDefaultPasswordValue(cleanPass, activeCustomer))
-      ) {
-        if (isDefaultPasswordValue(cleanPass, activeCustomer)) {
-          setMatchedCustomer(activeCustomer);
-          setNewPassword('');
-          setConfirmNewPassword('');
-          setMode('first_login_change_password');
-          setIsLoading(false);
-          return;
-        }
-
-        onLoginSuccess(activeCustomer);
-        setIsLoading(false);
-        onClose();
-        return;
-      }
-
       setIsLoading(false);
-      if (err.code === 'auth/user-not-found' || err.message?.includes('credential is no longer active')) {
-        setError('No active subscriber account found with this email. This credential is no longer active.');
-      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-        setError('Incorrect password or email. Please verify your credentials or click "Forgot Password".');
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setError('Incorrect password entered. Please verify your credentials or click "Forgot Password".');
+      } else if (err.code === 'auth/user-not-found') {
+        setError('No active subscriber account found with this email. Please check the email address and try again.');
       } else if (err.code === 'auth/invalid-email') {
         setError('Please enter a valid work email address.');
       } else if (err.code === 'auth/too-many-requests') {
         setError('Too many failed sign-in attempts. Please wait a moment or reset your password.');
       } else {
-        setError(err.message || 'Unable to authenticate. This credential is no longer active.');
+        setError(err.message || 'Unable to sign in. Please check your email and password and try again.');
       }
     }
   };
@@ -240,13 +318,29 @@ export const SubscriberAuthModal: React.FC<SubscriberAuthModalProps> = ({
     executeLogin(email.trim().toLowerCase(), password.trim());
   };
 
-  // 2. Request Password Reset Verification Code
-  const handleRequestVerificationCode = (e: React.FormEvent) => {
+  // 2. Request Password Reset Verification Code (with Firestore lookup fallback)
+  const handleRequestVerificationCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     const cleanEmail = email.trim().toLowerCase();
-    const customer = customers.find((c) => c.email && c.email.toLowerCase() === cleanEmail);
+    let customer = customers.find(
+      (c) => c.email && c.email.trim().toLowerCase() === cleanEmail && !isCustomerRecordedAsDeleted(c.id)
+    );
+
+    if (!customer) {
+      try {
+        const snap = await getDocs(collection(db, 'customers'));
+        for (const d of snap.docs) {
+          if (isCustomerRecordedAsDeleted(d.id)) continue;
+          const data = d.data() as CustomerRecord;
+          if (data.email && data.email.trim().toLowerCase() === cleanEmail) {
+            customer = { ...data, id: d.id };
+            break;
+          }
+        }
+      } catch {}
+    }
 
     if (!customer) {
       setError('No subscriber found with this email address. Please make sure you enter your registered work email.');
